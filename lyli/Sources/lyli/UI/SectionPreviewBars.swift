@@ -186,8 +186,6 @@ struct MenuBarPreviewBar<Lane: View>: View {
 
                 Color(nsColor: .textColor).opacity(0.14)
             }
-
-            Color(nsColor: .windowBackgroundColor).opacity(0.16)
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
@@ -206,10 +204,6 @@ struct MenuBarPreviewBar<Lane: View>: View {
 
                 .padding(.horizontal, 3)
 
-                .overlay(alignment: previewIconBadge?.position == .leading ? .trailing : .leading) {
-                    slotEdgeOutline.frame(width: lyricsSlotWidth(p) + 6)
-                }
-
             HStack(spacing: 11) {
                 Image(systemName: "wifi")
                 Image(systemName: "battery.100")
@@ -225,14 +219,6 @@ struct MenuBarPreviewBar<Lane: View>: View {
 
         .background(.ultraThinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
-    }
-
-    private var slotEdgeOutline: some View {
-        RoundedRectangle(cornerRadius: 3, style: .continuous)
-            .strokeBorder(Color.white.opacity(0.6), style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
-            .shadow(color: .black.opacity(0.55), radius: 1)
-            .allowsHitTesting(false)
-            .accessibilityHidden(true)
     }
 
     @ViewBuilder
