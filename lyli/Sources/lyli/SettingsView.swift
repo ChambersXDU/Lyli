@@ -2,11 +2,10 @@ import SwiftUI
 import AppKit
 import Combine
 import LyliCore
-import KeyboardShortcuts
 
 enum SettingsTab: String, Hashable, CaseIterable, Identifiable {
 
-    case lyrics, appearance, shortcuts, general, about
+    case lyrics, appearance, general, about
 
     var id: Self { self }
 
@@ -20,7 +19,6 @@ enum SettingsTab: String, Hashable, CaseIterable, Identifiable {
         switch self {
         case .lyrics: return L10n.t("歌词")
         case .appearance: return L10n.t("歌词显示")
-        case .shortcuts: return L10n.t("快捷键")
         case .general: return L10n.t("通用")
         case .about: return L10n.t("关于")
         }
@@ -30,7 +28,6 @@ enum SettingsTab: String, Hashable, CaseIterable, Identifiable {
         switch self {
         case .lyrics: return "text.quote"
         case .appearance: return "rectangle.3.group"
-        case .shortcuts: return "keyboard"
         case .general: return "gearshape"
         case .about: return "info.circle"
         }
@@ -40,7 +37,6 @@ enum SettingsTab: String, Hashable, CaseIterable, Identifiable {
         switch self {
         case .lyrics: return .indigo
         case .appearance: return .yellow
-        case .shortcuts: return .teal
         case .general: return .gray
 
         case .about: return .blue
@@ -179,7 +175,6 @@ struct SettingsView: View {
         Section {
             sidebarLabel(.lyrics)
             sidebarLabel(.appearance)
-            sidebarLabel(.shortcuts)
             sidebarLabel(.general)
             sidebarLabel(.about)
         }
@@ -211,7 +206,6 @@ struct SettingsView: View {
                 switch selection {
                 case .tab(.lyrics): LyricsSettingsTab()
                 case .tab(.appearance): AppearanceSettingsTab()
-                case .tab(.shortcuts): ShortcutsSettingsTab()
                 case .tab(.general): GeneralSettingsTab()
                 case .tab(.about): AboutSettingsTab()
                 case nil: ContentUnavailableView(L10n.t("选择左侧的设置分类"), systemImage: "gearshape")
@@ -1349,112 +1343,6 @@ private struct GeneralSettingsTab: View {
                 pendingImportLyricsCount = await LyricsBackupStore.peek(lyrics)?.files ?? 0
             }
         }
-    }
-}
-
-private struct ShortcutsSettingsTab: View {
-    @ObservedObject private var settings = AppSettings.shared
-
-    var body: some View {
-
-        SettingsPage(
-            title: L10n.t("快捷键")
-        ) {
-
-            SettingsCard {
-                SettingsRow(icon: "eye", title: L10n.t("显示/隐藏悬浮歌词")) {
-                    ShortcutRecorderControl(name: .toggleOverlay)
-                }
-                CardDivider()
-                SettingsRow(icon: "menubar.rectangle", title: L10n.t("显示/隐藏菜单栏歌词")) {
-                    ShortcutRecorderControl(name: .toggleMenuBarLyricsHotkey)
-                }
-                CardDivider()
-                SettingsRow(icon: "lock", title: L10n.t("锁定/解锁位置")) {
-                    ShortcutRecorderControl(name: .toggleLockPosition)
-                }
-                CardDivider()
-                SettingsRow(
-                    icon: "character.book.closed",
-                    title: L10n.t("显示/隐藏译文")
-                ) {
-                    ShortcutRecorderControl(name: .toggleTranslationHotkey)
-                }
-                CardDivider()
-
-                SettingsRow(icon: "textformat.abc", title: L10n.t("显示/隐藏发音")) {
-                    ShortcutRecorderControl(name: .toggleRomanizationHotkey)
-                }
-            }
-
-            SettingsCard {
-                SettingsRow(icon: "list.bullet.rectangle", title: L10n.t("打开歌词管理")) {
-                    ShortcutRecorderControl(name: .openLyricsManagerHotkey)
-                }
-                CardDivider()
-                SettingsRow(
-                    icon: "magnifyingglass",
-                    title: L10n.t("搜索歌词")
-                ) {
-                    ShortcutRecorderControl(name: .lyricsQuickSearchHotkey)
-                }
-                CardDivider()
-                SettingsRow(icon: "gearshape", title: L10n.t("打开设置")) {
-                    ShortcutRecorderControl(name: .openSettingsHotkey)
-                }
-            }
-
-            SettingsCard {
-                SettingsRow(
-                    icon: "backward.end",
-                    title: L10n.t("歌词提前")
-                ) {
-                    ShortcutRecorderControl(name: .lyricsAdvanceHotkey)
-                }
-                CardDivider()
-                SettingsRow(icon: "forward.end", title: L10n.t("歌词延后")) {
-                    ShortcutRecorderControl(name: .lyricsDelayHotkey)
-                }
-                CardDivider()
-                SettingsRow(
-                    icon: "arrow.counterclockwise",
-                    title: L10n.t("歌词偏移归零")
-                ) {
-                    ShortcutRecorderControl(name: .lyricsOffsetResetHotkey)
-                }
-                CardDivider()
-
-                SettingsRow(
-                    icon: "timer",
-                    title: L10n.t("步长")
-                ) {
-                    HStack(spacing: 8) {
-                        Text("\(AppSettings.formattedSeconds(ms: settings.lyricsOffsetStepMs))\(L10n.t("秒"))")
-                            .monospacedDigit()
-                            .foregroundStyle(.secondary)
-                        Stepper("", value: Binding(
-                            get: { Double(settings.lyricsOffsetStepMs) / 1000 },
-                            set: { settings.lyricsOffsetStepMs = Int(($0 * 1000).rounded()) }
-                        ), in: 0.05...2.0, step: 0.05)
-                    }
-                }
-            }
-
-            SettingsCard {
-                SettingsRow(icon: "playpause", title: L10n.t("播放/暂停")) {
-                    ShortcutRecorderControl(name: .playPauseHotkey)
-                }
-                CardDivider()
-                SettingsRow(icon: "forward.fill", title: L10n.t("下一首")) {
-                    ShortcutRecorderControl(name: .nextTrackHotkey)
-                }
-                CardDivider()
-                SettingsRow(icon: "backward.fill", title: L10n.t("上一首")) {
-                    ShortcutRecorderControl(name: .previousTrackHotkey)
-                }
-            }
-        }
-        .id(L10n.current)
     }
 }
 
