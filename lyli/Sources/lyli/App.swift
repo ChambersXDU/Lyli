@@ -9,11 +9,11 @@ struct LyliApp: App {
         Settings {
             SettingsView()
         }
-        Window(L10n.t("歌词管理"), id: "lyrics-manager") {
+        Window("歌词管理", id: "lyrics-manager") {
             LyricsManagerView()
         }
 
-        Window(L10n.t("搜索歌词…"), id: "lyrics-quick-search") {
+        Window("搜索歌词…", id: "lyrics-quick-search") {
             LyricsQuickSearchWindow()
         }
 
