@@ -636,6 +636,12 @@ public struct QQMusicProvider: LyricsProvider {
                     let interval: Double
                     let singers: [Singer]
                     let album: Album
+
+                    enum CodingKeys: String, CodingKey {
+                        case mid, title, interval, album
+                        case singers = "singer"
+                    }
+
                     struct Singer: Decodable { let name: String }
                     struct Album: Decodable { let name: String }
                 }
