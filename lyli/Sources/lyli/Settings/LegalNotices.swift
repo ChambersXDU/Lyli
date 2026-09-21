@@ -3,7 +3,7 @@ import Foundation
 import LyliCore
 
 enum LegalNotices {
-    static var usageNoticeURL: URL { LegalNoticeLinks.usageNoticeURL(language: L10n.current) }
+    static var usageNoticeURL: URL { LegalNoticeLinks.usageNoticeURL }
 
     static var bundledThirdPartyLicenses: URL? {
         Bundle.main.url(forResource: "THIRD_PARTY_LICENSES", withExtension: nil)
