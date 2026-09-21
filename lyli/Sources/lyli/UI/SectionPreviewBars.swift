@@ -259,10 +259,11 @@ struct MenuBarPreviewBar<Lane: View>: View {
                 let w = adaptiveWindowWidth(for: visible)
                 MenuBarScrollingLabel.Representable(
                     text: visible, windowWidth: w, pacing: nil, fillPath: karaokeFillPath,
-                    followPath: followReadingPath, karaokePositionMs: karaokePositionMs,
+                    fullyPlayed: fullyPlayed, followPath: followReadingPath,
+                    karaokePositionMs: karaokePositionMs,
                     karaokeRate: anchor?.rate ?? 0, karaokePlaying: isPlayingNow,
                     icon: previewIconBadge, progressPositionMs: progressPositionMs,
-                    progressDurationMs: progressDurationMs, fullyPlayed: fullyPlayed,
+                    progressDurationMs: progressDurationMs,
                     secondaryText: secondaryText, secondaryKind: secondaryKind)
                     .frame(width: w + reservedIconWidth, height: rowsHeight)
             } else {
@@ -276,11 +277,11 @@ struct MenuBarPreviewBar<Lane: View>: View {
         case .fixed(let text, let windowWidth, let pacing):
             MenuBarScrollingLabel.Representable(
                 text: text, windowWidth: windowWidth, pacing: pacing,
-                fillPath: karaokeFillPath, followPath: followReadingPath,
-                karaokePositionMs: karaokePositionMs,
+                fillPath: karaokeFillPath, fullyPlayed: fullyPlayed,
+                followPath: followReadingPath, karaokePositionMs: karaokePositionMs,
                 karaokeRate: anchor?.rate ?? 0, karaokePlaying: isPlayingNow,
                 icon: previewIconBadge, progressPositionMs: progressPositionMs,
-                progressDurationMs: progressDurationMs, fullyPlayed: fullyPlayed,
+                progressDurationMs: progressDurationMs,
                 secondaryText: secondaryText, secondaryKind: secondaryKind)
                 .frame(width: windowWidth + reservedIconWidth, height: rowsHeight)
         }
