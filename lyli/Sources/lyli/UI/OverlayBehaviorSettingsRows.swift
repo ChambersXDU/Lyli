@@ -73,11 +73,3 @@ struct OverlayBehaviorSettingsRows: View {
     }
 }
 
-@MainActor
-struct OverlayBehaviorPopover: View {
-    var body: some View {
-        SettingsPopoverShell(title: L10n.t("行为"), width: 420) {
-            OverlayBehaviorSettingsRows()
-        }
-    }
-}
