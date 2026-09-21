@@ -29,7 +29,6 @@ public final class EnrichCacheStore: ObservableObject {
         public let lyricsTrSource: String
         public let hasTranslation: Bool
 
-        public let hasRomanization: Bool
         public let hasLyrics: Bool
 
         public let isInstrumental: Bool
@@ -220,7 +219,6 @@ public final class EnrichCacheStore: ObservableObject {
                 offsetMs: offsetMs,
                 lyricsTrSource: entry["lyrics_tr_source"] as? String ?? "",
                 hasTranslation: !((entry["lyrics_tr"] as? String ?? "").isEmpty),
-                hasRomanization: !((entry["lyrics_roma"] as? String ?? "").isEmpty),
                 hasLyrics: !lyrics.isEmpty,
                 isInstrumental: entry["instrumental"] as? Bool ?? false,
                 hasPlainTextFallback: !((entry["plain_lyrics"] as? String ?? "").isEmpty),
@@ -274,18 +272,17 @@ public final class EnrichCacheStore: ObservableObject {
         return raw.keys.contains { EnrichCacheKeys.looseKey($0) == loose }
     }
 
-    public func detail(for key: String) -> (lyrics: String, tr: String, roma: String, yrc: String) {
+    public func detail(for key: String) -> (lyrics: String, tr: String, yrc: String) {
         let entry = raw[key] ?? [:]
         return (
             entry["lyrics"] as? String ?? "",
             entry["lyrics_tr"] as? String ?? "",
-            entry["lyrics_roma"] as? String ?? "",
             entry["lyrics_yrc"] as? String ?? ""
         )
     }
 
     @discardableResult
-    public func saveEdit(key: String, lyrics: String, tr: String, roma: String, yrc: String? = nil,
+    public func saveEdit(key: String, lyrics: String, tr: String, yrc: String? = nil,
                          source: String? = nil, markManual: Bool = true,
                          sourceChoice: String? = nil, fromManualPick: Bool = false,
                          score: Int? = nil, scoringVersion: Int? = nil,
@@ -302,14 +299,8 @@ public final class EnrichCacheStore: ObservableObject {
             }
         }
 
-        let previousLyrics = raw[key]?["lyrics"] as? String ?? ""
-        let previousRoma = raw[key]?["lyrics_roma"] as? String ?? ""
-        let romaDescribesOldLyrics =
-            !roma.isEmpty && lyrics != previousLyrics && roma == previousRoma
-        let effectiveRoma = romaDescribesOldLyrics ? "" : roma
         entry["lyrics"] = lyrics
         entry["lyrics_tr"] = tr
-        entry["lyrics_roma"] = effectiveRoma
         if markManual {
             entry["manual_lyrics"] = true
         } else {
