@@ -8,10 +8,7 @@ let package = Package(
 
     platforms: [.macOS(.v14)],
 
-    dependencies: [
-        .package(url: "https://github.com/sindresorhus/KeyboardShortcuts", exact: "1.15.0"),
-
-    ],
+    dependencies: [],
     targets: [
         .target(
             name: "LyliCore",
@@ -19,7 +16,7 @@ let package = Package(
         ),
         .executableTarget(
             name: "lyli",
-            dependencies: ["LyliCore", "KeyboardShortcuts"],
+            dependencies: ["LyliCore"],
             path: "Sources/lyli",
             resources: [.process("Resources")]
         ),
