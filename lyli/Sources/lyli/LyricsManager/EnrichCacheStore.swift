@@ -84,8 +84,6 @@ public final class EnrichCacheStore: ObservableObject {
         return formatter.string(fromByteCount: bytes)
     }
 
-    @Published private(set) var lastAutoSnapshotURL: URL?
-
     private static let cacheURL = LyliPaths.configFile("lyli-enrich-cache.json")
 
     private static var lyricsDir: URL { FeatureSettingsStore.shared.effectiveLyricsDir }
@@ -509,9 +507,6 @@ public final class EnrichCacheStore: ObservableObject {
         let victims = EnrichCacheKeys.deletionPlan(selected: keys, existing: Set(raw.keys))
         guard !victims.isEmpty else { return }
 
-        if victims.count >= Self.autoSnapshotDeleteThreshold {
-            lastAutoSnapshotURL = await LyricsBackupStore.writeAutoSnapshot(reason: "delete")
-        }
         var removed: [String: [String: Any]] = [:]
         removed.reserveCapacity(victims.count)
         for key in victims {
@@ -531,7 +526,6 @@ public final class EnrichCacheStore: ObservableObject {
     }
 
     public func clearAll() async {
-        lastAutoSnapshotURL = await LyricsBackupStore.writeAutoSnapshot(reason: "clear")
         let removed = raw
         raw = [:]
         pendingFileChanges.removeAll()
@@ -556,17 +550,6 @@ public final class EnrichCacheStore: ObservableObject {
             }
         }
         rebuildSummaries()
-    }
-
-    static let autoSnapshotDeleteThreshold = 5
-
-    func restoreFromAutoSnapshot(_ snapshot: LyricsBackupStore.Snapshot) async -> String? {
-        guard let result = await LyricsBackupStore.restoreAutoSnapshot(snapshot) else { return nil }
-        await reload()
-        PlaybackCoordinator.shared.refreshLyricsForCurrentTrack()
-        refreshSizeBytes()
-        return String(format: L10n.t("已恢复 %d 个歌词文件（新增 %d、覆盖 %d）"),
-                      result.total, result.added, result.overwritten)
     }
 
     private func stageExportedLyricsDeletion(forKey key: String) {
