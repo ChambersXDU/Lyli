@@ -2,74 +2,26 @@ import LyliCore
 import SwiftUI
 
 @MainActor
-struct OverlayAllSettingsDrawer: View {
+struct OverlaySettingsList: View {
     @ObservedObject private var settings = AppSettings.shared
-
-    @Environment(\.settingsSearchPendingDrawer) private var pendingSearchDrawer
-
-    @State private var isExpanded = false
 
     var body: some View {
         SettingsCard {
-            disclosureHeader
-            if isExpanded {
-                CardDivider()
-
-                themeGroup
-                CardDivider()
-                textGroup
-                CardDivider()
-                backgroundGroup
-                CardDivider()
-                layoutGroup
-                CardDivider()
-                widthRow
-                CardDivider()
-                behaviorGroup
-                placementGroup
-                CardDivider()
-                resetRow
-            }
+            themeGroup
+            CardDivider()
+            textGroup
+            CardDivider()
+            backgroundGroup
+            CardDivider()
+            layoutGroup
+            CardDivider()
+            widthRow
+            CardDivider()
+            behaviorGroup
+            placementGroup
+            CardDivider()
+            resetRow
         }
-
-        .onAppear { expandForSearchIfNeeded() }
-        .onChange(of: pendingSearchDrawer) { _, _ in expandForSearchIfNeeded() }
-
-    }
-
-    private func expandForSearchIfNeeded() {
-        guard pendingSearchDrawer == .overlay else { return }
-        if !isExpanded {
-            withAnimation(.settingsCardReveal) { isExpanded = true }
-        }
-        SettingsSearchRouter.shared.consumeDrawer(.overlay)
-    }
-
-    private var disclosureHeader: some View {
-        Button {
-            withAnimation(.settingsCardReveal) { isExpanded.toggle() }
-        } label: {
-
-            HStack(spacing: SettingsRowMetrics.iconTextSpacing) {
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                    .rotationEffect(.degrees(isExpanded ? 90 : 0))
-                    .frame(width: SettingsRowMetrics.iconWidth, alignment: .center)
-                Text(L10n.t("全部设置"))
-                    .font(.system(size: 13))
-
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, SettingsRowMetrics.horizontalPadding)
-            .padding(.vertical, SettingsRowMetrics.verticalPadding)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(L10n.t("全部设置"))
-
-        .accessibilityAddTraits(isExpanded ? .isSelected : [])
-        .accessibilityValue(isExpanded ? L10n.t("已展开") : L10n.t("已折叠"))
     }
 
     private var themeGroup: some View {
@@ -135,7 +87,7 @@ struct OverlayAllSettingsDrawer: View {
                             LyricsOverlayWindowController.shared.setWidth(newValue)
                         }
                     }
-                ), in: OverlayEditorStage.widthRange, step: 10)
+                ), in: 300...1400, step: 10)
                 .frame(width: 150)
                 Text(String(format: L10n.t("%@pt"), "\(Int(settings.overlayWidth))"))
                     .foregroundStyle(.secondary)
