@@ -117,8 +117,6 @@ enum SettingsSidebarItem: Hashable {
 
 struct SettingsView: View {
 
-    @ObservedObject private var languageSettings = AppSettings.shared
-
     @State private var selection: SettingsSidebarItem? = .tab(SettingsTab.restoredLastTab())
     @AppStorage(SettingsTab.lastTabStorageKey) private var lastTabRaw = SettingsTab.lyrics.rawValue
 
@@ -157,7 +155,7 @@ struct SettingsView: View {
             .navigationSubtitle(selectedCategoryTitle)
         }
 
-        .frame(minWidth: 760, idealWidth: 860, minHeight: 690, idealHeight: 720)
+        .frame(minWidth: 720, idealWidth: 820, minHeight: 360, idealHeight: 420)
 
         .background(SettingsWindowConfigurator())
 
@@ -975,9 +973,14 @@ private struct AppearanceSettingsTab: View {
 
             Group {
                 switch section {
-
-                case .overlay: EmptyView()
-                case .menuBar: EmptyView()
+                case .overlay:
+                    EmptyView()
+                case .menuBar:
+                    MenuBarPreviewBar()
+                        .frame(maxWidth: SettingsPage<EmptyView>.maxCardColumnWidth)
+                        .padding(.horizontal, 20)
+                        .padding(.top, 10)
+                        .padding(.bottom, 6)
                 }
             }
             .animation(.easeOut(duration: 0.18), value: sectionRaw)
@@ -1072,6 +1075,21 @@ private struct GeneralSettingsTab: View {
 
     var body: some View {
         SettingsPage(title: "通用") {
+            SettingsCard {
+                SettingsCardHeader(title: "菜单栏")
+                CardDivider()
+                SettingsRow(icon: "menubar.rectangle", title: "不播放时图标") {
+                    Text(settings.menuBarIdleIconStyle.displayName)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+                CardDivider()
+                SettingsRawRow {
+                    MenuBarIdleIconPicker()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+
             SettingsCard {
                 SettingsCardHeader(title: "Dock")
                 CardDivider()
