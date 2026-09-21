@@ -278,7 +278,6 @@ private struct LyricsSettingsTab: View {
                 .id(section)
                 .transition(.opacity)
         }
-        .id(L10n.current)
     }
 
     private var sectionPicker: some View {
@@ -992,7 +991,6 @@ private struct AppearanceSettingsTab: View {
                     .transition(.opacity)
             }
         }
-        .id(L10n.current)
     }
 
     private enum Section: String, CaseIterable, Identifiable {
@@ -1094,24 +1092,13 @@ private struct GeneralSettingsTab: View {
             }
 
             SettingsCard {
-                SettingsCardHeader(title: L10n.t("语言与启动"))
-                CardDivider()
-                SettingsRow(icon: "globe", title: L10n.t("语言")) {
-                    Picker("", selection: $settings.appLanguage) {
-                        Text(L10n.t("跟随系统")).tag("system")
-                        Text(L10n.t("简体中文")).tag("zh-hans")
-                        Text("English").tag("en")
-                    }
-                    .pickerStyle(.menu)
-                    .fixedSize()
-                }
+                SettingsCardHeader(title: L10n.t("启动"))
                 CardDivider()
                 SettingsRow(icon: "power", title: L10n.t("开机启动")) {
                     Toggle("", isOn: $settings.launchAtLoginEnabled)
                 }
             }
         }
-        .id(L10n.current)
     }
 }
 
@@ -1156,7 +1143,6 @@ private struct AboutSettingsTab: View {
                 .font(.caption)
                 .foregroundStyle(.tertiary)
         }
-        .id(L10n.current)
     }
 }
 
