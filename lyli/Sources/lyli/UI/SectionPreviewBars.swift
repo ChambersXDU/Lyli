@@ -45,6 +45,7 @@ struct MenuBarPreviewBar<Lane: View>: View {
 
     private var secondaryKind: LyricSecondaryLine { settings.menuBarSecondaryLine }
     private var twoRows: Bool { secondaryKind.showsSecondaryRow }
+    private var fullyPlayed: Bool { line != nil && (line?.words?.isEmpty ?? true) }
 
     private var mainFont: NSFont { MenuBarMarqueeRenderer.mainFont(for: fullText, twoRows: twoRows) }
 
@@ -116,6 +117,13 @@ struct MenuBarPreviewBar<Lane: View>: View {
         case .text(let visible): return adaptiveWindowWidth(for: visible)
         case .fixed(_, let windowWidth, _): return windowWidth
         }
+    }
+
+    private var previewTextColor: Color {
+        guard fullyPlayed else { return Color(nsColor: .labelColor) }
+        return Color(nsColor: MenuBarScrollingLabel.fillColor(
+            hex: settings.menuBarLyricsFillColorHex,
+            darkMenuBar: menuBarAppearance.isDark))
     }
 
     private var presentation: MenuBarMarqueeRenderer.Presentation {
@@ -254,13 +262,13 @@ struct MenuBarPreviewBar<Lane: View>: View {
                     followPath: followReadingPath, karaokePositionMs: karaokePositionMs,
                     karaokeRate: anchor?.rate ?? 0, karaokePlaying: isPlayingNow,
                     icon: previewIconBadge, progressPositionMs: progressPositionMs,
-                    progressDurationMs: progressDurationMs,
+                    progressDurationMs: progressDurationMs, fullyPlayed: fullyPlayed,
                     secondaryText: secondaryText, secondaryKind: secondaryKind)
                     .frame(width: w + reservedIconWidth, height: rowsHeight)
             } else {
                 Text(visible)
                     .font(Font(MenuBarMarqueeRenderer.font))
-                    .foregroundStyle(Color(nsColor: .labelColor))
+                    .foregroundStyle(previewTextColor)
                     .lineLimit(1)
                     .fixedSize()
                     .frame(height: MenuBarMarqueeRenderer.lineHeight)
@@ -272,7 +280,7 @@ struct MenuBarPreviewBar<Lane: View>: View {
                 karaokePositionMs: karaokePositionMs,
                 karaokeRate: anchor?.rate ?? 0, karaokePlaying: isPlayingNow,
                 icon: previewIconBadge, progressPositionMs: progressPositionMs,
-                progressDurationMs: progressDurationMs,
+                progressDurationMs: progressDurationMs, fullyPlayed: fullyPlayed,
                 secondaryText: secondaryText, secondaryKind: secondaryKind)
                 .frame(width: windowWidth + reservedIconWidth, height: rowsHeight)
         }
