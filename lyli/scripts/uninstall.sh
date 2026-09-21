@@ -89,7 +89,7 @@ else
 fi
 if [[ "$HAS_DEFAULTS" == "yes" ]]; then
   echo
-  echo "  偏好设置项(UserDefaults 域 $APP_LABEL)：外观/快捷键/歌词时间轴校正值等全部设置"
+  echo "  偏好设置项(UserDefaults 域 $APP_LABEL)：外观/歌词时间轴校正值等全部设置"
   echo "  ⚠️ 其中包含你为单曲手调出来的歌词时间轴校正值 —— 那是一句句听出来的，删掉不可恢复。"
 fi
 
