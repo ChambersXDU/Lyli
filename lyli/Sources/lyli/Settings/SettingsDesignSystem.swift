@@ -405,51 +405,6 @@ struct SettingsRawRow<Content: View>: View {
     }
 }
 
-struct SettingsPopoverShell<Content: View>: View {
-    let title: String
-
-    var width: CGFloat = 380
-    @ViewBuilder let content: () -> Content
-
-    @State private var measuredHeight: CGFloat = 0
-
-    var body: some View {
-        ScrollView {
-            VStack(spacing: 0) {
-                SettingsCardHeader(title: title)
-                CardDivider()
-                content()
-            }
-            .background(
-                GeometryReader { proxy in
-                    Color.clear.preference(key: PopoverContentHeightKey.self, value: proxy.size.height)
-                }
-            )
-        }
-        .frame(width: width)
-
-        .frame(height: measuredHeight > 0 ? min(measuredHeight, 460) : nil)
-        .onPreferenceChange(PopoverContentHeightKey.self) { measuredHeight = $0 }
-    }
-}
-
-private struct PopoverContentHeightKey: PreferenceKey {
-    static let defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = max(value, nextValue())
-    }
-}
-
-enum SettingsToggleSummary {
-    @MainActor
-    static func text(_ entries: [(title: String, isOn: Bool)]) -> String {
-        let onTitles = entries.filter { $0.isOn }.map { $0.title }
-        if onTitles.count == entries.count { return L10n.t("全部开启") }
-        if onTitles.isEmpty { return L10n.t("全部关闭") }
-        return ListFormatter.localizedString(byJoining: onTitles)
-    }
-}
-
 struct SettingsProportionBar: View {
     struct Segment: Identifiable {
         let id: String
