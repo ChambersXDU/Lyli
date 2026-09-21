@@ -187,16 +187,12 @@
 "已拷贝" = "Copied";
 "已换成「%1$@」（%2$@ 分），原来是「%3$@」" = "Switched to “%1$@” (%2$@ pts), was “%3$@”";
 "已改用自定义位置" = "Using a custom location";
-"已显示发音" = "Romanization shown";
-"已显示菜单栏歌词" = "Menu bar lyrics shown";
-"已显示译文" = "Translation shown";
 "已校准" = "Calibrated";
 "已校准 %d 首歌的歌词时间轴" = "%d songs with calibrated timing";
 "已校准的歌不再自动更换歌词源:后台一换歌词内容,这个校正值就会失效。把偏移改回 0 即解除" = "Calibrated songs are no longer switched to another lyrics source automatically — if the background swaps in different lyrics, this offset stops applying. Set the offset back to 0 to release it.";
 "已给出候选" = "Returned a candidate";
 "已缓存罗马音" = "Cached Romanization";
 "已解锁 %@ 首" = "Unlocked %@ songs";
-"已解锁位置" = "Position unlocked";
 "已选 %@ 首" = "%@ selected";
 "已选择 %@ 首" = "%@ Songs Selected";
 "已采用" = "Applied";
@@ -206,10 +202,6 @@
 "已重新匹配：还是「%1$@」，但正文跟原来那份不一样，已换成这一轮抓到的（%2$@ 分）" = "Re-matched: still “%1$@”, but the text differs from the cached copy — adopted this round's (%2$@ pts)";
 "已重新匹配：还是「%1$@」，但逐字时间轴跟原来那份不一样，已换成这一轮抓到的（%2$@ 分）" = "Re-matched: still “%1$@”, but the word timing differs from the cached copy — adopted this round's (%2$@ pts)";
 "已锁定 %@ 首之前手动选定的歌；从现在起选定的会直接锁定" = "Locked %@ songs you had picked manually; from now on, picks are locked right away";
-"已锁定位置" = "Position locked";
-"已隐藏发音" = "Romanization hidden";
-"已隐藏菜单栏歌词" = "Menu bar lyrics hidden";
-"已隐藏译文" = "Translation hidden";
 "布局" = "Layout";
 "带逐字（卡拉OK）时间轴，是歌词质量最直接的证据" = "Has word-by-word (karaoke) timing, the most direct evidence of quality";
 "常见于 VPN / 公司网络接管了 DNS；浏览器能开网页不代表这里能通" = "Common when a VPN or corporate network takes over DNS; a browser loading pages doesn't mean this can get through.";
@@ -227,7 +219,6 @@
 "当前使用" = "In use";
 "当前启用的其余源没有应答：%@" = "Other enabled sources did not answer: %@";
 "当前歌词的出处" = "Where the current lyrics came from";
-"快捷键" = "Keyboard Shortcuts";
 "快速开关" = "Quick Toggles";
 "总分 %@" = "Total %@";
 "恢复" = "Reset";
@@ -258,9 +249,6 @@
 "按「署名 - 曲名」拆分" = "Split as “artist - title”";
 "按住 ⌘ 拖拽这个图标，可以把它移动到菜单栏里你喜欢的位置。" = "Hold ⌘ and drag this icon to move it anywhere in the menu bar.";
 "按住歌词即可拖动位置" = "Hold the lyrics to reposition";
-"换一个组合——否则 Lyli 在前台时，按下它会同时触发菜单里的那一项。" = "Pick a different combination — otherwise, while Lyli is frontmost, pressing it also triggers that menu item.";
-"换一个组合。系统占用的组合注册不上，录进去也不会生效；要用它得先到「系统设置 → 键盘 → 键盘快捷键」里把系统那一项关掉。" = "Pick a different combination. Combinations reserved by the system cannot be registered, so recording one has no effect; to use it, first turn off the system shortcut in System Settings → Keyboard → Keyboard Shortcuts.";
-"换一个组合，或者先清除那一项。" = "Pick a different combination, or clear that one first.";
 "排序" = "Sort";
 "排版" = "Layout";
 "描边颜色" = "Stroke Color";
@@ -304,10 +292,6 @@
 "时长明显对不上，也没有别的源印证" = "Duration is far off and nothing corroborates it";
 "时间轴" = "Timing";
 "是另一场演出的现场版" = "A live recording from a different show";
-"显示/隐藏发音" = "Show/Hide Romanization";
-"显示/隐藏悬浮歌词" = "Show/Hide Floating Lyrics";
-"显示/隐藏菜单栏歌词" = "Show/Hide Menu Bar Lyrics";
-"显示/隐藏译文" = "Show/Hide Translation";
 "显示桌面悬浮歌词" = "Show Desktop Floating Lyrics";
 "显示罗马音" = "Show Romanization";
 "显示菜单栏歌词" = "Show Menu Bar Lyrics";
@@ -365,12 +349,9 @@
 "歌词" = "Lyrics";
 "歌词(LRC)" = "Lyrics (LRC)";
 "歌词偏移" = "Lyrics offset";
-"歌词偏移归零" = "Reset Lyric Offset";
 "歌词内容跟其它来源高度一致（2 家以上 250 · 1 家 150），串版本的拿不到" = "Lyric text agrees with other sources (2+ sources 250 · one 150); wrong-version candidates can't earn this";
 "歌词列表" = "Lyric List";
 "歌词库" = "Lyrics library";
-"歌词延后" = "Delay Lyrics";
-"歌词提前" = "Advance Lyrics";
 "歌词文件夹" = "Lyrics Folder";
 "歌词文字与 %@ 相同" = "Same lyrics text as %@";
 "歌词旁的图标" = "Icon Beside Lyrics";
@@ -410,7 +391,6 @@
 "清空全部缓存" = "Clear All Cache";
 "清除…" = "Erase…";
 "清除并重启" = "Erase and Restart";
-"清除快捷键" = "Clear Shortcut";
 "清除所有设置" = "Erase All Settings";
 "清除搜索" = "Clear Search";
 "清除筛选" = "Clear Filters";
@@ -418,7 +398,6 @@
 "源自报曲长不符" = "Source duration mismatch";
 "源里有歌、无词" = "Indexed, No Lyrics";
 "源里有歌、无词 %@ 首" = "%@ indexed, no lyrics";
-"点击录制" = "Record Shortcut";
 "版本 %@" = "Version %@";
 "版本不符" = "Version mismatch";
 "版权说明" = "Copyright Notice";
@@ -507,7 +486,6 @@
 "语言与启动" = "Language & Startup";
 "语言跟这首歌对不上" = "Language does not match this song";
 "请作者喝杯咖啡" = "Buy the Author a Coffee";
-"请按下快捷键…" = "Type Shortcut…";
 "请求权限" = "Request Access";
 "读取本地记录文件失败" = "Couldn't read the lyrics cache";
 "跟 %@ 是同一份词" = "Same lyrics as %@";
@@ -533,9 +511,6 @@
 "这个源明确说这首是纯音乐，所以它没有参与打分" = "This source says the track is instrumental, so it was not scored";
 "这个源确实收录了这首歌，但只有不带时间戳的纯文本——可以作为静态文字阅读，无法逐字/逐行跟随播放高亮" = "This source has the song, but only as plain text without timestamps — it can be read statically but cannot follow playback with word- or line-level highlighting";
 "这个源自己声明的曲目时长跟本地差了 12% 以上，多半挂在另一次录音上" = "This source's own reported track length is off from the local one by more than 12% — likely a different recording";
-"这个组合已经分配给「%@」了。" = "That combination is already assigned to “%@”.";
-"这个组合已被 macOS 系统占用。" = "That combination is already reserved by macOS.";
-"这个组合是本 App 菜单里「%@」的快捷键。" = "That combination is the keyboard shortcut for “%@” in this app’s menu.";
 "这份备份读不出来" = "This backup could not be read";
 "这份歌词定下来时，%1$d 个歌词源里只有 %2$d 个给出了候选（老条目当年的源数可能少于 %1$d）" = "When this was chosen, only %2$d of %1$d lyric sources returned a candidate (older entries may date from a time with fewer than %1$d)";
 "这份歌词定下来时，%1$d 个歌词源里只有 %2$d 个给出了候选（老条目当年的源数可能少于 %1$d）。点击查看是哪几个" = "When this was chosen, only %2$d of %1$d lyric sources returned a candidate (older entries may date from a time with fewer than %1$d). Click to see which";
@@ -588,9 +563,7 @@
 "重试无歌词" = "Retry Missing Lyrics";
 "重试选中的无歌词 %@ 条" = "Retry Lyrics for %@ Songs";
 "钢琴键" = "Piano Keys";
-"锁定/解锁位置" = "Lock/Unlock Position";
 "锁定位置" = "Lock Position";
-"锁定位置只对桌面悬浮歌词有效" = "Locking the position only applies to the desktop overlay";
 "锁定手选歌词" = "Lock Hand-Picked Lyrics";
 "长按即可拖动位置" = "Click and hold to drag";
 "长按或右键打开设置" = "Click and hold or right-click for settings";
