@@ -9,13 +9,13 @@ struct OverlayTextSettingsRows: View {
     var body: some View {
 
         VStack(spacing: 0) {
-            SettingsRow(icon: "character", title: L10n.t("字体")) {
+            SettingsRow(icon: "character", title: "字体") {
 
                 FontFamilyPicker(selection: $settings.fontFamilyName)
             }
             CardDivider()
 
-            SettingsRow(icon: "bold", title: L10n.t("粗细")) {
+            SettingsRow(icon: "bold", title: "粗细") {
                 Picker("", selection: $settings.overlayFontWeight) {
                     ForEach(OverlayFontWeight.allCases, id: \.self) { weight in
                         Text(weight.displayName).tag(weight)
@@ -27,7 +27,7 @@ struct OverlayTextSettingsRows: View {
                 .fixedSize()
             }
             CardDivider()
-            SettingsRow(icon: "textformat.size", title: L10n.t("字号")) {
+            SettingsRow(icon: "textformat.size", title: "字号") {
                 HStack(spacing: 8) {
 
                     SteppedSlider(value: Binding(
@@ -39,7 +39,7 @@ struct OverlayTextSettingsRows: View {
                         }
                     ), in: 14...36, step: 1)
                         .frame(width: 150)
-                    Text(String(format: L10n.t("%@pt"), "\(Int(settings.fontSize))"))
+                    Text(String(format: "%@pt", "\(Int(settings.fontSize))"))
                         .foregroundStyle(.secondary)
                         .monospacedDigit()
                         .frame(width: 46, alignment: .trailing)
@@ -49,25 +49,25 @@ struct OverlayTextSettingsRows: View {
 
             SettingsRow(
                 icon: "sparkles",
-                title: L10n.t("卡拉OK效果")
+                title: "卡拉OK效果"
             ) {
                 Toggle("", isOn: $settings.overlayLyricsKaraoke)
             }
 
             CardDivider()
-            SettingsRow(icon: "paintbrush", title: L10n.t("文字颜色")) {
+            SettingsRow(icon: "paintbrush", title: "文字颜色") {
                 ColorPicker("", selection: Binding(
                     get: { settings.foregroundColor },
                     set: { settings.foregroundColorHex = $0.hexStringWithAlpha }
                 ), supportsOpacity: false)
             }
             CardDivider()
-            SettingsRow(icon: "pencil.and.outline", title: L10n.t("文字描边")) {
+            SettingsRow(icon: "pencil.and.outline", title: "文字描边") {
                 Toggle("", isOn: $settings.textStrokeEnabled)
             }
             if settings.textStrokeEnabled {
                 CardDivider()
-                SettingsSubRow(title: L10n.t("描边颜色")) {
+                SettingsSubRow(title: "描边颜色") {
                     ColorPicker("", selection: Binding(
                         get: { settings.textStrokeColor },
                         set: { settings.textStrokeColorHex = $0.hexStringWithAlpha }
@@ -88,14 +88,14 @@ struct OverlayLayoutSettingsRows: View {
     var body: some View {
         VStack(spacing: 0) {
 
-            SettingsRow(icon: "rectangle.grid.1x2", title: L10n.t("双行显示")) {
+            SettingsRow(icon: "rectangle.grid.1x2", title: "双行显示") {
                 Toggle("", isOn: $settings.showNextLinePreview)
             }
             CardDivider()
 
             SettingsRow(
                 icon: "text.alignleft",
-                title: L10n.t("对齐方式")
+                title: "对齐方式"
             ) {
 
                 OverlayAlignmentSegmentedControl(selection: $settings.overlayDuetAlignmentOverride)
@@ -110,10 +110,10 @@ struct OverlayAlignmentSegmentedControl: View {
 
     static func label(for option: OverlayDuetAlignmentOverride) -> String {
         switch option {
-        case .automatic: return L10n.t("自动")
-        case .center: return L10n.t("居中")
-        case .leading: return L10n.t("左对齐")
-        case .trailing: return L10n.t("右对齐")
+        case .automatic: return "自动"
+        case .center: return "居中"
+        case .leading: return "左对齐"
+        case .trailing: return "右对齐"
         }
     }
 
@@ -155,7 +155,7 @@ struct OverlayBackgroundSettingsRows: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            SettingsRow(icon: "rectangle.fill", title: L10n.t("背景颜色")) {
+            SettingsRow(icon: "rectangle.fill", title: "背景颜色") {
                 ColorPicker("", selection: Binding(
                     get: { settings.backgroundColor },
                     set: { settings.backgroundColorHex = $0.hexStringWithAlpha }
@@ -165,7 +165,7 @@ struct OverlayBackgroundSettingsRows: View {
 
             CardDivider()
 
-            SettingsSubRow(title: L10n.t("毛玻璃背景")) {
+            SettingsSubRow(title: "毛玻璃背景") {
                 Toggle("", isOn: $settings.overlayBackgroundGlass)
             }
         }
@@ -179,7 +179,7 @@ struct OverlayThemeSettingsRows: View {
     var body: some View {
         VStack(spacing: 0) {
 
-            SettingsRow(icon: "swatchpalette", title: L10n.t("配色主题")) {
+            SettingsRow(icon: "swatchpalette", title: "配色主题") {
                 Menu(Self.currentThemeLabel) {
                     ForEach(ColorTheme.builtInPresets) { theme in
                         themeItem(theme)
@@ -216,7 +216,7 @@ struct OverlayThemeSettingsRows: View {
         let settings = AppSettings.shared
         let current = currentColors(settings)
         let all = ColorTheme.builtInPresets + settings.customColorThemes
-        return all.first { $0.hasSameColors(as: current) }?.name ?? L10n.t("自定义")
+        return all.first { $0.hasSameColors(as: current) }?.name ?? "自定义"
     }
 }
 
@@ -268,8 +268,8 @@ struct OverlayCustomThemeRows: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            SettingsRow(icon: "square.stack", title: L10n.t("我的配色主题")) {
-                Button(L10n.t("存为新主题…")) {
+            SettingsRow(icon: "square.stack", title: "我的配色主题") {
+                Button("存为新主题…") {
                     newThemeName = ""
 
                     pendingDeletion = nil
@@ -279,16 +279,16 @@ struct OverlayCustomThemeRows: View {
             if isNaming {
                 CardDivider()
                 OverlayInlineConfirmRow(
-                    message: L10n.t("会把当前的文字颜色、背景颜色、描边颜色存成一个可以随时再套用的主题")
+                    message: "会把当前的文字颜色、背景颜色、描边颜色存成一个可以随时再套用的主题"
                 ) {
-                    TextField(L10n.t("主题名称"), text: $newThemeName)
+                    TextField("主题名称", text: $newThemeName)
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 130)
 
                         .onSubmit { saveTheme() }
-                    Button(L10n.t("保存")) { saveTheme() }
+                    Button("保存") { saveTheme() }
                         .disabled(trimmedName.isEmpty)
-                    Button(L10n.t("取消")) { isNaming = false }
+                    Button("取消") { isNaming = false }
                 }
             }
             ForEach(settings.customColorThemes) { theme in
@@ -297,23 +297,23 @@ struct OverlayCustomThemeRows: View {
 
                     OverlayInlineConfirmRow(
                         title: theme.name,
-                        message: String(format: L10n.t("「%@」删除后无法恢复"), theme.name)
+                        message: String(format: "「%@」删除后无法恢复", theme.name)
                     ) {
 
-                        Button(L10n.t("删除"), role: .destructive) {
+                        Button("删除", role: .destructive) {
                             settings.customColorThemes.removeAll { $0.id == theme.id }
                             pendingDeletion = nil
                         }
                         .foregroundStyle(.red)
                         .tint(.red)
-                        Button(L10n.t("取消")) { pendingDeletion = nil }
+                        Button("取消") { pendingDeletion = nil }
                     }
                 } else {
                     SettingsSubRow(title: theme.name) {
                         HStack(spacing: 10) {
 
                             Image(nsImage: theme.swatchImage())
-                            Button(L10n.t("套用")) { theme.apply(to: settings) }
+                            Button("套用") { theme.apply(to: settings) }
                             Button {
                                 isNaming = false
                                 pendingDeletion = theme.id
@@ -373,7 +373,7 @@ enum OverlayStyleSummary {
     }
 
     static func fontText(family: String, weight: OverlayFontWeight, size: Int) -> String {
-        let sizeText = String(format: L10n.t("%@pt"), "\(size)")
+        let sizeText = String(format: "%@pt", "\(size)")
         return "\(FontFamilyPicker.displayName(for: family)) \(weight.displayName) \(sizeText)"
     }
 
@@ -383,14 +383,14 @@ enum OverlayStyleSummary {
 
     static var background: String {
         let settings = AppSettings.shared
-        if settings.overlayBackgroundGlass { return L10n.t("毛玻璃") }
+        if settings.overlayBackgroundGlass { return "毛玻璃" }
         return AppSettings.backgroundVisible(hex: settings.backgroundColorHex, glass: false)
-            ? L10n.t("纯色") : L10n.t("透明")
+            ? "纯色" : "透明"
     }
 
     static var layout: String {
         let settings = AppSettings.shared
-        let lines = settings.showNextLinePreview ? L10n.t("双行") : L10n.t("单行")
+        let lines = settings.showNextLinePreview ? "双行" : "单行"
         let alignment = OverlayAlignmentSegmentedControl.label(for: settings.overlayDuetAlignmentOverride)
         return "\(lines) · \(alignment)"
     }
