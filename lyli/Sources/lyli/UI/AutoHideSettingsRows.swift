@@ -20,8 +20,8 @@ enum AutoHideItem: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .duringScreenCapture: return L10n.t("截屏/录屏时隐藏")
-        case .whenNotPlaying: return L10n.t("暂停/无播放时隐藏")
+        case .duringScreenCapture: return "截屏/录屏时隐藏"
+        case .whenNotPlaying: return "暂停/无播放时隐藏"
         }
     }
 
