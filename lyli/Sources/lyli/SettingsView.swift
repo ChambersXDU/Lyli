@@ -1112,14 +1112,6 @@ private struct AppearanceSettingsTab: View {
 private struct GeneralSettingsTab: View {
     @ObservedObject private var settings = AppSettings.shared
 
-    @State private var showExportConfigWarning = false
-    @State private var showImportConfigConfirm = false
-    @State private var configMessage: String?
-    @State private var pendingImportData: Data?
-    @State private var pendingImportLyrics: Data?
-    @State private var pendingImportLyricsCount = 0
-    @State private var showClearConfigWarning = false
-
     var body: some View {
         SettingsPage(title: L10n.t("通用")) {
             SettingsCard {
@@ -1158,126 +1150,8 @@ private struct GeneralSettingsTab: View {
                     Toggle("", isOn: $settings.launchAtLoginEnabled)
                 }
             }
-
-            SettingsCard {
-                SettingsCardHeader(title: L10n.t("备份与迁移"))
-                CardDivider()
-                SettingsRow(icon: "doc.badge.gearshape", title: L10n.t("设置文件")) {
-                    HStack(spacing: 8) {
-                        Button(L10n.t("导出…")) { showExportConfigWarning = true }
-                        Button(L10n.t("从文件导入…")) { pickConfigFileToImport() }
-                    }
-                }
-                if let configMessage {
-                    CardDivider()
-                    SettingsNote { Text(configMessage) }
-                }
-            }
-            .alert(L10n.t("确定要导出设置吗？"), isPresented: $showExportConfigWarning) {
-                Button(L10n.t("取消"), role: .cancel) {}
-                Button(L10n.t("继续导出")) { exportConfig() }
-            } message: {
-                Text(L10n.t("导出的文件包含账号登录凭证和密钥，妥善保管，不要发给别人。歌词库会另外存成同名的第二个文件。"))
-            }
-            .alert(L10n.t("确定要导入这份设置吗？"), isPresented: $showImportConfigConfirm) {
-                Button(L10n.t("取消"), role: .cancel) {}
-                Button(L10n.t("导入并重启"), role: .destructive) {
-                    guard let data = pendingImportData else { return }
-                    Task { @MainActor in
-                        guard await ConfigPortability.importData(data) else {
-                            configMessage = L10n.t("导入失败：这个文件不是 Lyli 的设置备份，或者已经损坏。当前设置没有被改动")
-                            return
-                        }
-                        if let lyrics = pendingImportLyrics {
-                _ = await LyricsBackupStore.restore(from: lyrics)
-                        }
-                        ConfigPortability.restartApp()
-                    }
-                }
-            } message: {
-                if pendingImportLyrics != nil {
-                    Text(String(format: L10n.t("这会覆盖当前设置，并恢复 %@ 个歌词文件；完成后立即重启 Lyli。"), "\(pendingImportLyricsCount)"))
-                } else {
-                    Text(L10n.t("这会覆盖当前设置并立即重启 Lyli。"))
-                }
-            }
-
-            SettingsCard {
-                SettingsRow(icon: "trash", title: L10n.t("清除所有设置")) {
-                    DestructiveButton(title: L10n.t("清除…")) { showClearConfigWarning = true }
-                }
-            }
-            .alert(L10n.t("确定要清除所有设置吗？"), isPresented: $showClearConfigWarning) {
-                Button(L10n.t("取消"), role: .cancel) {}
-                Button(L10n.t("清除并重启"), role: .destructive) {
-                    Task { @MainActor in
-                        await ConfigPortability.clearAllConfig()
-                        ConfigPortability.restartApp()
-                    }
-                }
-            } message: {
-                Text(L10n.t("这会清除本机所有账号 token、密钥和个人设置，且无法撤销。"))
-            }
         }
         .id(L10n.current)
-    }
-
-    private func exportConfig() {
-        guard let data = ConfigPortability.buildExportData() else { return }
-        let panel = NSSavePanel()
-        panel.nameFieldStringValue = ConfigPortability.suggestedFilename()
-        panel.directoryURL = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Desktop", isDirectory: true)
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        do {
-            try data.writeSecurely(to: url)
-        } catch {
-            configMessage = String(format: L10n.t("导出失败：%@"), error.localizedDescription)
-            return
-        }
-        Task { @MainActor in
-            guard let archive = await LyricsBackupStore.buildArchive() else {
-                configMessage = L10n.t("设置已导出；歌词库这次没打包成功")
-                return
-            }
-            let sidecarName = LyricsBackupArchive.sidecarName(forConfigName: url.lastPathComponent)
-            let sidecar = url.deletingLastPathComponent().appendingPathComponent(sidecarName)
-            do {
-                try archive.writeSecurely(to: sidecar)
-                configMessage = String(format: L10n.t("已导出设置和歌词库（%@）"), sidecarName)
-            } catch {
-                configMessage = L10n.t("设置已导出；歌词库写盘失败")
-            }
-        }
-    }
-
-    private func pickConfigFileToImport() {
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = true
-        panel.canChooseDirectories = false
-        panel.allowedContentTypes = [.json]
-        panel.prompt = L10n.t("导入")
-        guard panel.runModal() == .OK, let url = panel.url,
-              let data = try? Data(contentsOf: url) else { return }
-        let looksLikeExport: Bool = {
-            guard let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return false }
-            return obj["appSettings"] != nil || obj["config"] != nil || obj["version"] != nil
-        }()
-        guard looksLikeExport else {
-            configMessage = L10n.t("这个文件不是 Lyli 的设置备份，没有导入")
-            return
-        }
-        pendingImportData = data
-        let sidecar = url.deletingLastPathComponent().appendingPathComponent(
-            LyricsBackupArchive.sidecarName(forConfigName: url.lastPathComponent))
-        pendingImportLyrics = try? Data(contentsOf: sidecar)
-        pendingImportLyricsCount = 0
-        showImportConfigConfirm = true
-        if let lyrics = pendingImportLyrics {
-            Task { @MainActor in
-                pendingImportLyricsCount = await LyricsBackupStore.peek(lyrics)?.files ?? 0
-            }
-        }
     }
 }
 
