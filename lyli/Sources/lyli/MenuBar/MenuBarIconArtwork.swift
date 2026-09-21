@@ -3,12 +3,6 @@ import AppKit
 @MainActor
 enum MenuBarIconArtwork {
     static let image: NSImage = {
-        if let url = Bundle.module.url(forResource: "MenuBarIconTemplate", withExtension: "png"),
-           let image = NSImage(contentsOf: url) {
-            image.isTemplate = true
-            return image
-        }
-
         let config = NSImage.SymbolConfiguration(pointSize: 15, weight: .regular)
         let image = NSImage(systemSymbolName: "music.note", accessibilityDescription: nil)?
             .withSymbolConfiguration(config) ?? NSImage(size: NSSize(width: 16, height: 16))
