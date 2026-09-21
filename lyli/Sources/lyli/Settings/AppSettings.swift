@@ -496,7 +496,6 @@ final class AppSettings: ObservableObject {
         backgroundIsVisible = Self.backgroundVisible(hex: backgroundColorHex, glass: overlayBackgroundGlass)
         textStrokeColor = Color(hexWithAlpha: textStrokeColorHex, fallback: .black.opacity(0.65))
 
-        ConfigPortability.pruneObsoleteDefaults()
     }
 
     static func formattedSeconds(ms: Int) -> String {
