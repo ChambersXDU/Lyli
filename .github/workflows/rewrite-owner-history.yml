@@ -71,7 +71,7 @@ jobs:
           echo "old head: $OLD_HEAD"
           echo "new head: $NEW_HEAD"
           echo "commit count: $COUNT"
-          git log --oneline --reverse | head -5
+          git log --oneline --reverse | sed -n '1,5p'
           git log --oneline -5
 
           git push --force-with-lease=refs/heads/main:"$OLD_HEAD" origin HEAD:main
