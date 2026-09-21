@@ -103,7 +103,6 @@ final class AppSettings: ObservableObject {
         static let overlayPlacementMode = "np:overlayPlacementMode"
         static let debugHUDEnabled = "np:debugHUD"
 
-        static let appLanguage = "np:appLanguage"
         static let classicOverlayEnabled = "np:classicOverlayEnabled"
 
         static let legacyClassicOverlayVisible = "np:overlayVisible"
@@ -278,10 +277,6 @@ final class AppSettings: ObservableObject {
         didSet { defaults.set(debugHUDEnabled, forKey: Keys.debugHUDEnabled) }
     }
 
-    @Published var appLanguage: String {
-        didSet { defaults.set(appLanguage, forKey: Keys.appLanguage) }
-    }
-
     @Published var lyricsOffsetStepMs: Int {
         didSet { defaults.set(lyricsOffsetStepMs, forKey: Keys.lyricsOffsetStepMs) }
     }
@@ -439,7 +434,6 @@ final class AppSettings: ObservableObject {
         let legacyHideWhenNotPlaying = (defaults.object(forKey: Keys.hideWhenNotPlaying) as? Bool) ?? false
         hideDuringScreenCapture = legacyHideDuringCapture
         hideWhenNotPlaying = legacyHideWhenNotPlaying
-        appLanguage = defaults.string(forKey: Keys.appLanguage) ?? "system"
         var classicOn = (defaults.object(forKey: Keys.classicOverlayEnabled) as? Bool) ?? true
 
         if let legacyVisible = defaults.object(forKey: Keys.legacyClassicOverlayVisible) as? Bool {
