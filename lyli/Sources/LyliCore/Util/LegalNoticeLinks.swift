@@ -7,7 +7,7 @@ public enum LegalNoticeLinks {
 
     public static let licenseOnGitHub = URL(string: repo + "/blob/main/LICENSE")!
 
-    public static func usageNoticeURL(language: String) -> URL {
+    public static var usageNoticeURL: URL {
         var components = URLComponents(string: repo)!
         components.path = "/ChambersXDU/Lyli/blob/main/README.md"
         components.fragment = "license"
