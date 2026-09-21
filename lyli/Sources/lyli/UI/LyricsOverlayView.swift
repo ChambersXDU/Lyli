@@ -27,12 +27,10 @@ private final class OverlayPlayback: ObservableObject {
     @Published private(set) var lockPosition = false
     @Published private(set) var fadeOnHover = false
     @Published private(set) var placementMode: OverlayPlacementMode = .free
-    @Published private(set) var showRomanization = true
     @Published private(set) var showTranslation = false
     @Published private(set) var showNextLinePreview = true
     @Published private(set) var duetAlignmentOverride: OverlayDuetAlignmentOverride = .automatic
     @Published private(set) var mainFont: Font = .system(size: 20, weight: .bold)
-    @Published private(set) var romanizationFont: Font = .system(size: 13, weight: .medium)
     @Published private(set) var translationFont: Font = .system(size: 14, weight: .regular)
     @Published private(set) var previewFont: Font = .system(size: 14, weight: .medium)
     @Published private(set) var textStrokeEnabled = false
@@ -76,12 +74,10 @@ private final class OverlayPlayback: ObservableObject {
             s.$lockPosition.removeDuplicates().sink { [weak self] in self?.lockPosition = $0 },
             s.$overlayFadeOnHover.removeDuplicates().sink { [weak self] in self?.fadeOnHover = $0 },
             s.$overlayPlacementMode.removeDuplicates().sink { [weak self] in self?.placementMode = $0 },
-            s.$showRomanization.removeDuplicates().sink { [weak self] in self?.showRomanization = $0 },
             s.$showTranslation.removeDuplicates().sink { [weak self] in self?.showTranslation = $0 },
             s.$showNextLinePreview.removeDuplicates().sink { [weak self] in self?.showNextLinePreview = $0 },
             s.$overlayDuetAlignmentOverride.removeDuplicates().sink { [weak self] in self?.duetAlignmentOverride = $0 },
             s.$mainFont.removeDuplicates().sink { [weak self] in self?.mainFont = $0 },
-            s.$romanizationFont.removeDuplicates().sink { [weak self] in self?.romanizationFont = $0 },
             s.$translationFont.removeDuplicates().sink { [weak self] in self?.translationFont = $0 },
             s.$previewFont.removeDuplicates().sink { [weak self] in self?.previewFont = $0 },
             s.$textStrokeEnabled.removeDuplicates().sink { [weak self] in self?.textStrokeEnabled = $0 },
@@ -440,19 +436,6 @@ struct LyricsOverlayView<Chrome: OverlayChromeSource>: View {
                 reportingMainLineRect(mainLine)
             }
 
-            if playback.showRomanization, !usesPerWordRomanization,
-                let roma = line?.romanization
-            {
-                reportingTextRect(
-                    Text(roma)
-                        .font(playback.romanizationFont)
-                        .foregroundStyle(playback.displayForegroundColor.opacity(0.6))
-                        .fixedSize(horizontal: false, vertical: true)
-                        .lyricsTextStroke(playback.textStrokeEnabled, color: playback.textStrokeColor))
-
-                    .padding(.leading, speakerIndicatorInset(side: duetDecorationSide).leading)
-                    .padding(.trailing, speakerIndicatorInset(side: duetDecorationSide).trailing)
-            }
             if playback.showTranslation, let tr = line?.translation {
                 reportingTextRect(
                     Text(tr)
@@ -685,83 +668,25 @@ struct LyricsOverlayView<Chrome: OverlayChromeSource>: View {
         }
     }
 
-    private var usesPerWordRomanization: Bool {
-        playback.showRomanization && line?.wordGroups?.isEmpty == false
-    }
-
     @ViewBuilder
     private func karaokeLineContent(words: [SyncedLyricWord], atMs currentMs: Int?) -> some View {
-
         let palette = currentMs != nil
             ? WordKaraokeGradient.palette(fg: playback.displayForegroundColor) : nil
-        let romaPalette = (currentMs != nil && usesPerWordRomanization)
-            ? WordKaraokeGradient.palette(fg: playback.displayForegroundColor.opacity(0.75)) : nil
 
-        WrapLayout(rowAlignment: duetRowAlignment,
-                   contentKey: overlayLineLayoutKey,
-                   contentRectSink: wrapContentSink) {
-            if let groups = line?.wordGroups, usesPerWordRomanization {
-
-                ForEach(groups) { g in
-
-                    VStack(alignment: .leading, spacing: 0) {
-                        HStack(spacing: 0) {
-
-                            ForEach(g.words.indices, id: \.self) { i in
-                                wordText(g.words[i], atMs: currentMs, palette: palette)
-                            }
-                        }
-                        if let roma = g.romanization {
-                            romaText(roma, group: g, atMs: currentMs, palette: romaPalette)
-                        }
-                    }
-                }
-            } else {
-                ForEach(words.indices, id: \.self) { i in
-                    wordText(words[i], atMs: currentMs, palette: palette)
-                }
+        WrapLayout(
+            rowAlignment: duetRowAlignment,
+            contentKey: AnyHashable(OverlayLineKey(text: line?.plainText, mainFont: playback.mainFont)),
+            contentRectSink: wrapContentSink
+        ) {
+            ForEach(words.indices, id: \.self) { i in
+                wordText(words[i], atMs: currentMs, palette: palette)
             }
         }
     }
 
-    private var overlayLineLayoutKey: AnyHashable {
-        AnyHashable(OverlayLineKey(
-            text: line?.plainText,
-            roma: usesPerWordRomanization,
-            mainFont: playback.mainFont,
-            romaFont: playback.romanizationFont))
-    }
-
     private struct OverlayLineKey: Hashable {
         let text: String?
-        let roma: Bool
         let mainFont: Font
-        let romaFont: Font
-    }
-
-    private func romaText(
-        _ roma: String, group: SyncedLyricWordGroup, atMs currentMs: Int?,
-        palette: WordKaraokeGradient.Palette?
-    ) -> some View {
-        let style: AnyShapeStyle
-        if let currentMs, let palette {
-
-            let fraction = KaraokeFill.fillFraction(
-                startMs: group.startMs, durationMs: max(1, group.endMs - group.startMs),
-                atMs: currentMs)
-            let band = WordKaraokeGradient.wordEdgeSoftenBand
-            style = palette.style(left: fraction - band, right: fraction + band)
-        } else {
-
-            style = AnyShapeStyle(Color.black)
-        }
-        return Text(roma)
-            .font(playback.romanizationFont)
-            .foregroundStyle(style)
-            .lineLimit(1)
-            .fixedSize()
-
-            .padding(.horizontal, 2)
     }
 
     private func wordText(
