@@ -6,14 +6,11 @@ enum MenuBarProgressIcon {
 
     static let gap: CGFloat = 5
 
-    static func reservedWidth(for style: MenuBarIconStyle?) -> CGFloat {
-        guard let style else { return 0 }
-        return MenuBarIconStyle.cachedImage(for: style).size.width + gap
+    static func reservedWidth(enabled: Bool) -> CGFloat {
+        enabled ? MenuBarIconArtwork.image.size.width + gap : 0
     }
 
-    static func size(of style: MenuBarIconStyle) -> CGSize {
-        MenuBarIconStyle.cachedImage(for: style).size
-    }
+    static var size: CGSize { MenuBarIconArtwork.image.size }
 
     struct Prepared {
         let cg: CGImage
@@ -22,8 +19,8 @@ enum MenuBarProgressIcon {
         let size: CGSize
     }
 
-    static func tinted(style: MenuBarIconStyle, color: NSColor, scale: CGFloat) -> Prepared? {
-        let image = MenuBarIconStyle.cachedImage(for: style)
+    static func tinted(color: NSColor, scale: CGFloat) -> Prepared? {
+        let image = MenuBarIconArtwork.image
         let size = image.size
         let pxW = Int((size.width * scale).rounded())
         let pxH = Int((size.height * scale).rounded())
