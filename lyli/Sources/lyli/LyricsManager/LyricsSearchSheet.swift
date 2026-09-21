@@ -63,10 +63,10 @@ struct LyricsSearchSheet: View {
 
         let template: String
         switch code {
-        case "dns_failed": template = L10n.t("域名解析失败（DNS）：%@")
-        case "connect_failed": template = L10n.t("连接失败或超时：%@")
-        case "server_error": template = L10n.t("服务器报错（5xx）：%@")
-        case "upstream_unreachable": template = L10n.t("上游源没连上、没法查：%@")
+        case "dns_failed": template = "域名解析失败（DNS）：%@"
+        case "connect_failed": template = "连接失败或超时：%@"
+        case "server_error": template = "服务器报错（5xx）：%@"
+        case "upstream_unreachable": template = "上游源没连上、没法查：%@"
         default: template = code + ": %@"
         }
         let sentinel = "\u{FFFC}"
@@ -91,7 +91,7 @@ struct LyricsSearchSheet: View {
                     .foregroundStyle(.secondary)
             }
             .buttonStyle(.plain)
-            .help(L10n.t("这一轮有几个歌词源给出了候选，点击查看明细"))
+            .help("这一轮有几个歌词源给出了候选，点击查看明细")
             .popover(isPresented: $showSourceAvailability, arrowEdge: .bottom) {
                 sourceAvailabilityList
             }
@@ -107,7 +107,7 @@ struct LyricsSearchSheet: View {
 
     private var sourceAvailabilityList: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(L10n.t("歌词源可用情况"))
+            Text("歌词源可用情况")
                 .font(.headline)
 
             ForEach(sourceAvailabilityRows, id: \.source) { row in
@@ -133,7 +133,7 @@ struct LyricsSearchSheet: View {
                     .foregroundStyle(responded ? .green : .secondary)
                 Text(sourceDisplayName(source))
                 Spacer()
-                Text(responded ? L10n.t("已给出候选") : L10n.t("未给出候选"))
+                Text(responded ? "已给出候选" : "未给出候选")
                     .foregroundStyle(.secondary)
             }
             .font(.callout)
@@ -154,7 +154,7 @@ struct LyricsSearchSheet: View {
             Text(sourceDisplayName(source))
                 .foregroundStyle(.secondary)
             Spacer()
-            Text(L10n.t("未启用"))
+            Text("未启用")
                 .foregroundStyle(.tertiary)
         }
         .font(.callout)
@@ -220,11 +220,11 @@ struct LyricsSearchSheet: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Text(L10n.t("搜索候选歌词")).font(.title3.weight(.semibold))
+                Text("搜索候选歌词").font(.title3.weight(.semibold))
                 applyFeedbackView
                 Spacer()
                 sourceAvailabilityBadge
-                Button(L10n.t("关闭")) { dismiss() }
+                Button("关闭") { dismiss() }
                     .keyboardShortcut(.cancelAction)
             }
             .padding(16)
@@ -262,18 +262,18 @@ struct LyricsSearchSheet: View {
 
             ProportionalFieldsLayout(
                 desired: [
-                    Self.desiredFieldWidth(title, placeholder: L10n.t("歌名")),
-                    Self.desiredFieldWidth(artist, placeholder: L10n.t("歌手")),
-                    Self.desiredFieldWidth(album, placeholder: L10n.t("专辑")),
+                    Self.desiredFieldWidth(title, placeholder: "歌名"),
+                    Self.desiredFieldWidth(artist, placeholder: "歌手"),
+                    Self.desiredFieldWidth(album, placeholder: "专辑"),
                 ],
                 spacing: 10, minWidth: 88
             ) {
-                TextField(L10n.t("歌名"), text: $title).textFieldStyle(.roundedBorder)
-                TextField(L10n.t("歌手"), text: $artist).textFieldStyle(.roundedBorder)
-                TextField(L10n.t("专辑"), text: $album).textFieldStyle(.roundedBorder)
+                TextField("歌名", text: $title).textFieldStyle(.roundedBorder)
+                TextField("歌手", text: $artist).textFieldStyle(.roundedBorder)
+                TextField("专辑", text: $album).textFieldStyle(.roundedBorder)
             }
             if isDirty {
-                Button(L10n.t("恢复原信息")) {
+                Button("恢复原信息") {
                     artist = originalArtist
                     title = originalTitle
                     album = originalAlbum
@@ -281,7 +281,7 @@ struct LyricsSearchSheet: View {
                 .buttonStyle(.link)
             }
 
-            Button(L10n.t("重新搜索")) { Task { await load() } }
+            Button("重新搜索") { Task { await load() } }
                 .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty)
         }
         .onSubmit { Task { await load() } }
@@ -297,14 +297,14 @@ struct LyricsSearchSheet: View {
                     .font(.system(size: 32))
                     .foregroundStyle(.orange)
                 Text(msg).font(.callout).multilineTextAlignment(.center).padding(.horizontal, 40)
-                Button(L10n.t("重试")) { Task { await load() } }
+                Button("重试") { Task { await load() } }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if candidates.isEmpty {
             if isSearching {
                 VStack(spacing: 12) {
                     ProgressView()
-                    Text(L10n.t("正在查询 LRCLIB / 酷我 / 网易云 / 酷狗 / QQ音乐…")
+                    Text("正在查询 LRCLIB / 酷我 / 网易云 / 酷狗 / QQ音乐…"
                         + searchProgressSuffix)
                         .font(.callout)
                         .foregroundStyle(.secondary)
@@ -313,11 +313,11 @@ struct LyricsSearchSheet: View {
             } else if networkLooksDown {
 
                 ContentUnavailableView {
-                    Label(L10n.t("网络似乎不通"), systemImage: "wifi.slash")
+                    Label("网络似乎不通", systemImage: "wifi.slash")
                 } description: {
-                    Text(L10n.t("十个源的请求全部失败，很可能是网络连接有问题，不是这首歌真的没有歌词——检查网络后可以点下面的「重试」"))
+                    Text("十个源的请求全部失败，很可能是网络连接有问题，不是这首歌真的没有歌词——检查网络后可以点下面的「重试」")
                 } actions: {
-                    Button(L10n.t("重试")) { Task { await load() } }
+                    Button("重试") { Task { await load() } }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if !unreachableSourcesByCode.isEmpty {
@@ -329,8 +329,8 @@ struct LyricsSearchSheet: View {
                 let otherCount = max(0, sourcesTotal - unreachableCount)
                 ContentUnavailableView {
                     Label(allUnreachable
-                          ? L10n.t("歌词源全都没连上")
-                          : String(format: L10n.t("有 %@ 个歌词源没连上"), "\(unreachableCount)"),
+                          ? "歌词源全都没连上"
+                          : String(format: "有 %@ 个歌词源没连上", "\(unreachableCount)"),
                           systemImage: "wifi.exclamationmark")
                 } description: {
                     VStack(spacing: 4) {
@@ -339,29 +339,29 @@ struct LyricsSearchSheet: View {
                             Self.transportFailureLine(group.code, sources: group.sources)
                         }
                         if groups.contains(where: { $0.code == "dns_failed" }) {
-                            Text(L10n.t("常见于 VPN / 公司网络接管了 DNS；浏览器能开网页不代表这里能通"))
+                            Text("常见于 VPN / 公司网络接管了 DNS；浏览器能开网页不代表这里能通")
                         }
                         if instrumental {
 
-                            Text(L10n.t("有源明确说这首是纯音乐，没有可用的歌词候选"))
+                            Text("有源明确说这首是纯音乐，没有可用的歌词候选")
                         } else if !allUnreachable {
-                            Text(String(format: L10n.t("其余 %@ 个源没有给出候选"), "\(otherCount)"))
+                            Text(String(format: "其余 %@ 个源没有给出候选", "\(otherCount)"))
                         }
                     }
                 } actions: {
-                    Button(L10n.t("重试")) { Task { await load() } }
+                    Button("重试") { Task { await load() } }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if instrumental {
 
                 ContentUnavailableView {
-                    Label(L10n.t("纯音乐"), systemImage: "waveform")
+                    Label("纯音乐", systemImage: "waveform")
                 } description: {
-                    Text(L10n.t("有源明确说这首是纯音乐，没有可用的歌词候选"))
+                    Text("有源明确说这首是纯音乐，没有可用的歌词候选")
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                ContentUnavailableView(L10n.t("十个源都没找到可用的候选"), systemImage: "text.badge.xmark")
+                ContentUnavailableView("十个源都没找到可用的候选", systemImage: "text.badge.xmark")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         } else {
@@ -370,7 +370,7 @@ struct LyricsSearchSheet: View {
 
                     HStack(spacing: 6) {
                         ProgressView().controlSize(.small)
-                        Text(L10n.t("其它源仍在搜索中…") + searchProgressSuffix)
+                        Text("其它源仍在搜索中…" + searchProgressSuffix)
                     }
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -427,9 +427,9 @@ struct LyricsSearchSheet: View {
     }
 
     private func applyButtonTitle(for c: LyricsSearchService.Candidate) -> String {
-        if applyingSource == c.source { return L10n.t("正在采用…") }
+        if applyingSource == c.source { return "正在采用…" }
 
-        return c.isPlainTextOnly ? L10n.t("采纳为静态文本") : L10n.t("采用此候选")
+        return c.isPlainTextOnly ? "采纳为静态文本" : "采用此候选"
     }
 
     private func apply(_ c: LyricsSearchService.Candidate) async {
@@ -449,9 +449,9 @@ struct LyricsSearchSheet: View {
         }
         if saved {
             let name = LyricsSource(rawValue: c.source)?.displayName ?? c.source
-            showApplyFeedback(String(format: L10n.t("已采用 %@ 的歌词"), name), ok: true)
+            showApplyFeedback(String(format: "已采用 %@ 的歌词", name), ok: true)
         } else {
-            showApplyFeedback(L10n.t("未能保存，请再试一次"), ok: false)
+            showApplyFeedback("未能保存，请再试一次", ok: false)
         }
     }
 
@@ -498,7 +498,7 @@ struct LyricsSearchSheet: View {
             characteristicBadges(c, source: c.source, showsSource: true, isCurrent: isCurrentCandidate(c), duplicateOf: duplicateAnchors[c.source])
             if c.isPlainTextOnly {
                 Label(
-                    L10n.t("这份歌词没有时间戳，采纳后只能作为静态文字展示，不会逐字/逐行跟随播放高亮"),
+                    "这份歌词没有时间戳，采纳后只能作为静态文字展示，不会逐字/逐行跟随播放高亮",
                     systemImage: "info.circle"
                 )
                 .font(.caption)
@@ -558,13 +558,13 @@ struct LyricsSearchSheet: View {
             WrapLayout(horizontalSpacing: 5, verticalSpacing: 4, rowAlignment: .leading) {
 
                 if c.isPlainTextOnly {
-                    characteristicBadge(L10n.t("无时间戳"), "exclamationmark.triangle.fill", .orange)
+                    characteristicBadge("无时间戳", "exclamationmark.triangle.fill", .orange)
                 }
                 if c.hasWordTiming {
-                    characteristicBadge(L10n.t("逐字时间戳"), "text.word.spacing", .blue)
+                    characteristicBadge("逐字时间戳", "text.word.spacing", .blue)
                 }
                 if c.hasTranslation {
-                    characteristicBadge(L10n.t("译文"), "character.book.closed", .green)
+                    characteristicBadge("译文", "character.book.closed", .green)
                 }
 
                 if showsSource {
@@ -573,13 +573,13 @@ struct LyricsSearchSheet: View {
                 if let duplicateOf {
 
                     characteristicBadge(
-                        String(format: L10n.t("歌词文字与 %@ 相同"), LyricsSource(rawValue: duplicateOf)?.displayName ?? duplicateOf),
+                        String(format: "歌词文字与 %@ 相同", LyricsSource(rawValue: duplicateOf)?.displayName ?? duplicateOf),
                         "equal.circle", .secondary)
-                        .help(L10n.t("只比对歌词文字，不含时间戳、逐字与译文；这条候选仍可能带别的来源没有的逐字轨或译文"))
+                        .help("只比对歌词文字，不含时间戳、逐字与译文；这条候选仍可能带别的来源没有的逐字轨或译文")
                 }
                 if isCurrent {
 
-                    Label(L10n.t("当前使用"), systemImage: "checkmark.seal.fill")
+                    Label("当前使用", systemImage: "checkmark.seal.fill")
                         .foregroundStyle(.white)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
@@ -609,7 +609,7 @@ struct LyricsSearchSheet: View {
 
     @ViewBuilder
     private func scoreLine(_ c: LyricsSearchService.Candidate, font: Font) -> some View {
-        let label = Text(String(format: L10n.t("分数 %@ · %@ 行"), "\(c.score)", "\(c.lineCount)"))
+        let label = Text(String(format: "分数 %@ · %@ 行", "\(c.score)", "\(c.lineCount)"))
         label
         .font(font)
         .foregroundStyle(.secondary)
