@@ -133,7 +133,6 @@ public enum LyricsMatcher {
         terms.append(.init(kind: "lines", points: min(200, lineCount)))
         if candidate.hasWordTiming { terms.append(.init(kind: "wordTiming", points: 400)) }
         if candidate.hasTranslation { terms.append(.init(kind: "translation", points: 35)) }
-        if candidate.hasRomanization { terms.append(.init(kind: "romanization", points: 35)) }
 
         let peers = peers.filter { other in
             other.source != candidate.source && lyricsSimilarity(candidate.lyrics, other.lyrics) >= 0.72
