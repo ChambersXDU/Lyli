@@ -18,9 +18,9 @@ enum OverlayBehaviorItem: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .lockPosition: return L10n.t("锁定位置")
-        case .dragNeedsLongPress: return L10n.t("长按拖动")
-        case .fadeOnHover: return L10n.t("悬浮淡化")
+        case .lockPosition: return "锁定位置"
+        case .dragNeedsLongPress: return "长按拖动"
+        case .fadeOnHover: return "悬浮淡化"
         }
     }
 
