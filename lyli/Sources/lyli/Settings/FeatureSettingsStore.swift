@@ -130,7 +130,7 @@ public final class FeatureSettingsStore: ObservableObject {
         }
         do {
 
-            try document.save(fields: fields, knownKeys: FeatureFlagsFile.knownFileKeys, secure: false)
+            try document.save(fields: fields, knownKeys: FeatureFlagsFile.knownFileKeys)
         } catch JSONConfigDocument.Failure.refusedCorruptFile {
             throw ConfigFileSaveError.refusedCorruptFile
         } catch JSONConfigDocument.Failure.notSerializable {
