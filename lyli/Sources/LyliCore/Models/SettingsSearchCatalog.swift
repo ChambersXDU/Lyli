@@ -10,19 +10,17 @@ public struct SettingsSearchEntry: Hashable, Sendable, Identifiable {
     public let destination: Destination
     public let sectionKey: String?
     public let sectionValue: String?
-    public let drawer: LyricsSurface?
     public let titleKey: String
     public let alternateTitleKeys: [String]
     public let keywords: [String]
     public let pathKeys: [String]
 
     public init(destination: Destination, sectionKey: String? = nil, sectionValue: String? = nil,
-                drawer: LyricsSurface? = nil, titleKey: String, alternateTitleKeys: [String] = [],
+                titleKey: String, alternateTitleKeys: [String] = [],
                 keywords: [String] = [], pathKeys: [String]) {
         self.destination = destination
         self.sectionKey = sectionKey
         self.sectionValue = sectionValue
-        self.drawer = drawer
         self.titleKey = titleKey
         self.alternateTitleKeys = alternateTitleKeys
         self.keywords = keywords
@@ -57,13 +55,8 @@ public enum SettingsSearchCatalog {
                                    pathKeys: ["歌词", sectionTitle] + (group.map { [$0] } ?? []))
     }
 
-    private static func player(_ title: String, kw: [String] = [], group: String? = nil) -> SettingsSearchEntry {
-        SettingsSearchEntry(destination: .tab("player"), titleKey: title, keywords: kw,
-                            pathKeys: ["播放器"] + (group.map { [$0] } ?? []))
-    }
-
     private static func surface(_ surface: LyricsSurface, _ title: String, alt: [String] = [],
-                                kw: [String] = [], group: String? = nil, inDrawer: Bool = true) -> SettingsSearchEntry {
+                                kw: [String] = [], group: String? = nil) -> SettingsSearchEntry {
         let sectionTitle: String
         switch surface {
         case .overlay: sectionTitle = "悬浮歌词"
@@ -72,7 +65,6 @@ public enum SettingsSearchCatalog {
         return SettingsSearchEntry(destination: .tab("appearance"),
                                    sectionKey: LyricsSurface.appearanceSectionStorageKey,
                                    sectionValue: surface.appearanceSectionRawValue,
-                                   drawer: inDrawer ? surface : nil,
                                    titleKey: title, alternateTitleKeys: alt, keywords: kw,
                                    pathKeys: ["歌词显示", sectionTitle] + (group.map { [$0] } ?? []))
     }
@@ -109,9 +101,7 @@ public enum SettingsSearchCatalog {
         lyrics("manage", "歌词库", kw: ["歌词管理", "统计", "缓存"]),
         lyrics("manage", "歌词文件夹", kw: ["lyrics", "自定义位置", "目录", "lrc"]),
 
-        player("Apple Music 自动化", kw: ["权限", "AppleScript", "自动化"]),
-
-        surface(.overlay, "桌面悬浮歌词", kw: ["开关", "悬浮窗", "总开关"], inDrawer: false),
+        surface(.overlay, "桌面悬浮歌词", kw: ["开关", "悬浮窗", "总开关"]),
         surface(.overlay, "配色主题", kw: ["预设", "经典白字", "白字描边", "经典黑字", "黑字描边", "深色卡片", "浅色卡片"], group: "主题"),
         surface(.overlay, "我的配色主题", kw: ["自存", "保存主题"], group: "主题"),
         surface(.overlay, "字体", kw: ["字体族", "font"], group: "文字"),
@@ -135,7 +125,7 @@ public enum SettingsSearchCatalog {
         surface(.overlay, "位置", kw: ["自由", "顶部居中", "底部居中", "Dock", "预设", "对齐"]),
         surface(.overlay, "恢复默认", kw: ["重置"]),
 
-        surface(.menuBar, "菜单栏歌词", kw: ["开关", "跑马灯", "总开关"], inDrawer: false),
+        surface(.menuBar, "菜单栏歌词", kw: ["开关", "跑马灯", "总开关"]),
         surface(.menuBar, "宽度模式", kw: ["固定", "自适应", "宽度"], group: "布局"),
         surface(.menuBar, "对齐方式", kw: ["居中", "左对齐", "右对齐"], group: "布局"),
         surface(.menuBar, "副行", kw: ["下一句", "译文", "罗马音", "双排", "两行"], group: "布局"),
