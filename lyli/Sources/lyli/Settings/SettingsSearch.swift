@@ -74,41 +74,24 @@ final class SettingsSearchRouter: ObservableObject {
 
     @Published private(set) var highlightedTitles: Set<String> = []
 
-    @Published private(set) var pendingDrawer: LyricsSurface?
-
     private var clearHighlight: DispatchWorkItem?
-    private var clearDrawer: DispatchWorkItem?
 
     static let highlightDuration: TimeInterval = 1.8
 
     func reveal(_ hit: SettingsSearchHit) {
         clearHighlight?.cancel()
-        clearDrawer?.cancel()
-        pendingDrawer = hit.entry.drawer
         highlightedTitles = hit.highlightTitles
 
         let highlightWork = DispatchWorkItem { [weak self] in self?.highlightedTitles = [] }
         clearHighlight = highlightWork
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.highlightDuration, execute: highlightWork)
 
-        let drawerWork = DispatchWorkItem { [weak self] in self?.pendingDrawer = nil }
-        clearDrawer = drawerWork
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3, execute: drawerWork)
     }
 
-    func consumeDrawer(_ surface: LyricsSurface) {
-        guard pendingDrawer == surface else { return }
-        pendingDrawer = nil
-        clearDrawer?.cancel()
-    }
 }
 
 private struct SettingsSearchHighlightedTitlesKey: EnvironmentKey {
     static let defaultValue: Set<String> = []
-}
-
-private struct SettingsSearchPendingDrawerKey: EnvironmentKey {
-    static let defaultValue: LyricsSurface? = nil
 }
 
 extension EnvironmentValues {
@@ -118,10 +101,6 @@ extension EnvironmentValues {
         set { self[SettingsSearchHighlightedTitlesKey.self] = newValue }
     }
 
-    var settingsSearchPendingDrawer: LyricsSurface? {
-        get { self[SettingsSearchPendingDrawerKey.self] }
-        set { self[SettingsSearchPendingDrawerKey.self] = newValue }
-    }
 }
 
 struct SettingsSearchHighlight: ViewModifier {
