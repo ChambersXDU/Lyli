@@ -323,7 +323,6 @@ struct LyricsManagerView: View {
     @State private var editedLyricsBody = ""
     @State private var lyricsBodyEdit = LyricsBodyEdit(lyrics: "")
     @State private var editedTr = ""
-    @State private var editedRoma = ""
 
     @State private var editedOffsetSeconds = ""
     @State private var persistedLyricsForOffset = ""
@@ -1140,7 +1139,6 @@ struct LyricsManagerView: View {
             offsetMs: 0,
             lyricsTrSource: "",
             hasTranslation: false,
-            hasRomanization: false,
             hasLyrics: false,
             isInstrumental: false,
             hasPlainTextFallback: false,
@@ -1148,7 +1146,6 @@ struct LyricsManagerView: View {
             lastRoundHadNoResponder: false,
             sourcesRespondedCount: 0,
             isSearching: true,
-            hasDecision: false,
             lyricsUpdatedAt: nil,
             resolvedAt: nil,
             normPrimaryArtist: toSimplified(primaryArtist(display)).lowercased(),
@@ -1248,7 +1245,6 @@ struct LyricsManagerView: View {
                         if full != editedLyrics { editedLyrics = full }
                     }
                 editorSection(title: "译文", icon: "character.book.closed", text: $editedTr, minHeight: 70, monospaced: false)
-                editorSection(title: "罗马音", icon: "textformat.abc", text: $editedRoma, minHeight: 70, monospaced: false, latinIcon: true)
 
                 if let error = store.lastError {
                     Label(error, systemImage: "exclamationmark.triangle.fill")
@@ -1290,10 +1286,9 @@ struct LyricsManagerView: View {
                 }
                 editedLyrics = candidate.lyrics
                 editedTr = candidate.lyricsTr
-                editedRoma = candidate.lyricsRoma
 
                 let saved = await store.saveEdit(key: key, lyrics: candidate.lyrics, tr: candidate.lyricsTr,
-                                                 roma: candidate.lyricsRoma, yrc: candidate.lyricsYRC,
+                                                 yrc: candidate.lyricsYRC,
                                                  source: candidate.source, markManual: AppSettings.shared.manualPickLocksLyrics,
                                                  sourceChoice: "", fromManualPick: true)
                 refreshOffsetState(artist: summary.artist, title: summary.title, lyrics: candidate.lyrics, yrc: candidate.lyricsYRC)
@@ -1461,7 +1456,7 @@ struct LyricsManagerView: View {
     private var wordTimingHint: some View {
         Label(
 
-            "播放用的是逐字时间轴,改「歌词(LRC)」不生效。要手改主歌词,先用「联网搜索候选歌词」换一份不带逐字的;译文/罗马音不受影响",
+            "播放用的是逐字时间轴，改「歌词(LRC)」不会影响当前逐字歌词。要手改主歌词，先用「联网搜索候选歌词」换一份不带逐字的；译文不受影响。",
             systemImage: "info.circle"
         )
         .font(.caption)
@@ -1521,7 +1516,7 @@ struct LyricsManagerView: View {
         HStack(spacing: 10) {
             Button {
                 Task {
-                    await store.saveEdit(key: key, lyrics: editedLyrics, tr: editedTr, roma: editedRoma)
+                    await store.saveEdit(key: key, lyrics: editedLyrics, tr: editedTr)
 
                     let d = store.detail(for: key)
                     refreshOffsetState(artist: summary.artist, title: summary.title, lyrics: d.lyrics, yrc: d.yrc)
@@ -1659,9 +1654,8 @@ struct LyricsManagerView: View {
         }
         editedLyrics = winner.lyrics
         editedTr = winner.lyricsTr
-        editedRoma = winner.lyricsRoma
         await store.saveEdit(
-            key: key, lyrics: winner.lyrics, tr: winner.lyricsTr, roma: winner.lyricsRoma,
+            key: key, lyrics: winner.lyrics, tr: winner.lyricsTr,
             yrc: winner.lyricsYRC, source: winner.source, markManual: false,
 
             sourceChoice: "",
@@ -1700,7 +1694,6 @@ struct LyricsManagerView: View {
         let d = store.detail(for: key)
         editedLyrics = d.lyrics
         editedTr = d.tr
-        editedRoma = d.roma
         if let summary = store.summaries.first(where: { $0.key == key }) {
             refreshOffsetState(artist: summary.artist, title: summary.title, lyrics: d.lyrics, yrc: d.yrc)
         }
@@ -1865,8 +1858,6 @@ private struct LyricsManagerRow: View {
                               on: summary.hasTranslation,
                               help: summary.lyricsTrSource == LyricsTranslationSource.machineSentinel
                                   ? "译文(机器翻译)" : "译文(歌词源自带)")
-                        badge("textformat.abc", tint: .purple, on: summary.hasRomanization,
-                              help: "罗马音", forceLatinIcon: true)
                     }
                 }
                 if summary.isSearching {
