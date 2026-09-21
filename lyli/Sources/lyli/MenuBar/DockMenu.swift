@@ -5,9 +5,9 @@ final class DockMenuController: NSObject {
     func makeMenu() -> NSMenu {
         let menu = NSMenu()
         menu.autoenablesItems = false
-        menu.addItem(item(L10n.t("设置…"), symbol: "gearshape",
+        menu.addItem(item("设置…", symbol: "gearshape",
                           selector: #selector(openSettings)))
-        menu.addItem(item(L10n.t("歌词管理…"), symbol: "music.note.list",
+        menu.addItem(item("歌词管理…", symbol: "music.note.list",
                           selector: #selector(openLyricsManager)))
         return menu
     }
