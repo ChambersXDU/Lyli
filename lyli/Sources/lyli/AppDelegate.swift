@@ -135,8 +135,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         installScrollForwardMonitor()
         MenuBarSceneActions.install()
 
-        GlobalHotkeys.registerAll()
-
     }
 
     private var isActiveForReopen = false
