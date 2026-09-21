@@ -4,8 +4,6 @@ import SwiftUI
 struct LyliApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
-    @ObservedObject private var languageSettings = AppSettings.shared
-
     var body: some Scene {
 
         Settings {
