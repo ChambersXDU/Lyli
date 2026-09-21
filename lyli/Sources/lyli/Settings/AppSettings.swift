@@ -77,8 +77,6 @@ final class AppSettings: ObservableObject {
         static let menuBarLyricsFontSize = "np:menuBarLyricsFontSize"
         static let menuBarSecondaryLine = "np:menuBarSecondaryLine"
             static let menuBarShowsTitleWhenNoLyrics = "np:menuBarShowsTitleWhenNoLyrics"
-        static let menuBarIconStyle = "np:menuBarIconStyle"
-        static let menuBarIconAnimates = "np:menuBarIconAnimates"
         static let lyricsOffsetStepMs = "np:lyricsOffsetStepMs"
         static let manualPickLocksLyrics = "np:manualPickLocksLyrics"
         static let textStrokeEnabled = "np:textStrokeEnabled"
@@ -228,14 +226,6 @@ final class AppSettings: ObservableObject {
 
     @Published var menuBarShowsTitleWhenNoLyrics: Bool {
         didSet { defaults.set(menuBarShowsTitleWhenNoLyrics, forKey: Keys.menuBarShowsTitleWhenNoLyrics) }
-    }
-
-    @Published var menuBarIconStyle: MenuBarIconStyle {
-        didSet { defaults.set(menuBarIconStyle.rawValue, forKey: Keys.menuBarIconStyle) }
-    }
-
-    @Published var menuBarIconAnimates: Bool {
-        didSet { defaults.set(menuBarIconAnimates, forKey: Keys.menuBarIconAnimates) }
     }
 
     @Published var textStrokeEnabled: Bool {
@@ -414,9 +404,6 @@ final class AppSettings: ObservableObject {
             .flatMap(LyricSecondaryLine.init(rawValue:)) ?? Self.defaultMenuBarSecondaryLine
         menuBarShowsTitleWhenNoLyrics = (defaults.object(forKey: Keys.menuBarShowsTitleWhenNoLyrics) as? Bool)
             ?? Self.defaultMenuBarShowsTitleWhenNoLyrics
-        menuBarIconStyle = defaults.string(forKey: Keys.menuBarIconStyle)
-            .flatMap(MenuBarIconStyle.init(rawValue:)) ?? .default
-        menuBarIconAnimates = (defaults.object(forKey: Keys.menuBarIconAnimates) as? Bool) ?? true
         lyricsOffsetStepMs = (defaults.object(forKey: Keys.lyricsOffsetStepMs) as? Int) ?? 200
         manualPickLocksLyrics = (defaults.object(forKey: Keys.manualPickLocksLyrics) as? Bool) ?? false
         textStrokeEnabled = (defaults.object(forKey: Keys.textStrokeEnabled) as? Bool) ?? ColorTheme.defaultTheme.textStrokeEnabled
