@@ -87,9 +87,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         LoginItemManager.shared.syncAtLaunch(enabled: AppSettings.shared.launchAtLoginEnabled)
 
-        AppSettingsMirror.restoreIfPristine()
-        AppSettingsMirror.startObserving()
-        AppSettingsMirror.write()
 
         URLCache.shared = URLCache(memoryCapacity: 32 << 20, diskCapacity: 256 << 20)
 
