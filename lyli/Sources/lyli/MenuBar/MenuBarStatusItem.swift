@@ -495,6 +495,7 @@ final class MenuBarStatusItem: NSObject {
         titleFallbackActive = display?.isFallback ?? false
 
         let twoRows = secondaryKind.showsSecondaryRow && !titleFallbackActive
+        let fullyPlayed = !titleFallbackActive && line != nil && (line?.words?.isEmpty ?? true)
 
         let dwell: Double? = titleFallbackActive ? nil
             : (twoRows ? coordinator.currentLineDwellSeconds : coordinator.compactDwellSeconds)
@@ -541,23 +542,23 @@ final class MenuBarStatusItem: NSObject {
             let width = MenuBarMarqueeRenderer.width(of: visible, font: rowState.mainFont)
             present(class: "text", length: width + Self.fixedSlotPadding, collapseDelay: 0,
                     dwellSeconds: dwell, targetIsProvisional: provisional,
-                    interim: { [weak self] in self?.renderInterimLyrics($0, text: text) }) {
-                showStaticText($0, visible: visible, full: text)
+                    interim: { [weak self] in self?.renderInterimLyrics($0, text: text, fullyPlayed: fullyPlayed) }) {
+                showStaticText($0, visible: visible, full: text, fullyPlayed: fullyPlayed)
             }
         case .fixed(let lineText, let windowWidth, let pacing):
             let icon = lyricsIconBadge()
             let slotWidth = windowWidth + MenuBarProgressIcon.reservedWidth(enabled: icon != nil)
             present(class: "fixed", length: slotWidth + Self.fixedSlotPadding, collapseDelay: 0,
                     dwellSeconds: dwell, targetIsProvisional: provisional,
-                    interim: { [weak self] in self?.renderInterimLyrics($0, text: text) }) {
+                    interim: { [weak self] in self?.renderInterimLyrics($0, text: text, fullyPlayed: fullyPlayed) }) {
                 showFixedWidth($0, text: lineText, windowWidth: windowWidth, pacing: pacing,
-                               fillPath: karaokeFillPath(for: lineText),
+                               fillPath: karaokeFillPath(for: lineText), fullyPlayed: fullyPlayed,
                                followPath: followReadingPath(for: lineText), icon: icon)
             }
         }
     }
 
-    private func renderInterimLyrics(_ button: NSStatusBarButton, text: String) {
+    private func renderInterimLyrics(_ button: NSStatusBarButton, text: String, fullyPlayed: Bool) {
         guard displayClass == "text" || displayClass == "fixed", let item = statusItem else { return }
 
         let icon = lyricsIconBadge()
@@ -576,11 +577,11 @@ final class MenuBarStatusItem: NSObject {
             widthMode: .fixed, font: rowState.mainFont
         ) {
         case .text(let visible):
-            showStaticText(button, visible: visible, full: text)
+            showStaticText(button, visible: visible, full: text, fullyPlayed: fullyPlayed)
         case .fixed(let lineText, let win, let pacing):
 
             showFixedWidth(button, text: lineText, windowWidth: win, pacing: pacing,
-                           fillPath: karaokeFillPath(for: lineText),
+                           fillPath: karaokeFillPath(for: lineText), fullyPlayed: fullyPlayed,
                            followPath: followReadingPath(for: lineText), icon: icon)
         }
     }
@@ -594,23 +595,32 @@ final class MenuBarStatusItem: NSObject {
         button.setAccessibilityLabel("Lyli")
     }
 
-    private func showStaticText(_ button: NSStatusBarButton, visible: String, full: String) {
+    private func showStaticText(
+        _ button: NSStatusBarButton, visible: String, full: String, fullyPlayed: Bool
+    ) {
         scrollingLabel.clear()
         button.image = nil
 
         button.imagePosition = .noImage
-
         button.font = MenuBarMarqueeRenderer.font(for: visible)
-        let textHex = AppSettings.shared.menuBarLyricsTextColorHex
-        if textHex.isEmpty {
-            button.title = visible
+
+        let settings = AppSettings.shared
+        let color: NSColor
+        if fullyPlayed {
+            let dark = button.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+            color = MenuBarScrollingLabel.fillColor(
+                hex: settings.menuBarLyricsFillColorHex, darkMenuBar: dark)
+        } else if settings.menuBarLyricsTextColorHex.isEmpty {
+            color = .labelColor
         } else {
-            button.attributedTitle = NSAttributedString(string: visible, attributes: [
-                .font: MenuBarMarqueeRenderer.font(for: visible),
-                .foregroundColor: NSColor(Color(hexWithAlpha: textHex,
-                                                fallback: Color(nsColor: .labelColor))),
-            ])
+            color = NSColor(Color(
+                hexWithAlpha: settings.menuBarLyricsTextColorHex,
+                fallback: Color(nsColor: .labelColor)))
         }
+        button.attributedTitle = NSAttributedString(string: visible, attributes: [
+            .font: MenuBarMarqueeRenderer.font(for: visible),
+            .foregroundColor: color,
+        ])
 
         button.toolTip = full
         button.setAccessibilityLabel(full)
@@ -619,6 +629,7 @@ final class MenuBarStatusItem: NSObject {
     private func showFixedWidth(_ button: NSStatusBarButton, text: String, windowWidth: CGFloat,
                                 pacing: MenuBarMarquee.ScrollPacing?,
                                 fillPath: [MenuBarMarquee.KaraokeFillPoint]? = nil,
+                                fullyPlayed: Bool = false,
                                 followPath: [MenuBarMarquee.KaraokeFillPoint]? = nil,
                                 icon: MenuBarScrollingLabel.IconBadge? = nil) {
 
@@ -635,7 +646,8 @@ final class MenuBarStatusItem: NSObject {
 
         scrollingLabel.frame = button.bounds
         scrollingLabel.present(text: text, windowWidth: windowWidth, pacing: pacing,
-                               fillPath: fillPath, followPath: followPath, icon: icon,
+                               fillPath: fillPath, fullyPlayed: fullyPlayed,
+                               followPath: followPath, icon: icon,
                                secondaryText: rowState.secondaryText, secondaryKind: rowState.kind)
 
         if fillPath != nil || followPath != nil { syncKaraokeClock(force: true) }
