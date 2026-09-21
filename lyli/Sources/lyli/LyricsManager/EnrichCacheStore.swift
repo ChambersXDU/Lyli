@@ -46,8 +46,6 @@ public final class EnrichCacheStore: ObservableObject {
 
         public let isSearching: Bool
 
-        let hasDecision: Bool
-
         let lyricsUpdatedAt: Date?
 
         let resolvedAt: Date?
@@ -127,14 +125,6 @@ public final class EnrichCacheStore: ObservableObject {
             let size = (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0
             return total + Int64(size)
         }
-    }
-
-    private static func decodeDecision(_ value: Any?) -> LyricsResolutionDecision? {
-        guard let dict = value as? [String: Any],
-              let data = try? JSONSerialization.data(withJSONObject: dict) else { return nil }
-        let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
-        return try? decoder.decode(LyricsResolutionDecision.self, from: data)
     }
 
     private nonisolated static func splitKey(_ key: String) -> (artist: String, title: String, album: String)? {
@@ -238,8 +228,6 @@ public final class EnrichCacheStore: ObservableObject {
                 lastRoundHadNoResponder: Self.lastRoundHadNoResponder(entry),
                 sourcesRespondedCount: (entry["lyrics_sources_responded"] as? [Any])?.count ?? 0,
                 isSearching: false,
-                hasDecision: entry["lyrics_decision"] != nil || entry["lyrics_decision_applied"] != nil,
-
                 lyricsUpdatedAt: lyricsFileDates[EnrichCacheKeys.sanitizeFilename(key).lowercased()]
                     ?? lyricsFileDates[EnrichCacheKeys.disambiguatedName(forKey: key).lowercased()],
 
@@ -284,14 +272,6 @@ public final class EnrichCacheStore: ObservableObject {
         if raw[key] != nil { return true }
         let loose = EnrichCacheKeys.looseKey(key)
         return raw.keys.contains { EnrichCacheKeys.looseKey($0) == loose }
-    }
-
-    func decodedDecision(for key: String) -> LyricsResolutionDecision? {
-        Self.decodeDecision(raw[key]?["lyrics_decision"])
-    }
-
-    func decodedAppliedDecision(for key: String) -> LyricsResolutionDecision? {
-        Self.decodeDecision(raw[key]?["lyrics_decision_applied"])
     }
 
     public func detail(for key: String) -> (lyrics: String, tr: String, roma: String, yrc: String) {
