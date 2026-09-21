@@ -344,15 +344,13 @@ final class MenuBarScrollingLabel: NSView {
         let iconSize = plan.icon.map { MenuBarProgressIcon.size(of: $0.style) } ?? .zero
         let reserved = MenuBarProgressIcon.reservedWidth(for: plan.icon?.style)
 
-        guard let slot = MenuBarHoverControls.lyricsSlot(
-            buttonWidth: bounds.width, contentWidth: plan.windowWidth + reserved,
-            reservedIconWidth: reserved, iconLeading: plan.icon?.position == .leading)
-        else { return nil }
         let contentW = min(plan.windowWidth + reserved, bounds.width)
+        guard contentW > 0, bounds.width > 0 else { return nil }
         let left = max(0, ((bounds.width - contentW) / 2).rounded())
-        let clipW = slot.width
+        let clipW = max(0, contentW - reserved)
+        guard clipW > 0 else { return nil }
         let y = rows?.mainY ?? ((bounds.height - height) / 2).rounded()
-        let lyricsX = slot.x
+        let lyricsX = plan.icon?.position == .leading ? left + reserved : left
         let iconX: CGFloat
         switch plan.icon?.position {
         case .leading:
