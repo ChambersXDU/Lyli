@@ -33,8 +33,6 @@ struct LyricsSearchSheet: View {
 
     @Environment(\.dismiss) private var dismiss
 
-    @ObservedObject private var languageSettings = AppLanguageObserver.shared
-
     @State private var candidates: [LyricsSearchService.Candidate] = []
 
     private var searchProgressSuffix: String {
