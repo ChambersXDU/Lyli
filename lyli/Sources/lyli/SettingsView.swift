@@ -1041,13 +1041,8 @@ private struct AppearanceSettingsTab: View {
     private func previewCard<Content: View>(
         @ViewBuilder content: () -> Content
     ) -> some View {
-        VStack(spacing: 6) {
-            content()
-            Text("预览")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity)
+        content()
+            .frame(maxWidth: .infinity)
     }
 
     private func modeToggleCard(
