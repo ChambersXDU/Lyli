@@ -216,23 +216,6 @@ private struct LyricsSettingsTab: View {
 
     @State private var priorityRowFrames: [LyricsSource: CGRect] = [:]
 
-    private func romanizationToggle(
-        _ title: String, _ option: RomanizationScripts
-    ) -> some View {
-        HStack(spacing: 4) {
-            Toggle("", isOn: Binding(
-                get: { settings.romanizationScripts.contains(option) },
-                set: { on in
-                    var next = settings.romanizationScripts
-                    if on { next.insert(option) } else { next.remove(option) }
-                    settings.romanizationScripts = next
-                    local.romanizationScripts = next
-                }
-            ))
-            .toggleStyle(.checkbox)
-            Text(title).font(.system(size: 12))
-        }
-    }
     @ObservedObject private var features = FeatureSettingsStore.shared
     @Environment(\.openWindow) private var openWindow
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -762,29 +745,6 @@ private struct LyricsSettingsTab: View {
             }
             CardDivider()
             }
-            SettingsRow(
-                icon: "textformat.alt",
-                title: L10n.t("显示罗马音")
-            ) {
-                Toggle("", isOn: $settings.showRomanization)
-            }
-
-            if settings.showRomanization {
-                CardDivider()
-
-                SettingsSubRow(
-                    title: L10n.t("标注哪些语言")
-                ) {
-                    HStack(spacing: 12) {
-                        romanizationToggle(
-                            L10n.t("日语"), .japanese)
-                        romanizationToggle(
-                            L10n.t("韩语"), .korean)
-                    }
-                }
-            }
-            CardDivider()
-
             SettingsRow(
                 icon: "timer",
                 title: L10n.t("全局时间轴偏移")
