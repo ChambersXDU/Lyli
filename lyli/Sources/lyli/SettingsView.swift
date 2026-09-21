@@ -1073,18 +1073,7 @@ private struct GeneralSettingsTab: View {
     var body: some View {
         SettingsPage(title: "通用") {
             SettingsCard {
-                SettingsCardHeader(title: "菜单栏与 Dock")
-                CardDivider()
-                SettingsRow(icon: "menubar.rectangle", title: "菜单栏图标") {
-                    Text(settings.menuBarIconStyle.displayName)
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                }
-                SettingsRawRow { MenuBarIconPicker() }
-                CardDivider()
-                SettingsRow(icon: "figure.dance", title: "随播放律动") {
-                    Toggle("", isOn: $settings.menuBarIconAnimates)
-                }
+                SettingsCardHeader(title: "Dock")
                 CardDivider()
                 SettingsRow(icon: "macwindow", title: "在 Dock 中显示") {
                     Toggle("", isOn: $settings.showInDock)
