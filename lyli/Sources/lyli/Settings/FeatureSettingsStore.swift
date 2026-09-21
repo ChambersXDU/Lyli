@@ -126,16 +126,9 @@ public final class FeatureSettingsStore: ObservableObject {
 
         let encoded = try JSONEncoder().encode(currentSnapshot)
         guard let fields = try JSONSerialization.jsonObject(with: encoded) as? [String: Any] else {
-            throw ConfigFileSaveError.notSerializable
+            throw JSONConfigDocument.Failure.notSerializable
         }
-        do {
-
-            try document.save(fields: fields, knownKeys: FeatureFlagsFile.knownFileKeys)
-        } catch JSONConfigDocument.Failure.refusedCorruptFile {
-            throw ConfigFileSaveError.refusedCorruptFile
-        } catch JSONConfigDocument.Failure.notSerializable {
-            throw ConfigFileSaveError.notSerializable
-        }
+        try document.save(fields: fields, knownKeys: FeatureFlagsFile.knownFileKeys)
     }
 
     private static func describeDecodingError(_ error: Error) -> String {
@@ -160,9 +153,9 @@ public final class FeatureSettingsStore: ObservableObject {
 
         do {
             try persistFile()
-        } catch ConfigFileSaveError.refusedCorruptFile {
+        } catch JSONConfigDocument.Failure.refusedCorruptFile {
 
-            lastError = ConfigFileSaveError.refusedCorruptFile.errorDescription
+            lastError = "功能设置文件已损坏，未覆盖原文件"
             logger.notice("save refused: features.json on disk is corrupt")
             return false
         } catch {
