@@ -58,8 +58,6 @@ final class AppSettings: ObservableObject {
         static let lyricsChineseVariant = "np:lyricsChineseVariant"
         static let hasSeenChineseLyrics = "np:hasSeenChineseLyrics"
         static let hasShownMenuBarPositionHint = "np:hasShownMenuBarPositionHint"
-        static let showRomanization = "np:showRomanization"
-        static let romanizationScripts = "np:romanizationScripts"
         static let showTranslation = "np:showTranslation"
         static let launchAtLoginEnabled = "np:launchAtLoginEnabled"
 
@@ -154,13 +152,6 @@ final class AppSettings: ObservableObject {
 
     @Published var lyricsChineseVariant: ChineseVariant {
         didSet { defaults.set(lyricsChineseVariant.rawValue, forKey: Keys.lyricsChineseVariant) }
-    }
-    @Published var showRomanization: Bool {
-        didSet { defaults.set(showRomanization, forKey: Keys.showRomanization) }
-    }
-
-    @Published var romanizationScripts: RomanizationScripts {
-        didSet { defaults.set(romanizationScripts.rawValue, forKey: Keys.romanizationScripts) }
     }
     @Published var showTranslation: Bool {
         didSet { defaults.set(showTranslation, forKey: Keys.showTranslation) }
@@ -365,7 +356,6 @@ final class AppSettings: ObservableObject {
     @Published private(set) var backgroundIsVisible: Bool = false
     @Published private(set) var textStrokeColor: Color = .black.opacity(0.65)
     @Published private(set) var mainFont: Font = .system(size: 20, weight: .bold)
-    @Published private(set) var romanizationFont: Font = .system(size: 13, weight: .medium)
     @Published private(set) var translationFont: Font = .system(size: 14, weight: .regular)
     @Published private(set) var previewFont: Font = .system(size: 14, weight: .medium)
 
@@ -373,9 +363,6 @@ final class AppSettings: ObservableObject {
         let weight = overlayFontWeight
         mainFont = .overlayFont(
             familyName: fontFamilyName, size: CGFloat(fontSize), weight: weight)
-        romanizationFont = .overlayFont(
-            familyName: fontFamilyName, size: CGFloat(fontSize) * 0.65,
-            weight: weight.lighter(by: OverlayFontWeight.romanizationSteps))
         translationFont = .overlayFont(
             familyName: fontFamilyName, size: CGFloat(fontSize) * 0.7,
             weight: weight.lighter(by: OverlayFontWeight.translationSteps))
@@ -396,11 +383,6 @@ final class AppSettings: ObservableObject {
             .flatMap(ChineseVariant.init(rawValue:)) ?? .off
         hasSeenChineseLyrics = defaults.bool(forKey: Keys.hasSeenChineseLyrics)
         hasShownMenuBarPositionHint = defaults.bool(forKey: Keys.hasShownMenuBarPositionHint)
-        showRomanization = (defaults.object(forKey: Keys.showRomanization) as? Bool) ?? true
-
-        romanizationScripts = (defaults.object(forKey: Keys.romanizationScripts) as? Int)
-            .map(RomanizationScripts.init(rawValue:)) ?? .default
-
         showTranslation = (defaults.object(forKey: Keys.showTranslation) as? Bool) ?? Self.userReadsChinese
 
         launchAtLoginEnabled = (defaults.object(forKey: Keys.launchAtLoginEnabled) as? Bool) ?? true
