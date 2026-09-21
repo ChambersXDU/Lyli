@@ -600,7 +600,7 @@ struct LyricsManagerView: View {
 
                 Picker("排序", selection: $sortOption) {
                     ForEach(LyricsSortOption.allCases) { option in
-                        Text(L10n.t(option.rawValue)).tag(option)
+                        Text(option.rawValue).tag(option)
                     }
                 }
                 .pickerStyle(.menu)
@@ -646,7 +646,7 @@ struct LyricsManagerView: View {
         .frame(width: 150)
 
         Picker("时间轴", selection: $timingFilter) {
-            ForEach(TimingFilter.allCases) { f in Text(L10n.t(f.rawValue)).tag(f) }
+            ForEach(TimingFilter.allCases) { f in Text(f.rawValue).tag(f) }
         }
         .pickerStyle(.menu)
         .frame(width: 175)
