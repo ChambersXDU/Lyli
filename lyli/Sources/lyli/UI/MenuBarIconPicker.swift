@@ -20,7 +20,7 @@ struct MenuBarIconPicker: View {
         }
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .contain)
-        .accessibilityLabel(L10n.t("菜单栏图标"))
+        .accessibilityLabel("菜单栏图标")
     }
 
     private func chip(_ style: MenuBarIconStyle) -> some View {
