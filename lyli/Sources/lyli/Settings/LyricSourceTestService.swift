@@ -16,7 +16,7 @@ final class LyricSourceTestService {
 
     enum TestError: LocalizedError {
         case cancelled
-        var errorDescription: String? { L10n.t("测试已取消") }
+        var errorDescription: String? { "测试已取消" }
     }
 
     private var runningTask: Task<Void, Never>?
