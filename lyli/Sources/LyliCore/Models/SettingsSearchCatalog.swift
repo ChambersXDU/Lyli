@@ -69,11 +69,6 @@ public enum SettingsSearchCatalog {
                                    pathKeys: ["歌词显示", sectionTitle] + (group.map { [$0] } ?? []))
     }
 
-    private static func shortcut(_ title: String, kw: [String] = []) -> SettingsSearchEntry {
-        SettingsSearchEntry(destination: .tab("shortcuts"), titleKey: title,
-                            keywords: kw + ["快捷键", "hotkey"], pathKeys: ["快捷键"])
-    }
-
     private static func general(_ title: String, alt: [String] = [], kw: [String] = [],
                                 group: String? = nil) -> SettingsSearchEntry {
         SettingsSearchEntry(destination: .tab("general"), titleKey: title, alternateTitleKeys: alt,
@@ -139,22 +134,6 @@ public enum SettingsSearchCatalog {
         surface(.menuBar, "悬停显示播放控制", kw: ["悬停", "播放控制", "鼠标"], group: "行为"),
         surface(.menuBar, "无歌词时显示歌名", kw: ["歌名", "兜底", "没有歌词"], group: "行为"),
         surface(.menuBar, "恢复默认", kw: ["重置"]),
-
-        shortcut("显示/隐藏悬浮歌词", kw: ["悬浮歌词", "开关"]),
-        shortcut("显示/隐藏菜单栏歌词", kw: ["菜单栏", "开关"]),
-        shortcut("锁定/解锁位置", kw: ["锁定", "位置"]),
-        shortcut("显示/隐藏译文", kw: ["译文", "翻译"]),
-        shortcut("显示/隐藏发音", kw: ["罗马音", "发音"]),
-        shortcut("打开歌词管理", kw: ["歌词管理", "窗口"]),
-        shortcut("搜索歌词", kw: ["手动搜索", "换歌词"]),
-        shortcut("打开设置", kw: ["设置窗口"]),
-        shortcut("歌词提前", kw: ["偏移", "时间轴", "校准"]),
-        shortcut("歌词延后", kw: ["偏移", "时间轴", "校准"]),
-        shortcut("歌词偏移归零", kw: ["偏移", "重置", "时间轴"]),
-        shortcut("步长", kw: ["偏移", "幅度"]),
-        shortcut("播放/暂停", kw: ["播放控制"]),
-        shortcut("下一首", kw: ["播放控制", "切歌"]),
-        shortcut("上一首", kw: ["播放控制", "切歌"]),
 
         general("菜单栏图标", kw: ["图标", "状态栏", "12 款"], group: "菜单栏与 Dock"),
         general("随播放律动", kw: ["动画", "图标", "律动"], group: "菜单栏与 Dock"),
