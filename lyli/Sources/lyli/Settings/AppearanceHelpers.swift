@@ -65,12 +65,12 @@ extension OverlayFontWeight {
 
     var displayName: String {
         switch self {
-        case .light: return L10n.t("细")
-        case .regular: return L10n.t("常规")
-        case .medium: return L10n.t("稍粗")
-        case .semibold: return L10n.t("较粗")
-        case .bold: return L10n.t("加粗")
-        case .heavy: return L10n.t("特粗")
+        case .light: return "细"
+        case .regular: return "常规"
+        case .medium: return "稍粗"
+        case .semibold: return "较粗"
+        case .bold: return "加粗"
+        case .heavy: return "特粗"
         }
     }
 }
