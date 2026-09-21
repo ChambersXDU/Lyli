@@ -24,8 +24,6 @@ final class MenuBarStatusItem: NSObject {
 
     private let positionHintController = MenuBarPositionHintController()
 
-    private let hoverControls = MenuBarHoverControlsView()
-
     private override init() { super.init() }
 
     func start() {
@@ -35,12 +33,9 @@ final class MenuBarStatusItem: NSObject {
         panelController.onVisibilityChange = { [weak self] on in
             self?.scrollingLabel.setHighlighted(on)
             self?.liveIconView.setHighlighted(on)
-            self?.hoverControls.setHighlighted(on)
             self?.setPanelOpen(on)
             LocalPlaybackSource.shared.setMenuBarPopoverOpen(on)
         }
-        hoverControls.onHoverChange = { [weak self] inside in self?.handleHoverChange(inside) }
-
         let settings = AppSettings.shared
         let coordinator = PlaybackCoordinator.shared
 
@@ -91,10 +86,6 @@ final class MenuBarStatusItem: NSObject {
         settings.$menuBarShowsTitleWhenNoLyrics.dropFirst().receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.scheduleRefresh() }.store(in: &cancellables)
 
-        settings.$menuBarHoverShowsControls.dropFirst().receive(on: RunLoop.main)
-            .sink { [weak self] _ in self?.evaluateHoverEngagement() }.store(in: &cancellables)
-        coordinator.$isPlayingSmoothed.removeDuplicates().receive(on: RunLoop.main)
-            .sink { [weak self] on in self?.hoverControls.setPlaying(on) }.store(in: &cancellables)
         settings.$menuBarLyricsKaraoke.dropFirst().receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.scheduleRefresh() }.store(in: &cancellables)
 
@@ -244,11 +235,6 @@ final class MenuBarStatusItem: NSObject {
         liveIconView.autoresizingMask = [.width, .height]
         button.addSubview(liveIconView)
 
-        hoverControls.removeFromSuperview()
-        hoverControls.frame = button.bounds
-        hoverControls.autoresizingMask = [.width, .height]
-        button.addSubview(hoverControls)
-        hoverControls.installTracking(on: button)
         button.target = self
         button.action = #selector(statusButtonClicked)
 
@@ -275,7 +261,6 @@ final class MenuBarStatusItem: NSObject {
         panelIsOpen = open
         logger.notice("panel \(open ? "opened" : "closed", privacy: .public)")
         if !open { refresh() }
-        evaluateHoverEngagement()
     }
 
     private var collapseObserveBegan: Date?
@@ -461,13 +446,6 @@ final class MenuBarStatusItem: NSObject {
         case .leftMouseDown:
             guard !flags.contains(.command), !flags.contains(.control) else { return }
 
-            let pointInButton = button.window.map {
-                button.convert($0.convertPoint(fromScreen: NSEvent.mouseLocation), from: nil)
-            }
-            if let point = pointInButton, let control = hoverControls.control(at: point) {
-                performTransportControl(control)
-                return
-            }
             panelController.toggle(relativeTo: button)
         default:
             break
@@ -480,86 +458,10 @@ final class MenuBarStatusItem: NSObject {
             onHighlightChange: { [weak self] on in
                 self?.scrollingLabel.setHighlighted(on)
                 self?.liveIconView.setHighlighted(on)
-                self?.hoverControls.setHighlighted(on)
             })
         item.menu = menu
         item.button?.performClick(nil)
         item.menu = nil
-    }
-
-    private var hoverInside = false
-
-    private var hoverControlsEngaged = false
-
-    private func handleHoverChange(_ inside: Bool) {
-        hoverInside = inside
-        evaluateHoverEngagement()
-    }
-
-    private func evaluateHoverEngagement() {
-
-        if !hoverControlsEngaged { hoverControls.setSlot(currentLyricsSlot()) }
-        let want = hoverInside
-            && AppSettings.shared.menuBarHoverShowsControls
-            && !panelIsOpen
-            && (displayClass == "text" || displayClass == "fixed")
-            && hoverControls.fitsControls
-        guard want != hoverControlsEngaged else { return }
-        hoverControlsEngaged = want
-
-        logger.notice("hover controls \(want ? "engaged" : "released", privacy: .public) (class=\(self.displayClass, privacy: .public))")
-        if want {
-            hoverControls.setPlaying(PlaybackCoordinator.shared.isPlayingSmoothed)
-            hideLyricsForHoverControls()
-            hoverControls.setEngaged(true)
-        } else {
-            hoverControls.setEngaged(false)
-            hoverControls.setSlot(nil)
-
-            refresh()
-        }
-    }
-
-    private func currentLyricsSlot() -> CGRect? {
-        guard let item = statusItem, let button = item.button else { return nil }
-        let icon = lyricsIconBadge()
-        guard let slot = MenuBarHoverControls.lyricsSlot(
-            buttonWidth: button.bounds.width,
-            contentWidth: item.length - Self.fixedSlotPadding,
-            reservedIconWidth: MenuBarProgressIcon.reservedWidth(for: icon?.style),
-            iconLeading: icon?.position == .leading)
-        else { return nil }
-        return CGRect(x: slot.x, y: button.bounds.minY,
-                      width: slot.width, height: button.bounds.height)
-    }
-
-    private func hideLyricsForHoverControls() {
-        if scrollingLabel.showsIconBadge {
-            scrollingLabel.clearLyricsKeepingIcon()
-        } else {
-            scrollingLabel.clear()
-        }
-        liveIconView.clear()
-        statusItem?.button?.attributedTitle = NSAttributedString(string: "")
-        statusItem?.button?.title = ""
-    }
-
-    private func performTransportControl(_ control: MenuBarTransportControl) {
-        switch control {
-        case .previous: withMusicPermission { MusicPlaybackController.previousTrack() }
-        case .playPause: withMusicPermission { PlaybackCoordinator.shared.userTogglePlayPause() }
-        case .next: withMusicPermission { MusicPlaybackController.nextTrack() }
-        }
-    }
-
-    private func withMusicPermission(_ action: @escaping @MainActor () -> Void) {
-        Task { @MainActor in
-            guard await MusicAutomationPermission.checkForCurrentPlayerSafely(askIfNeeded: true) else {
-                NSSound.beep()
-                return
-            }
-            action()
-        }
     }
 
     private struct RowState {
@@ -588,7 +490,6 @@ final class MenuBarStatusItem: NSObject {
 
     private func refresh() {
         guard started else { return }
-        guard !hoverControlsEngaged else { return }
         let settings = AppSettings.shared
         let coordinator = PlaybackCoordinator.shared
 
