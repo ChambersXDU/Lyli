@@ -7044,23 +7044,23 @@
         }
       }
     },
-    "这会删除当前全部 %d 条本地记录,包括你手动编辑、联网搜索采纳过的内容,已导出到本地的歌词文件也会一并删除。清空之前会自动备份一份,能从这个菜单里的「从自动备份恢复」找回来。下次播放会重新走一遍匹配解析" : {
+    "这会删除当前全部 %d 条本地记录，包括手动编辑和联网搜索采纳过的内容。下次播放会重新搜索歌词。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "This deletes all %d local records, including anything you edited by hand or picked from an online search, and the exported lyrics files go with them. A backup is taken automatically beforehand — you can get it back from “Restore from Auto Backup” in this menu. The next time a song plays it goes through matching and resolution again."
+            "value" : "This deletes all %d local lyric records, including manual edits and lyrics chosen from online search. Lyrics will be searched again the next time those songs play."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "这会删除当前全部 %d 条本地记录,包括你手动编辑、联网搜索采纳过的内容,已导出到本地的歌词文件也会一并删除。清空之前会自动备份一份,能从这个菜单里的「从自动备份恢复」找回来。下次播放会重新走一遍匹配解析"
+            "value" : "这会删除当前全部 %d 条本地记录，包括手动编辑和联网搜索采纳过的内容。下次播放会重新搜索歌词。"
           }
         }
       }
-    },
+    }
     "这会清掉你为 %d 首歌手动调出来的歌词时间轴校正值,无法撤销。歌词内容本身不受影响;设置里的全局偏移和按播放器补偿也不会被清掉。清掉之后,这些歌会重新交给后台自动更新歌词源" : {
       "extractionState" : "manual",
       "localizations" : {
