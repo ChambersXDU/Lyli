@@ -52,7 +52,7 @@ public enum EnrichCachePersistence {
         if let source = entry["lyrics_source"] as? String, !source.isEmpty { header += "[source:\(source)]\n" }
         if entry["manual_lyrics"] as? Bool == true { header += "[manual:1]\n" }
         header += "\n"
-        for (field, suffix) in zip(["lyrics", "lyrics_tr", "lyrics_roma", "lyrics_yrc"], EnrichCacheKeys.lyricsFileSuffixes) {
+        for (field, suffix) in zip(["lyrics", "lyrics_tr", "lyrics_yrc"], EnrichCacheKeys.lyricsFileSuffixes) {
             let text = entry[field] as? String ?? ""
             changes.append(.init(url: directory.appendingPathComponent(base + suffix),
                                  content: text.isEmpty ? nil : Data((header + text).utf8)))
