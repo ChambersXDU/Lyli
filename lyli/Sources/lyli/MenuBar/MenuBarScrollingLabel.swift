@@ -30,8 +30,6 @@ final class MenuBarScrollingLabel: NSView {
     private let secondaryFadeMask = CAGradientLayer()
 
     struct IconBadge: Equatable {
-        let style: MenuBarIconStyle
-
         let position: MenuBarLyricsIconPosition
     }
 
@@ -341,8 +339,8 @@ final class MenuBarScrollingLabel: NSView {
                 ?? MenuBarMarqueeRenderer.boxHeight(for: MenuBarMarqueeRenderer.doubleRowSecondaryFont),
             buttonHeight: bounds.height) : nil
 
-        let iconSize = plan.icon.map { MenuBarProgressIcon.size(of: $0.style) } ?? .zero
-        let reserved = MenuBarProgressIcon.reservedWidth(for: plan.icon?.style)
+        let iconSize = plan.icon == nil ? .zero : MenuBarProgressIcon.size
+        let reserved = MenuBarProgressIcon.reservedWidth(enabled: plan.icon != nil)
 
         let contentW = min(plan.windowWidth + reserved, bounds.width)
         guard contentW > 0, bounds.width > 0 else { return nil }
@@ -478,9 +476,8 @@ final class MenuBarScrollingLabel: NSView {
             }
 
             if let icon = plan.icon {
-                iconBase = MenuBarProgressIcon.tinted(style: icon.style, color: color, scale: scale)
-                iconFill = MenuBarProgressIcon.tinted(style: icon.style, color: karaokeFillColor,
-                                                      scale: scale)
+                iconBase = MenuBarProgressIcon.tinted(color: color, scale: scale)
+                iconFill = MenuBarProgressIcon.tinted(color: karaokeFillColor, scale: scale)
             }
         }
         guard let built else {
