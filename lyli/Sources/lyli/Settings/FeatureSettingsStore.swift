@@ -17,8 +17,8 @@ public enum LyricsSourceMode: String, CaseIterable, Identifiable, Codable {
     public var id: Self { self }
     public var displayName: String {
         switch self {
-        case .smart: return L10n.t("智能算法")
-        case .priority: return L10n.t("顺序优先")
+        case .smart: return "智能算法"
+        case .priority: return "顺序优先"
         }
     }
 }
@@ -166,7 +166,7 @@ public final class FeatureSettingsStore: ObservableObject {
             logger.notice("save refused: features.json on disk is corrupt")
             return false
         } catch {
-            lastError = String(format: L10n.t("写入功能开关文件失败: %@"), error.localizedDescription)
+            lastError = String(format: "写入功能开关文件失败: %@", error.localizedDescription)
             logger.error("write failed: \(String(describing: error), privacy: .public)")
             return false
         }
