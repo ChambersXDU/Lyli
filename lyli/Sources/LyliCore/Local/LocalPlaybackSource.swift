@@ -62,6 +62,7 @@ public final class LocalPlaybackSource: ObservableObject {
     private var fastTimer: Timer?
     private var positionProbeTimer: Timer?
     private var positionProbeInFlight = false
+    private var ignorePositionProbeUntil: Date?
     private var playerInfoObserver: NSObjectProtocol?
     private var screenLocked = false
     private var needsRealtimeLyricsUpdates = false
@@ -248,6 +249,10 @@ public final class LocalPlaybackSource: ObservableObject {
 
     private func applyPositionProbe(_ reportedSeconds: Double) {
         guard hasRealtimeDemand, !screenLocked else { return }
+        if let until = ignorePositionProbeUntil {
+            guard Date() >= until else { return }
+            ignorePositionProbeUntil = nil
+        }
         let reportedMs = max(0, min(currentDurationMs ?? Int.max,
                                     Int((reportedSeconds * 1000).rounded())))
         if isPlayingNow, let current = anchor {
@@ -336,6 +341,7 @@ public final class LocalPlaybackSource: ObservableObject {
 
     public func seek(toMs targetMs: Int) {
         let target = max(0, min(targetMs, currentDurationMs ?? targetMs))
+        ignorePositionProbeUntil = Date().addingTimeInterval(1)
         MusicPlaybackController.seek(toSeconds: Double(target) / 1000)
         if let current = anchor, isPlayingNow {
             anchor = ProgressAnchor(durationMs: current.durationMs, progressMs: target, rate: current.rate,
