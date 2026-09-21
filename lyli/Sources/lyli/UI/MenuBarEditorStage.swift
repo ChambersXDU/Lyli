@@ -77,19 +77,6 @@ struct MenuBarLyricsIconRow: View {
     }
 }
 
-struct MenuBarHoverControlsRow: View {
-    @ObservedObject private var settings = AppSettings.shared
-
-    var body: some View {
-        SettingsRow(
-            icon: "playpause.circle",
-            title: L10n.t("悬停显示播放控制")
-        ) {
-            Toggle("", isOn: $settings.menuBarHoverShowsControls)
-        }
-    }
-}
-
 struct MenuBarTitleFallbackRow: View {
     @ObservedObject private var settings = AppSettings.shared
 
@@ -120,7 +107,6 @@ enum MenuBarStyleDefaults {
         settings.menuBarLyricsFontWeight = AppSettings.defaultMenuBarLyricsFontWeight
         settings.menuBarLyricsFontSize = AppSettings.defaultMenuBarLyricsFontSize
 
-        settings.menuBarHoverShowsControls = AppSettings.defaultMenuBarHoverShowsControls
         settings.menuBarShowsTitleWhenNoLyrics = AppSettings.defaultMenuBarShowsTitleWhenNoLyrics
     }
 }
@@ -139,11 +125,7 @@ struct MenuBarLayoutRows: View {
 
 struct MenuBarBehaviorRows: View {
     var body: some View {
-        VStack(spacing: 0) {
-            MenuBarHoverControlsRow()
-            CardDivider()
-            MenuBarTitleFallbackRow()
-        }
+        MenuBarTitleFallbackRow()
     }
 }
 
