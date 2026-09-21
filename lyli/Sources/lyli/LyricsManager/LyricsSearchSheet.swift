@@ -568,9 +568,6 @@ struct LyricsSearchSheet: View {
                 if c.hasTranslation {
                     characteristicBadge(L10n.t("译文"), "character.book.closed", .green)
                 }
-                if c.hasRomanization {
-                    characteristicBadge(L10n.t("罗马音"), "textformat.abc", .purple, latinIcon: true)
-                }
 
                 if showsSource {
                     sourceBadge(source)
@@ -598,7 +595,7 @@ struct LyricsSearchSheet: View {
     private func hasAnyCharacteristicBadge(
         _ c: LyricsSearchService.Candidate, showsSource: Bool, isCurrent: Bool, duplicateOf: String?
     ) -> Bool {
-        c.isPlainTextOnly || c.hasWordTiming || c.hasTranslation || c.hasRomanization
+        c.isPlainTextOnly || c.hasWordTiming || c.hasTranslation
             || showsSource || duplicateOf != nil || isCurrent
     }
 
