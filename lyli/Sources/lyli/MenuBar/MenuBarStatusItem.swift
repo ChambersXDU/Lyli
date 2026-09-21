@@ -18,8 +18,6 @@ final class MenuBarStatusItem: NSObject {
 
     private var spacer: (size: NSSize, image: NSImage)?
 
-    private let liveIconView = MenuBarLiveIconView()
-
     private let panelController = MenuBarPanelController()
 
     private let positionHintController = MenuBarPositionHintController()
@@ -32,7 +30,6 @@ final class MenuBarStatusItem: NSObject {
 
         panelController.onVisibilityChange = { [weak self] on in
             self?.scrollingLabel.setHighlighted(on)
-            self?.liveIconView.setHighlighted(on)
             self?.setPanelOpen(on)
             LocalPlaybackSource.shared.setMenuBarPopoverOpen(on)
         }
@@ -69,11 +66,6 @@ final class MenuBarStatusItem: NSObject {
 
         settings.$menuBarLyricsAlignment.dropFirst().receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.scheduleRefresh() }.store(in: &cancellables)
-        settings.$menuBarIconStyle.dropFirst().receive(on: RunLoop.main)
-            .sink { [weak self] _ in self?.scheduleRefresh() }.store(in: &cancellables)
-        settings.$menuBarIconAnimates.dropFirst().receive(on: RunLoop.main)
-            .sink { [weak self] _ in self?.scheduleRefresh() }.store(in: &cancellables)
-
         settings.$menuBarLyricsIconPosition.dropFirst().receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.scheduleRefresh() }.store(in: &cancellables)
         coordinator.$isPlayingNow.dropFirst().receive(on: RunLoop.main)
@@ -180,8 +172,7 @@ final class MenuBarStatusItem: NSObject {
         let settings = AppSettings.shared
         let position = settings.menuBarLyricsIconPosition
         guard position != .off else { return nil }
-        return MenuBarScrollingLabel.IconBadge(style: settings.menuBarIconStyle,
-                                               position: position)
+        return MenuBarScrollingLabel.IconBadge(position: position)
     }
 
     private func karaokeFillPath(for text: String) -> [MenuBarMarquee.KaraokeFillPoint]? {
@@ -230,10 +221,6 @@ final class MenuBarStatusItem: NSObject {
         scrollingLabel.autoresizingMask = [.width, .height]
         scrollingLabel.isHidden = true
         button.addSubview(scrollingLabel)
-        liveIconView.removeFromSuperview()
-        liveIconView.frame = button.bounds
-        liveIconView.autoresizingMask = [.width, .height]
-        button.addSubview(liveIconView)
 
         button.target = self
         button.action = #selector(statusButtonClicked)
@@ -457,8 +444,7 @@ final class MenuBarStatusItem: NSObject {
         let menu = menuController.makeMenu(
             onHighlightChange: { [weak self] on in
                 self?.scrollingLabel.setHighlighted(on)
-                self?.liveIconView.setHighlighted(on)
-            })
+                })
         item.menu = menu
         item.button?.performClick(nil)
         item.menu = nil
@@ -521,7 +507,7 @@ final class MenuBarStatusItem: NSObject {
         let placeholderNow = titleFallbackActive || text == MenuBarMarqueeRenderer.placeholderGlyph
 
         guard settings.showLyricsInMenuBar, lyricsActive else {
-            let iconWidth = MenuBarIconStyle.cachedImage(for: settings.menuBarIconStyle).size.width
+            let iconWidth = MenuBarIconArtwork.image.size.width
             present(class: "icon", length: iconWidth + Self.fixedSlotPadding,
                     collapseDelay: settings.showLyricsInMenuBar ? Self.slotReleaseSecs : 0) {
                 showIcon($0)
@@ -556,7 +542,7 @@ final class MenuBarStatusItem: NSObject {
             }
         case .fixed(let lineText, let windowWidth, let pacing):
             let icon = lyricsIconBadge()
-            let slotWidth = windowWidth + MenuBarProgressIcon.reservedWidth(for: icon?.style)
+            let slotWidth = windowWidth + MenuBarProgressIcon.reservedWidth(enabled: icon != nil)
             present(class: "fixed", length: slotWidth + Self.fixedSlotPadding, collapseDelay: 0,
                     dwellSeconds: dwell, targetIsProvisional: provisional,
                     interim: { [weak self] in self?.renderInterimLyrics($0, text: text) }) {
@@ -572,7 +558,7 @@ final class MenuBarStatusItem: NSObject {
 
         let icon = lyricsIconBadge()
         let usable = item.length - Self.fixedSlotPadding
-            - MenuBarProgressIcon.reservedWidth(for: icon?.style)
+            - MenuBarProgressIcon.reservedWidth(enabled: icon != nil)
         guard usable > 0 else { return }
 
         let coordinator = PlaybackCoordinator.shared
@@ -597,18 +583,7 @@ final class MenuBarStatusItem: NSObject {
 
     private func showIcon(_ button: NSStatusBarButton) {
         scrollingLabel.clear()
-        let settings = AppSettings.shared
-        let style = settings.menuBarIconStyle
-        let staticImage = MenuBarIconStyle.cachedImage(for: style)
-        if settings.menuBarIconAnimates, PlaybackCoordinator.shared.isPlayingNow {
-            button.image = spacerImage(width: staticImage.size.width,
-                                       height: staticImage.size.height)
-            liveIconView.frame = button.bounds
-            liveIconView.present(style: style)
-        } else {
-            liveIconView.clear()
-            button.image = staticImage
-        }
+        button.image = MenuBarIconArtwork.image
         button.imagePosition = .imageOnly
         button.title = ""
         button.toolTip = nil
@@ -617,7 +592,6 @@ final class MenuBarStatusItem: NSObject {
 
     private func showStaticText(_ button: NSStatusBarButton, visible: String, full: String) {
         scrollingLabel.clear()
-        liveIconView.clear()
         button.image = nil
 
         button.imagePosition = .noImage
@@ -643,10 +617,9 @@ final class MenuBarStatusItem: NSObject {
                                 fillPath: [MenuBarMarquee.KaraokeFillPoint]? = nil,
                                 followPath: [MenuBarMarquee.KaraokeFillPoint]? = nil,
                                 icon: MenuBarScrollingLabel.IconBadge? = nil) {
-        liveIconView.clear()
 
         button.image = spacerImage(
-            width: windowWidth + MenuBarProgressIcon.reservedWidth(for: icon?.style),
+            width: windowWidth + MenuBarProgressIcon.reservedWidth(enabled: icon != nil),
             height: MenuBarMarqueeRenderer.lineHeight)
         button.imagePosition = .imageOnly
         button.title = ""
