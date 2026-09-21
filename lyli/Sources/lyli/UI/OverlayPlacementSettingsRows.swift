@@ -57,11 +57,3 @@ struct OverlayPlacementSegmentedControl: View {
     }
 }
 
-@MainActor
-struct OverlayPlacementPopover: View {
-    var body: some View {
-        SettingsPopoverShell(title: L10n.t("位置"), width: 420) {
-            OverlayPlacementSettingsRows()
-        }
-    }
-}
