@@ -51,10 +51,10 @@ private struct MenuBarPositionHintView: View {
                 .foregroundStyle(.secondary)
                 .frame(width: 22)
             VStack(alignment: .leading, spacing: 8) {
-                Text(L10n.t("按住 ⌘ 拖拽这个图标，可以把它移动到菜单栏里你喜欢的位置。"))
+                Text("按住 ⌘ 拖拽这个图标，可以把它移动到菜单栏里你喜欢的位置。")
                     .font(.system(size: 12))
                     .fixedSize(horizontal: false, vertical: true)
-                Button(L10n.t("知道了"), action: dismiss)
+                Button("知道了", action: dismiss)
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
             }
