@@ -8,7 +8,7 @@ struct OverlayPlacementSettingsRows: View {
     var body: some View {
         SettingsRow(
             icon: "dock.rectangle",
-            title: L10n.t("位置")
+            title: "位置"
         ) {
             OverlayPlacementSegmentedControl(selection: $settings.overlayPlacementMode)
         }
@@ -21,9 +21,9 @@ struct OverlayPlacementSegmentedControl: View {
 
     static func label(for mode: OverlayPlacementMode) -> String {
         switch mode {
-        case .free: return L10n.t("自由")
-        case .topCenter: return L10n.t("顶部居中")
-        case .bottomCenter: return L10n.t("底部居中")
+        case .free: return "自由"
+        case .topCenter: return "顶部居中"
+        case .bottomCenter: return "底部居中"
         }
     }
 
