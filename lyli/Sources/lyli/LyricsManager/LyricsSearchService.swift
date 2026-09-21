@@ -14,49 +14,49 @@ final class LyricsSearchService {
 
         var label: String {
             switch kind {
-            case "duration": return L10n.t("时长吻合")
-            case "corroborated": return L10n.t("结束点获印证")
-            case "wordTiming": return L10n.t("逐字时间轴")
-            case "nativeSource": return L10n.t("与当前播放器同源")
-            case "lines": return L10n.t("行数")
-            case "versionTags": return L10n.t("版本不符")
-            case "durationOff": return L10n.t("时长不符")
-            case "sourceDurationOff": return L10n.t("源自报曲长不符")
-            case "wordTimingOverride": return L10n.t("标题吻合度更高的候选存在，撤销逐字加分")
-            case "liveAlbumConflict": return L10n.t("是另一场演出的现场版")
-            case "durationOvershoot": return L10n.t("歌词超出曲长")
-            case "album": return L10n.t("专辑吻合")
-            case "titleMatch": return L10n.t("标题吻合")
-            case "artistMatch": return L10n.t("歌手吻合")
-            case "consensus": return L10n.t("内容获印证")
-            case "translation": return L10n.t("自带译文")
-            case "rejectNotTimed": return L10n.t("不是带时间戳的歌词")
-            case "rejectWrongArtist": return L10n.t("歌手跟这首歌对不上")
-            case "rejectCreditOnly": return L10n.t("整份只有署名行，没有正文")
-            case "rejectNoLastTimestamp": return L10n.t("取不到最后一句的时间")
-            case "rejectDurationMismatch": return L10n.t("时长明显对不上，也没有别的源印证")
-            case "rejectPlainTextOnly": return L10n.t("仅有纯文本，没有时间戳")
-            case "instrumental": return L10n.t("纯音乐")
+            case "duration": return "时长吻合"
+            case "corroborated": return "结束点获印证"
+            case "wordTiming": return "逐字时间轴"
+            case "nativeSource": return "与当前播放器同源"
+            case "lines": return "行数"
+            case "versionTags": return "版本不符"
+            case "durationOff": return "时长不符"
+            case "sourceDurationOff": return "源自报曲长不符"
+            case "wordTimingOverride": return "标题吻合度更高的候选存在，撤销逐字加分"
+            case "liveAlbumConflict": return "是另一场演出的现场版"
+            case "durationOvershoot": return "歌词超出曲长"
+            case "album": return "专辑吻合"
+            case "titleMatch": return "标题吻合"
+            case "artistMatch": return "歌手吻合"
+            case "consensus": return "内容获印证"
+            case "translation": return "自带译文"
+            case "rejectNotTimed": return "不是带时间戳的歌词"
+            case "rejectWrongArtist": return "歌手跟这首歌对不上"
+            case "rejectCreditOnly": return "整份只有署名行，没有正文"
+            case "rejectNoLastTimestamp": return "取不到最后一句的时间"
+            case "rejectDurationMismatch": return "时长明显对不上，也没有别的源印证"
+            case "rejectPlainTextOnly": return "仅有纯文本，没有时间戳"
+            case "instrumental": return "纯音乐"
             default: return kind
             }
         }
 
         var detail: String {
             switch kind {
-            case "duration": return L10n.t("最后一句的时间跟曲长越接近分越高")
-            case "wordTiming": return L10n.t("带逐字（卡拉 OK）时间轴")
-            case "lines": return L10n.t("歌词行数")
-            case "album": return L10n.t("源返回的专辑与本地资料一致")
-            case "titleMatch": return L10n.t("标题标准化后匹配")
-            case "artistMatch": return L10n.t("歌手标准化后匹配")
-            case "consensus": return L10n.t("歌词正文与其他源高度一致")
-            case "translation": return L10n.t("带有可用译文")
-            case "versionTags": return L10n.t("Live、Remix、Demo 等版本标记不一致")
-            case "sourceDurationOff": return L10n.t("源声明的曲长与本地差异较大")
-            case "durationOff": return L10n.t("歌词结束时间与曲长差异较大")
-            case "durationOvershoot": return L10n.t("歌词结束时间超过歌曲结束")
-            case "wordTimingOverride": return L10n.t("标题更吻合的候选优先")
-            case "rejectPlainTextOnly": return L10n.t("可以作为静态文字阅读，但不能跟随播放高亮")
+            case "duration": return "最后一句的时间跟曲长越接近分越高"
+            case "wordTiming": return "带逐字（卡拉 OK）时间轴"
+            case "lines": return "歌词行数"
+            case "album": return "源返回的专辑与本地资料一致"
+            case "titleMatch": return "标题标准化后匹配"
+            case "artistMatch": return "歌手标准化后匹配"
+            case "consensus": return "歌词正文与其他源高度一致"
+            case "translation": return "带有可用译文"
+            case "versionTags": return "Live、Remix、Demo 等版本标记不一致"
+            case "sourceDurationOff": return "源声明的曲长与本地差异较大"
+            case "durationOff": return "歌词结束时间与曲长差异较大"
+            case "durationOvershoot": return "歌词结束时间超过歌曲结束"
+            case "wordTimingOverride": return "标题更吻合的候选优先"
+            case "rejectPlainTextOnly": return "可以作为静态文字阅读，但不能跟随播放高亮"
             default: return ""
             }
         }
@@ -67,10 +67,10 @@ final class LyricsSearchService {
             guard let first = terms.first else { return "" }
             if first.isRejection {
                 let detail = first.detail
-                return String(format: L10n.t("不可用：%@"), first.label)
+                return String(format: "不可用：%@", first.label)
                     + (detail.isEmpty ? "" : "\n" + detail)
             }
-            var lines = [String(format: L10n.t("总分 %@"), "\(score)")]
+            var lines = [String(format: "总分 %@", "\(score)")]
             for term in terms.sorted(by: { abs($0.points) > abs($1.points) }) {
                 let signed = "\(term.points > 0 ? "+" : "")\(term.points)"
                 let detail = term.detail
@@ -150,7 +150,7 @@ final class LyricsSearchService {
     enum SearchError: LocalizedError {
         case searchFailed(String)
         var errorDescription: String? {
-            switch self { case .searchFailed(let message): return String(format: L10n.t("搜索失败: %@"), message) }
+            switch self { case .searchFailed(let message): return String(format: "搜索失败: %@", message) }
         }
     }
 
