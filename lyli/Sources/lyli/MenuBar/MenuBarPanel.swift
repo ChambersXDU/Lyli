@@ -156,7 +156,7 @@ private struct MenuBarPanelView: View {
     }
 
     private var displayTitle: String {
-        if playback.isCurrentTrackAdBreak { return L10n.t("广告中") }
+        if playback.isCurrentTrackAdBreak { return "广告中" }
 
         return playback.title
     }
@@ -211,7 +211,7 @@ private struct MenuBarPanelView: View {
                 }
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(PlaybackCoordinator.shared.resolvedPlayerDisplayName ?? L10n.t("打开播放器"))
+            .accessibilityLabel(PlaybackCoordinator.shared.resolvedPlayerDisplayName ?? "打开播放器")
         }
     }
 
@@ -249,7 +249,7 @@ private struct MenuBarPanelView: View {
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(.secondary)
-                    .accessibilityLabel(L10n.t("设置…"))
+                    .accessibilityLabel("设置…")
 
                     Spacer()
                 }
@@ -292,13 +292,13 @@ private struct MenuBarPanelView: View {
 
             Text("")
         case .instrumental:
-            statusText(L10n.t("纯音乐"))
+            statusText("纯音乐")
         case .noLyrics:
-            statusText(L10n.t("暂无歌词"))
+            statusText("暂无歌词")
         case .networkDown:
-            statusText(L10n.t("网络连接失败"))
+            statusText("网络连接失败")
         case .searching:
-            statusText(L10n.t("搜索歌词中…"))
+            statusText("搜索歌词中…")
         case .idle:
             Text("")
         }
@@ -462,7 +462,7 @@ private struct PanelProgressSection: View {
     private var offsetControls: some View {
         HStack(spacing: 3) {
 
-            offsetButton("minus", label: nudgeLabel(L10n.t("延后"))) {
+            offsetButton("minus", label: nudgeLabel("延后")) {
                 _ = PlaybackCoordinator.shared.nudgeLyricsOffset(by: -lyricsOffsetStepMs)
             }
 
@@ -473,18 +473,18 @@ private struct PanelProgressSection: View {
                 .modifier(TapToReset(enabled: trackLyricsOffsetMs != 0) {
                     PlaybackCoordinator.shared.resetLyricsOffset()
                 })
-            offsetButton("plus", label: nudgeLabel(L10n.t("提前"))) {
+            offsetButton("plus", label: nudgeLabel("提前")) {
                 _ = PlaybackCoordinator.shared.nudgeLyricsOffset(by: lyricsOffsetStepMs)
             }
         }
     }
 
     private var offsetText: String {
-        "\(L10n.t("歌词")) \(AppSettings.signedSeconds(ms: trackLyricsOffsetMs))s"
+        "\("歌词") \(AppSettings.signedSeconds(ms: trackLyricsOffsetMs))s"
     }
 
     private func nudgeLabel(_ verb: String) -> String {
-        "\(verb) \(AppSettings.formattedSeconds(ms: lyricsOffsetStepMs))\(L10n.t("秒"))"
+        "\(verb) \(AppSettings.formattedSeconds(ms: lyricsOffsetStepMs))\("秒")"
     }
 
     private func offsetButton(_ symbol: String, label: String,
