@@ -36,7 +36,7 @@ struct LyricsQuickSearchWindow: View {
                         saved = await EnrichCacheStore.shared.saveEdit(
                             key: context.key,
                             lyrics: candidate.lyrics, tr: candidate.lyricsTr,
-                            roma: candidate.lyricsRoma, yrc: candidate.lyricsYRC,
+                            yrc: candidate.lyricsYRC,
                             source: candidate.source, markManual: AppSettings.shared.manualPickLocksLyrics,
                             sourceChoice: "", fromManualPick: true)
                     }
