@@ -17,8 +17,8 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 fail() { echo "check_release_tag: $*" >&2; exit 1; }
 
 [[ "$TAG" == v* ]] || fail "tag '$TAG' must start with 'v' (vX.Y.Z or vX.Y.Z-(alpha|beta|rc).N)"
-if ! bash "$REPO_ROOT/lyrimuse/scripts/build-version.sh" "${TAG#v}" >/dev/null; then
-  fail "tag '$TAG' is not vX.Y.Z or vX.Y.Z-(alpha|beta|rc).N -- see lyrimuse/scripts/build-version.sh"
+if ! bash "$REPO_ROOT/lyli/scripts/build-version.sh" "${TAG#v}" >/dev/null; then
+  fail "tag '$TAG' is not vX.Y.Z or vX.Y.Z-(alpha|beta|rc).N -- see lyli/scripts/build-version.sh"
 fi
 
 git rev-parse -q --verify "refs/tags/$TAG" >/dev/null 2>&1 || fail "refs/tags/$TAG does not exist in this checkout"

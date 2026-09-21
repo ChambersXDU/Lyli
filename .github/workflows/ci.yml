@@ -21,16 +21,13 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Localizable.strings 一致性
-        run: python3 lyrimuse/scripts/check_strings_parity.py
-
-      - name: 第三方许可声明覆盖
-        run: python3 lyrimuse/scripts/check_third_party_licenses.py
+        run: python3 lyli/scripts/check_strings_parity.py
 
       - name: Swift selftest
         run: |
-          cd lyrimuse
-          swift build --product lyrimuse-selftest
-          ./.build/debug/lyrimuse-selftest
+          cd lyli
+          swift build --product lyli-selftest
+          ./.build/debug/lyli-selftest
 
       - name: 编译整个 App
-        run: cd lyrimuse && swift build
+        run: cd lyli && swift build

@@ -13,5 +13,5 @@ jobs:
       - name: run-ghrs
         uses: jgehrcke/github-repo-stats@ff48771cbb4324c3b77490bbfc26d6a5f3831cdb
         with:
-          repository: Yudaotor/lyrimuse
+          repository: ChambersXDU/Lyli
           ghtoken: ${{ secrets.GHRS_GITHUB_API_TOKEN }}

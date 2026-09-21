@@ -3,17 +3,17 @@
 PortSystem          1.0
 PortGroup           github 1.0
 
-github.setup        Yudaotor lyrimuse 1.6.0 v
+github.setup        ChambersXDU Lyli 1.6.0 v
 github.tarball_from archive
 revision            0
 
 categories          aqua audio
 license             GPL-3
-maintainers         {@Yudaotor} openmaintainer
+maintainers         {@ChambersXDU} openmaintainer
 
 description         Word-synced desktop lyrics for Apple Music
 
-long_description    Lyrimuse shows word-by-word synced lyrics as a floating \
+long_description    Lyli shows word-by-word synced lyrics as a floating \
                     overlay or right in the menu bar for Apple Music. Lyrics \
                     are fetched from five \
                     sources and every candidate is scored on one scale so the \
@@ -37,16 +37,16 @@ current Command Line Tools) to build."
 
 use_configure       no
 
-build.dir           ${worksrcpath}/lyrimuse
+build.dir           ${worksrcpath}/lyli
 build.cmd           ./build.sh
 build.target
-build.args          --dest ${workpath}/stage/Lyrimuse.app
+build.args          --dest ${workpath}/stage/Lyli.app
 
-build.env-append    LYRIMUSE_VERSION=${version} \
+build.env-append    LYLI_VERSION=${version} \
                     TMPDIR=${workpath}/tmp \
                     HOME=${workpath}/home \
-                    LYRIMUSE_SPM_CACHE_PATH=${workpath}/spm-cache \
-                    LYRIMUSE_SPM_SCRATCH_PATH=${workpath}/spm-scratch
+                    LYLI_SPM_CACHE_PATH=${workpath}/spm-cache \
+                    LYLI_SPM_SCRATCH_PATH=${workpath}/spm-scratch
 
 pre-build {
     file mkdir ${workpath}/tmp
@@ -57,13 +57,13 @@ pre-build {
 
 destroot {
     xinstall -d ${destroot}${applications_dir}
-    copy ${workpath}/stage/Lyrimuse.app ${destroot}${applications_dir}/Lyrimuse.app
+    copy ${workpath}/stage/Lyli.app ${destroot}${applications_dir}/Lyli.app
 }
 
 notes "
-Lyrimuse is ad-hoc signed when built from source; macOS may ask you to approve\
+Lyli is ad-hoc signed when built from source; macOS may ask you to approve\
  Automation access for your music player on first launch.
 
 This build has no in-app updater — run 'sudo port selfupdate && sudo port\
- upgrade lyrimuse' to update.
+ upgrade lyli' to update.
 "

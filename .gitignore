@@ -5,8 +5,8 @@
 node_modules/
 .DS_Store
 .dev.vars
-lyrimuse/.build/
-lyrimuse/dist/
+lyli/.build/
+lyli/dist/
 __pycache__/
 .playwright-mcp/
 

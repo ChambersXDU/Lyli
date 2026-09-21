@@ -44,8 +44,8 @@ jobs:
 
       - name: Run test suites
         run: |
-          echo "==> Swift selftest (lyrimuse)"
-          (cd lyrimuse && swift build --product lyrimuse-selftest && ./.build/debug/lyrimuse-selftest)
+          echo "==> Swift selftest (lyli)"
+          (cd lyli && swift build --product lyli-selftest && ./.build/debug/lyli-selftest)
 
       - name: Determine version string
         id: version
@@ -53,7 +53,7 @@ jobs:
           if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
             VERSION="${GITHUB_REF#refs/tags/}"
             BUNDLE_VERSION="${VERSION#v}"
-            if ! BUILD_VERSION="$(bash lyrimuse/scripts/build-version.sh "$BUNDLE_VERSION")"; then
+            if ! BUILD_VERSION="$(bash lyli/scripts/build-version.sh "$BUNDLE_VERSION")"; then
               echo "::error::tag '${VERSION}' is not vX.Y.Z or vX.Y.Z-(alpha|beta|rc).N -- refusing to build" >&2
               exit 1
             fi
@@ -69,7 +69,7 @@ jobs:
             echo "bundle_version=${BUNDLE_VERSION}"
             echo "build_version=${BUILD_VERSION}"
             echo "is_prerelease=${IS_PRERELEASE}"
-            echo "asset_base=Lyrimuse-v${BUNDLE_VERSION}-macos"
+            echo "asset_base=Lyli-v${BUNDLE_VERSION}-macos"
           } >> "$GITHUB_OUTPUT"
           echo "Building ${VERSION} (display ${BUNDLE_VERSION}, CFBundleVersion ${BUILD_VERSION}, prerelease=${IS_PRERELEASE})"
 
@@ -79,31 +79,31 @@ jobs:
 
       - name: Build + package release assets
         run: |
-          LYRIMUSE_VERSION="${{ steps.version.outputs.bundle_version }}" ./lyrimuse/package.sh
-          ls -la lyrimuse/dist
+          LYLI_VERSION="${{ steps.version.outputs.bundle_version }}" ./lyli/package.sh
+          ls -la lyli/dist
 
       - name: Upload workflow artifact (every run -- tag push or manual dispatch)
         uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.version.outputs.asset_base }}
-          path: lyrimuse/dist/*
+          path: lyli/dist/*
           retention-days: 14
 
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v3
         with:
-          name: Lyrimuse ${{ steps.version.outputs.version }} — macOS Desktop Lyrics for Apple Music & Spotify
+          name: Lyli ${{ steps.version.outputs.version }} — macOS Desktop Lyrics for Apple Music
           body: ${{ steps.tag.outputs.body }}
           generate_release_notes: true
           prerelease: ${{ steps.version.outputs.is_prerelease == 'true' }}
           files: |
-            lyrimuse/dist/${{ steps.version.outputs.asset_base }}.zip
-            lyrimuse/dist/${{ steps.version.outputs.asset_base }}.zip.sha256
-            lyrimuse/dist/${{ steps.version.outputs.asset_base }}.dmg
-            lyrimuse/dist/${{ steps.version.outputs.asset_base }}-intel.zip
-            lyrimuse/dist/${{ steps.version.outputs.asset_base }}-intel.zip.sha256
-            lyrimuse/dist/${{ steps.version.outputs.asset_base }}-intel.dmg
+            lyli/dist/${{ steps.version.outputs.asset_base }}.zip
+            lyli/dist/${{ steps.version.outputs.asset_base }}.zip.sha256
+            lyli/dist/${{ steps.version.outputs.asset_base }}.dmg
+            lyli/dist/${{ steps.version.outputs.asset_base }}-intel.zip
+            lyli/dist/${{ steps.version.outputs.asset_base }}-intel.zip.sha256
+            lyli/dist/${{ steps.version.outputs.asset_base }}-intel.dmg
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
