@@ -410,7 +410,7 @@ final class AppSettings: ObservableObject {
         menuBarShowsTitleWhenNoLyrics = (defaults.object(forKey: Keys.menuBarShowsTitleWhenNoLyrics) as? Bool)
             ?? Self.defaultMenuBarShowsTitleWhenNoLyrics
         menuBarIdleIconStyle = defaults.string(forKey: Keys.menuBarIdleIconStyle)
-            .flatMap(MenuBarIdleIconStyle.init(rawValue:)) ?? .classic
+            .flatMap(MenuBarIdleIconStyle.init(rawValue:)) ?? .note
         lyricsOffsetStepMs = (defaults.object(forKey: Keys.lyricsOffsetStepMs) as? Int) ?? 200
         manualPickLocksLyrics = (defaults.object(forKey: Keys.manualPickLocksLyrics) as? Bool) ?? false
         textStrokeEnabled = (defaults.object(forKey: Keys.textStrokeEnabled) as? Bool) ?? ColorTheme.defaultTheme.textStrokeEnabled
