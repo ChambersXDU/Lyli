@@ -137,36 +137,15 @@ struct MenuBarPreviewBar<Lane: View>: View {
             font: mainFont)
     }
 
-    private static func willScroll(_ p: MenuBarMarqueeRenderer.Presentation) -> Bool {
-        if case .fixed(_, _, let pacing) = p { return pacing != nil }
-        return false
-    }
-
-    private func previewCaption(_ p: MenuBarMarqueeRenderer.Presentation) -> String {
-        Self.willScroll(p) ? "预览 · 本句会横向滚动" : "预览"
-    }
-
     static var cardHeight: CGFloat { 24 }
+    static let previewHeight: CGFloat = 250
 
-    private var stageHeight: CGFloat {
-        Self.cardHeight + SectionPreviewMetrics.bottomPadding
-            + (reservesWidthLane ? Self.widthLaneHeight : 0)
-    }
+    private var stageHeight: CGFloat { Self.previewHeight }
 
     var body: some View {
-
         let p = presentation
-        return VStack(spacing: SectionPreviewMetrics.captionSpacing) {
-            stage(p)
-
-            Text(previewCaption(p))
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .monospacedDigit()
-
-                .frame(height: SectionPreviewMetrics.captionHeight)
-        }
-        .frame(maxWidth: .infinity)
+        return stage(p)
+            .frame(maxWidth: .infinity)
         .onReceive(PlaybackCoordinator.shared.$currentLine.removeDuplicates()) { line = $0 }
 
         .onReceive(PlaybackCoordinator.shared.$anchor) { anchor = $0 }
@@ -177,12 +156,18 @@ struct MenuBarPreviewBar<Lane: View>: View {
     }
 
     private func stage(_ p: MenuBarMarqueeRenderer.Presentation) -> some View {
-        menuBarStrip(p)
-
+        ZStack(alignment: .top) {
+            desktopSurface
+            menuBarStrip(p)
+            if reservesWidthLane {
+                VStack {
+                    Spacer()
+                    lane()
+                }
+            }
+        }
             .frame(height: stageHeight, alignment: .top)
             .frame(maxWidth: .infinity)
-            .background(alignment: .top) { desktopSurface }
-            .overlay(alignment: .bottom) { lane() }
 
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
 
