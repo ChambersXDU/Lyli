@@ -7,6 +7,7 @@ private let logger = Logger(subsystem: "com.chambersxdu.lyli", category: "local"
 @MainActor
 public final class LocalPlaybackSource: ObservableObject {
     public static let shared = LocalPlaybackSource()
+    private static let positionProbeInterval: TimeInterval = 0.25
 
     @Published public private(set) var title = ""
     @Published public private(set) var artist = ""
@@ -217,7 +218,7 @@ public final class LocalPlaybackSource: ObservableObject {
             return
         }
         guard positionProbeTimer == nil else { return }
-        let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
+        let timer = Timer(timeInterval: Self.positionProbeInterval, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.probePlayerPosition() }
         }
         RunLoop.main.add(timer, forMode: .common)
