@@ -155,7 +155,7 @@ struct SettingsView: View {
             .navigationSubtitle(selectedCategoryTitle)
         }
 
-        .frame(minWidth: 720, idealWidth: 820, minHeight: 360, idealHeight: 420)
+        .frame(minWidth: 720, idealWidth: 820, minHeight: 540, idealHeight: 630)
 
         .background(SettingsWindowConfigurator())
 
@@ -218,20 +218,6 @@ private struct LyricsSettingsTab: View {
     @Environment(\.openWindow) private var openWindow
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private enum Section: String, CaseIterable, Identifiable {
-        case fetch, translation, display, manage
-        var id: Self { self }
-        var title: String {
-            switch self {
-            case .fetch: return "获取"
-            case .translation: return "译文"
-
-            case .display: return "效果"
-            case .manage: return "管理"
-            }
-        }
-    }
-
     @State private var manualPickLockNotice: String?
 
     @State private var manualPickLockNoticeToken = 0
@@ -262,56 +248,12 @@ private struct LyricsSettingsTab: View {
         PlaybackCoordinator.shared.setGlobalLyricsOffset(ms)
     }
 
-    @AppStorage("settings:lyricsSection") private var sectionRaw = Section.fetch.rawValue
-    private var section: Section { Section(rawValue: sectionRaw) ?? .fetch }
-
     var body: some View {
-
-        SettingsPage(
-            title: "歌词"
-        ) {
-            sectionPicker
-
-            currentSection
-                .id(section)
-                .transition(.opacity)
-        }
-    }
-
-    private var sectionPicker: some View {
-        Picker(
-            "",
-            selection: Binding(
-                get: { section },
-                set: { next in
-                    withAnimation(reduceMotion ? nil : .easeOut(duration: 0.16)) {
-                        sectionRaw = next.rawValue
-                    }
-                })
-        ) {
-            ForEach(Section.allCases) { s in
-                Text(s.title).tag(s)
-            }
-        }
-        .pickerStyle(.segmented)
-        .labelsHidden()
-
-        .fixedSize()
-        .padding(.bottom, 2)
-    }
-
-    @ViewBuilder
-    private var currentSection: some View {
-        switch section {
-        case .fetch:
-
+        SettingsPage(title: "歌词") {
             sourcesCard
             matchingCard
-        case .translation:
             translationCard
-        case .display:
             displayCard
-        case .manage:
             managementCard
         }
     }
@@ -969,6 +911,9 @@ private struct AppearanceSettingsTab: View {
 
     var body: some View {
         SettingsPage(title: "歌词显示") {
+            currentPreview
+                .id(section)
+                .transition(.opacity)
             sectionPicker
             currentSection
                 .id(section)
@@ -1022,9 +967,6 @@ private struct AppearanceSettingsTab: View {
                     get: { settings.classicOverlayEnabled },
                     set: { LyricsOverlayWindowController.shared.setVisible($0) }))
             OverlaySettingsList()
-            previewCard {
-                OverlayDesktopPreview()
-            }
 
         case .menuBar:
             modeToggleCard(
@@ -1032,17 +974,17 @@ private struct AppearanceSettingsTab: View {
                 title: "菜单栏歌词",
                 isOn: $settings.showLyricsInMenuBar)
             MenuBarSettingsList()
-            previewCard {
-                MenuBarPreviewBar()
-            }
         }
     }
 
-    private func previewCard<Content: View>(
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        content()
-            .frame(maxWidth: .infinity)
+    @ViewBuilder
+    private var currentPreview: some View {
+        switch section {
+        case .overlay:
+            OverlayDesktopPreview()
+        case .menuBar:
+            MenuBarPreviewBar()
+        }
     }
 
     private func modeToggleCard(
