@@ -27,18 +27,18 @@ enum MenuBarIconStyle: String, CaseIterable, Codable, Hashable, Identifiable {
 
     var displayName: String {
         switch self {
-        case .note: return L10n.t("音符")
-        case .noteList: return L10n.t("歌词列表")
-        case .quarternotes: return L10n.t("三连音符")
-        case .waveform: return L10n.t("声波")
-        case .equalizer: return L10n.t("跳动音条")
-        case .mic: return L10n.t("麦克风")
-        case .metronome: return L10n.t("节拍器")
-        case .pianokeys: return L10n.t("钢琴键")
-        case .tuningfork: return L10n.t("音叉")
-        case .disc: return L10n.t("光盘")
-        case .vinyl: return L10n.t("黑胶唱片")
-        case .classic: return L10n.t("经典")
+        case .note: return "音符"
+        case .noteList: return "歌词列表"
+        case .quarternotes: return "三连音符"
+        case .waveform: return "声波"
+        case .equalizer: return "跳动音条"
+        case .mic: return "麦克风"
+        case .metronome: return "节拍器"
+        case .pianokeys: return "钢琴键"
+        case .tuningfork: return "音叉"
+        case .disc: return "光盘"
+        case .vinyl: return "黑胶唱片"
+        case .classic: return "经典"
         }
     }
 
