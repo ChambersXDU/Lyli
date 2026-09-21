@@ -12,195 +12,6 @@ extension LyricSecondaryLine {
     }
 }
 
-@MainActor
-struct MenuBarEditorStage: View {
-    @ObservedObject private var settings = AppSettings.shared
-    @State private var popover: StagePopover?
-
-    var body: some View {
-        VStack(spacing: 10) {
-            toolbar
-            toolbarRow2
-
-            MenuBarPreviewBar(reservesWidthLane: true) {
-                stageWidthBar.padding(.bottom, 8)
-            }
-        }
-        .padding(12)
-        .background(Color(nsColor: .controlBackgroundColor))
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-    }
-
-    private var toolbar: some View {
-        HStack(spacing: 8) {
-
-            toolbarButton(
-                icon: "arrow.left.and.right.circle",
-                title: L10n.t("布局"),
-                summary: layoutSummary,
-                target: .layout
-            )
-            toolbarButton(
-
-                icon: "circle.lefthalf.filled",
-                title: L10n.t("配色"),
-                summary: colorSummary,
-                target: .color
-            )
-
-            toolbarButton(
-                icon: "textformat",
-                title: L10n.t("字体"),
-                summary: fontSummary,
-                target: .font
-            )
-            Spacer(minLength: 8)
-
-            Menu {
-                Button(L10n.t("恢复默认")) { MenuBarStyleDefaults.restoreDefaults() }
-            } label: {
-                Label(L10n.t("重置"), systemImage: "arrow.uturn.backward")
-            }
-            .menuStyle(.borderlessButton)
-            .fixedSize()
-        }
-        .font(.system(size: 12))
-        .padding(.horizontal, 2)
-    }
-
-    private var toolbarRow2: some View {
-        HStack(spacing: 8) {
-            toolbarButton(
-                icon: "switch.2",
-                title: L10n.t("行为"),
-                summary: behaviorSummary,
-                target: .behavior
-            )
-            Spacer(minLength: 8)
-        }
-        .font(.system(size: 12))
-        .padding(.horizontal, 2)
-    }
-
-    private var layoutSummary: String {
-        var parts = [settings.menuBarLyricsWidthMode.displayName]
-        if settings.menuBarSecondaryLine != AppSettings.defaultMenuBarSecondaryLine {
-            parts.append("\(L10n.t("副行")) · \(settings.menuBarSecondaryLine.displayName)")
-        }
-        return parts.joined(separator: " · ")
-    }
-
-    private var colorSummary: String {
-        settings.menuBarLyricsKaraoke ? L10n.t("卡拉OK效果") : L10n.t("跟随系统")
-    }
-
-    private var fontSummary: String {
-        let weight = settings.menuBarLyricsFontWeight.displayName
-        guard !settings.menuBarSecondaryLine.showsSecondaryRow, settings.menuBarLyricsFontSize > 0 else { return weight }
-        let size = String(format: L10n.t("%@pt"), "\(Int(MenuBarMarqueeRenderer.font.pointSize))")
-        return "\(weight) \(size)"
-    }
-
-    private var behaviorSummary: String {
-        SettingsToggleSummary.text([
-            (title: L10n.t("悬停显示播放控制"), isOn: settings.menuBarHoverShowsControls),
-            (title: L10n.t("无歌词时显示歌名"), isOn: settings.menuBarShowsTitleWhenNoLyrics),
-        ])
-    }
-
-    private func toolbarButton(
-        icon: String, title: String, summary: String, target: StagePopover
-    ) -> some View {
-        Button {
-            popover = target
-        } label: {
-            HStack(spacing: 5) {
-                Image(systemName: icon)
-                    .font(.system(size: 11))
-                    .environment(\.locale, Locale(identifier: "en"))
-                Text(title)
-                    .lineLimit(1)
-                Text("·")
-                    .foregroundStyle(.tertiary)
-                Text(summary)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .frame(maxWidth: 140, alignment: .leading)
-                    .layoutPriority(-1)
-            }
-        }
-        .buttonStyle(.bordered)
-        .controlSize(.small)
-        .popover(isPresented: popoverBinding(target), arrowEdge: .bottom) {
-            popoverContent(for: target)
-        }
-    }
-
-    private enum StagePopover: Equatable {
-        case layout
-        case color
-        case font
-
-        case behavior
-    }
-
-    private func popoverBinding(_ target: StagePopover) -> Binding<Bool> {
-        Binding(
-            get: { popover == target },
-            set: { shown in
-                if shown { popover = target } else if popover == target { popover = nil }
-            })
-    }
-
-    @ViewBuilder
-    private func popoverContent(for target: StagePopover) -> some View {
-        switch target {
-        case .layout: MenuBarLayoutPopover()
-        case .color: MenuBarColorPopover()
-        case .font: MenuBarFontPopover()
-        case .behavior: MenuBarBehaviorPopover()
-        }
-    }
-
-    private var stageWidthBar: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "arrow.left.and.right")
-                .font(.system(size: 10, weight: .semibold))
-            Slider(value: Binding(
-                get: { Double(settings.menuBarLyricsWidth) },
-                set: {
-                    let quantized = CGFloat(($0 / 10).rounded() * 10)
-                    guard quantized != settings.menuBarLyricsWidth else { return }
-                    settings.menuBarLyricsWidth = quantized
-                }
-            ), in: 80...600)
-            .controlSize(.small)
-            .tint(.white)
-            .frame(width: 150)
-
-            .accessibilityLabel(L10n.t("最大宽度"))
-            .accessibilityValue(widthValueText)
-            Text(widthValueText)
-                .font(.system(size: 11, weight: .medium))
-                .monospacedDigit()
-                .frame(width: 44, alignment: .trailing)
-
-                .accessibilityHidden(true)
-        }
-        .foregroundStyle(.white)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(Capsule().fill(Color.black.opacity(0.7)))
-        .overlay(Capsule().strokeBorder(Color.white.opacity(0.18), lineWidth: 0.5))
-        .shadow(color: .black.opacity(0.35), radius: 5, y: 1)
-    }
-
-    private var widthValueText: String {
-        String(format: L10n.t("%@pt"), "\(Int(settings.menuBarLyricsWidth))")
-    }
-}
-
 struct MenuBarWidthRow: View {
     @ObservedObject private var settings = AppSettings.shared
 
@@ -326,28 +137,12 @@ struct MenuBarLayoutRows: View {
     }
 }
 
-struct MenuBarLayoutPopover: View {
-    var body: some View {
-        SettingsPopoverShell(title: L10n.t("布局"), width: 470) {
-            MenuBarLayoutRows()
-        }
-    }
-}
-
 struct MenuBarBehaviorRows: View {
     var body: some View {
         VStack(spacing: 0) {
             MenuBarHoverControlsRow()
             CardDivider()
             MenuBarTitleFallbackRow()
-        }
-    }
-}
-
-struct MenuBarBehaviorPopover: View {
-    var body: some View {
-        SettingsPopoverShell(title: L10n.t("行为"), width: 420) {
-            MenuBarBehaviorRows()
         }
     }
 }
@@ -390,28 +185,12 @@ struct MenuBarAlignmentRow: View {
     }
 }
 
-struct MenuBarColorPopover: View {
-    var body: some View {
-        SettingsPopoverShell(title: L10n.t("配色"), width: 330) {
-            MenuBarColorRows()
-        }
-    }
-}
-
 struct MenuBarFontRows: View {
     var body: some View {
         VStack(spacing: 0) {
             MenuBarFontWeightRow()
             CardDivider()
             MenuBarFontSizeRow()
-        }
-    }
-}
-
-struct MenuBarFontPopover: View {
-    var body: some View {
-        SettingsPopoverShell(title: L10n.t("字体")) {
-            MenuBarFontRows()
         }
     }
 }
@@ -555,39 +334,21 @@ struct MenuBarColorRows: View {
     }
 }
 
-struct MenuBarAllSettingsDrawer: View {
-    @State private var isExpanded = false
-
-    @Environment(\.settingsSearchPendingDrawer) private var pendingSearchDrawer
-
+struct MenuBarSettingsList: View {
     var body: some View {
         SettingsCard {
-            disclosureHeader
-            if isExpanded {
-                CardDivider()
-                group(L10n.t("布局")) { MenuBarLayoutRows() }
-                CardDivider()
-                group(L10n.t("配色")) { MenuBarColorRows() }
-                CardDivider()
-                group(L10n.t("字体")) { MenuBarFontRows() }
-                CardDivider()
-                MenuBarWidthRow()
-                CardDivider()
-                group(L10n.t("行为")) { MenuBarBehaviorRows() }
-                CardDivider()
-                resetRow
-            }
+            group(L10n.t("布局")) { MenuBarLayoutRows() }
+            CardDivider()
+            group(L10n.t("配色")) { MenuBarColorRows() }
+            CardDivider()
+            group(L10n.t("字体")) { MenuBarFontRows() }
+            CardDivider()
+            MenuBarWidthRow()
+            CardDivider()
+            group(L10n.t("行为")) { MenuBarBehaviorRows() }
+            CardDivider()
+            resetRow
         }
-        .onAppear { expandForSearchIfNeeded() }
-        .onChange(of: pendingSearchDrawer) { _, _ in expandForSearchIfNeeded() }
-    }
-
-    private func expandForSearchIfNeeded() {
-        guard pendingSearchDrawer == .menuBar else { return }
-        if !isExpanded {
-            withAnimation(.settingsCardReveal) { isExpanded = true }
-        }
-        SettingsSearchRouter.shared.consumeDrawer(.menuBar)
     }
 
     private func group<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
@@ -605,29 +366,5 @@ struct MenuBarAllSettingsDrawer: View {
         ) {
             Button(L10n.t("恢复")) { MenuBarStyleDefaults.restoreDefaults() }
         }
-    }
-
-    private var disclosureHeader: some View {
-        Button {
-            withAnimation(.settingsCardReveal) { isExpanded.toggle() }
-        } label: {
-            HStack(spacing: SettingsRowMetrics.iconTextSpacing) {
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                    .rotationEffect(.degrees(isExpanded ? 90 : 0))
-                    .frame(width: SettingsRowMetrics.iconWidth, alignment: .center)
-                Text(L10n.t("全部设置"))
-                    .font(.system(size: 13))
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, SettingsRowMetrics.horizontalPadding)
-            .padding(.vertical, SettingsRowMetrics.verticalPadding)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(L10n.t("全部设置"))
-        .accessibilityAddTraits(isExpanded ? .isSelected : [])
-        .accessibilityValue(isExpanded ? L10n.t("已展开") : L10n.t("已折叠"))
     }
 }
