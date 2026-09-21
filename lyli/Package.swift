@@ -4,7 +4,6 @@ import PackageDescription
 let package = Package(
     name: "lyli",
 
-    defaultLocalization: "zh-Hans",
 
     platforms: [.macOS(.v14)],
 
