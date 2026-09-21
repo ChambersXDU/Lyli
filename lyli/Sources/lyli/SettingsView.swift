@@ -823,9 +823,6 @@ private struct LyricsSettingsTab: View {
                 .controlSize(.small)
                 .settingsGlassButtons()
             }
-            CardDivider()
-
-            LyricsLibraryStatsPanel()
         }
         SettingsCard {
             lyricsFolderRow
