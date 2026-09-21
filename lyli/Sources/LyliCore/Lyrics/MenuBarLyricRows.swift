@@ -34,7 +34,6 @@ public enum MenuBarLyricRows {
         case .off: return 0
         case .nextLine: return 0.55
         case .translation: return 0.75
-        case .romanization: return 0.6
         }
     }
 }
