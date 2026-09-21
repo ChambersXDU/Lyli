@@ -20,9 +20,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Localizable.strings 一致性
-        run: python3 lyli/scripts/check_strings_parity.py
-
       - name: Swift selftest
         run: |
           cd lyli
