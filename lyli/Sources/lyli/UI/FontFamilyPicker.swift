@@ -34,7 +34,7 @@ struct FontFamilyPicker: View {
     }
 
     static func displayName(for family: String) -> String {
-        family.isEmpty ? L10n.t("系统字体") : family
+        family.isEmpty ? "系统字体" : family
     }
 
     private var currentLabel: String { Self.displayName(for: selection) }
@@ -65,7 +65,7 @@ struct FontFamilyPicker: View {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
-                TextField(L10n.t("搜索字体"), text: $query)
+                TextField("搜索字体", text: $query)
                     .textFieldStyle(.plain)
             }
             .padding(.horizontal, 10)
@@ -74,14 +74,14 @@ struct FontFamilyPicker: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {
                     if query.trimmingCharacters(in: .whitespaces).isEmpty {
-                        row(family: "", label: L10n.t("系统字体"))
+                        row(family: "", label: "系统字体")
                         Divider().padding(.vertical, 2)
                     }
                     ForEach(filtered, id: \.self) { family in
                         row(family: family, label: family)
                     }
                     if filtered.isEmpty {
-                        Text(L10n.t("没有匹配的字体"))
+                        Text("没有匹配的字体")
                             .font(.callout)
                             .foregroundStyle(.secondary)
                             .frame(maxWidth: .infinity)
