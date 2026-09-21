@@ -61,10 +61,6 @@ private enum TimingFilter: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
-private struct DecisionSheetTarget: Identifiable {
-    let id: String
-}
-
 private enum LyricsSortOption: String, CaseIterable, Identifiable {
     case defaultOrder = "默认排序"
     case titleAscending = "歌名 A→Z"
@@ -388,10 +384,6 @@ struct LyricsManagerView: View {
             }
         }
     }
-    @State private var showDecisionSheet = false
-
-    @State private var decisionTarget: DecisionSheetTarget?
-
     @State private var showSaveEditFeedback = false
 
     @State private var showCopyLyricsFeedback = false
@@ -825,20 +817,14 @@ struct LyricsManagerView: View {
                     Divider()
                     List(sortedFiltered, selection: $selectedKeys) { summary in
 
-                        LyricsManagerRow(summary: summary, artistDisplayName: summary.artist, albumDisplayName: albumDisplay(summary.album), widths: shownWidths, offsetColumnWidth: Self.offsetColumnWidth,
-                                         onShowDecision: summary.hasDecision ? { decisionTarget = DecisionSheetTarget(id: summary.key) } : nil)
+                        LyricsManagerRow(
+                            summary: summary,
+                            artistDisplayName: summary.artist,
+                            albumDisplayName: albumDisplay(summary.album),
+                            widths: shownWidths,
+                            offsetColumnWidth: Self.offsetColumnWidth)
                     }
                     .listStyle(.inset(alternatesRowBackgrounds: true))
-
-                    .sheet(item: $decisionTarget) { target in
-                        let latest = store.decodedDecision(for: target.id)
-                        let applied = store.decodedAppliedDecision(for: target.id)
-
-                        if let s = store.summaries.first(where: { $0.key == target.id }),
-                           latest != nil || applied != nil {
-                            LyricsDecisionSheet(summary: s, latest: latest, applied: applied)
-                        }
-                    }
 
                     .overlay {
                         if store.isLoading {
@@ -1298,14 +1284,6 @@ struct LyricsManagerView: View {
             }
             rematchResult = nil
         }
-        .sheet(isPresented: $showDecisionSheet) {
-
-            let latest = store.decodedDecision(for: key)
-            let applied = store.decodedAppliedDecision(for: key)
-            if latest != nil || applied != nil {
-                LyricsDecisionSheet(summary: summary, latest: latest, applied: applied)
-            }
-        }
         .sheet(isPresented: $showSearchSheet) {
 
             LyricsSearchSheet(
@@ -1377,12 +1355,6 @@ struct LyricsManagerView: View {
                       GridItem(.fixed(ActionTile.size.width), spacing: 8)],
             spacing: 8
         ) {
-            if summary.hasDecision {
-                ActionTile(icon: "list.number", title: L10n.t("解析决策"),
-                           help: L10n.t("当初为什么选了这份歌词：当时的候选、得分与拒绝原因")) {
-                    showDecisionSheet = true
-                }
-            }
             ActionTile(icon: "wand.and.stars", title: L10n.t("重新自动匹配"),
                        help: L10n.t("重新联网跑一遍匹配，直接采用算法选出的那一份，不用自己挑；跟设置里的「匹配算法」一致"),
                        disabled: rematchRunningKey != nil) {
@@ -1862,8 +1834,6 @@ private struct LyricsManagerRow: View {
 
     let offsetColumnWidth: CGFloat
 
-    var onShowDecision: (() -> Void)?
-
     private static let badgeIconWidth: CGFloat = 16
 
     @ViewBuilder
@@ -1961,18 +1931,8 @@ private struct LyricsManagerRow: View {
                             .padding(.horizontal, 5).padding(.vertical, 1)
                             .foregroundStyle(.orange)
                             .background(Color.orange.opacity(0.12), in: Capsule())
-                            .contentShape(Capsule())
-                            .onTapGesture { onShowDecision?() }
-
-                            .onHover { inside in
-                                guard onShowDecision != nil else { return }
-                                if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() }
-                            }
-                            .help(onShowDecision == nil
-                                  ? String(format: L10n.t("这份歌词定下来时，%1$d 个歌词源里只有 %2$d 个给出了候选（老条目当年的源数可能少于 %1$d）"),
-                                           total, summary.sourcesRespondedCount)
-                                  : String(format: L10n.t("这份歌词定下来时，%1$d 个歌词源里只有 %2$d 个给出了候选（老条目当年的源数可能少于 %1$d）。点击查看是哪几个"),
-                                           total, summary.sourcesRespondedCount))
+                            .help(String(format: L10n.t("这份歌词定下来时，%1$d 个歌词源里只有 %2$d 个给出了候选（老条目当年的源数可能少于 %1$d）"),
+                                                total, summary.sourcesRespondedCount))
                     }
                 }
                 .frame(width: widths.source, alignment: .leading)
