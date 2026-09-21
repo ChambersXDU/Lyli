@@ -410,10 +410,6 @@ struct LyricsManagerView: View {
     @State private var showRefreshedFeedback = false
     @State private var showClearAllConfirm = false
     @State private var showClearOffsetsConfirm = false
-    @State private var pendingRestoreSnapshot: LyricsBackupStore.Snapshot?
-    @State private var showRestoreSnapshotConfirm = false
-    @State private var restoreSnapshotResult: String?
-
     @State private var pendingAutoFocus = true
 
     @State private var placeholderSummary: EnrichCacheStore.Summary?
@@ -962,22 +958,6 @@ struct LyricsManagerView: View {
                                             offsets.trackOffsetCount))
                             }
 
-                            let snapshots = LyricsBackupStore.autoSnapshots()
-                            if !snapshots.isEmpty {
-                                Section {
-                                    ForEach(snapshots) { snapshot in
-                                        Button {
-                                            pendingRestoreSnapshot = snapshot
-                                            showRestoreSnapshotConfirm = true
-                                        } label: {
-                                            Label("\(Self.snapshotDateText(snapshot.date))（\(Self.byteText(snapshot.bytes))）",
-                                                  systemImage: "clock.arrow.circlepath")
-                                        }
-                                    }
-                                } header: {
-                                    Text(L10n.t("从自动备份恢复"))
-                                }
-                            }
                         } label: {
                             Label(cacheSizeText, systemImage: "internaldrive")
                                 .labelStyle(.titleAndIcon)
@@ -1001,7 +981,7 @@ struct LyricsManagerView: View {
                     Button(L10n.t("取消"), role: .cancel) {}
                 } message: {
 
-                    Text(String(format: L10n.t("这会删除当前全部 %d 条本地记录,包括你手动编辑、联网搜索采纳过的内容,已导出到本地的歌词文件也会一并删除。清空之前会自动备份一份,能从这个菜单里的「从自动备份恢复」找回来。下次播放会重新走一遍匹配解析"), store.summaries.count))
+                    Text(String(format: L10n.t("这会删除当前全部 %d 条本地记录，包括手动编辑和联网搜索采纳过的内容。下次播放会重新搜索歌词。"), store.summaries.count))
                 }
 
                 .onChange(of: nowPlaying.trackSignature) { _, _ in
@@ -1044,34 +1024,6 @@ struct LyricsManagerView: View {
             Button(L10n.t("取消"), role: .cancel) {}
         } message: {
             Text(String(format: L10n.t("这会清掉你为 %d 首歌手动调出来的歌词时间轴校正值,无法撤销。歌词内容本身不受影响;设置里的全局偏移和按播放器补偿也不会被清掉。清掉之后,这些歌会重新交给后台自动更新歌词源"), offsets.trackOffsetCount))
-        }
-
-        .confirmationDialog(
-            L10n.t("确定要从这份备份恢复歌词库吗?"),
-            isPresented: $showRestoreSnapshotConfirm,
-            titleVisibility: .visible
-        ) {
-
-            Button(L10n.t("从备份恢复")) {
-                guard let snapshot = pendingRestoreSnapshot else { return }
-                Task {
-                    restoreSnapshotResult = await store.restoreFromAutoSnapshot(snapshot)
-                        ?? L10n.t("这份备份读不出来")
-                    pendingRestoreSnapshot = nil
-                }
-            }
-            Button(L10n.t("取消"), role: .cancel) { pendingRestoreSnapshot = nil }
-        } message: {
-
-            Text(L10n.t("备份里的歌词文件会铺回歌词文件夹：同名的覆盖，缺的补上；备份之后新解析出来的歌不会被删掉。恢复完成后会自动刷新缓存"))
-        }
-        .alert(L10n.t("恢复歌词库"), isPresented: Binding(
-            get: { restoreSnapshotResult != nil },
-            set: { if !$0 { restoreSnapshotResult = nil } }
-        )) {
-            Button(L10n.t("好")) { restoreSnapshotResult = nil }
-        } message: {
-            Text(restoreSnapshotResult ?? "")
         }
 
         .onAppear { AuxiliaryWindowActivation.windowDidAppear() }
@@ -1185,17 +1137,6 @@ struct LyricsManagerView: View {
 
     private var cacheSizeText: String {
         EnrichCacheStore.byteText(store.totalSizeBytes)
-    }
-
-    private static func snapshotDateText(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .short
-        formatter.timeStyle = .short
-        return formatter.string(from: date)
-    }
-
-    private static func byteText(_ bytes: Int) -> String {
-        EnrichCacheStore.byteText(Int64(bytes))
     }
 
     private func refreshPlaceholder() {
