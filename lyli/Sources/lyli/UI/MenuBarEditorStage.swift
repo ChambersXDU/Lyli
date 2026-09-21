@@ -4,10 +4,10 @@ import LyliCore
 extension LyricSecondaryLine {
     var displayName: String {
         switch self {
-        case .off: return L10n.t("不显示")
-        case .nextLine: return L10n.t("下一句")
-        case .translation: return L10n.t("译文")
-        case .romanization: return L10n.t("罗马音")
+        case .off: return "不显示"
+        case .nextLine: return "下一句"
+        case .translation: return "译文"
+        case .romanization: return "罗马音"
         }
     }
 }
@@ -16,7 +16,7 @@ struct MenuBarWidthRow: View {
     @ObservedObject private var settings = AppSettings.shared
 
     var body: some View {
-        SettingsRow(icon: "arrow.left.and.right", title: L10n.t("最大宽度")) {
+        SettingsRow(icon: "arrow.left.and.right", title: "最大宽度") {
             HStack(spacing: 8) {
 
                 SteppedSlider(value: Binding(
@@ -29,7 +29,7 @@ struct MenuBarWidthRow: View {
                     }
                 ), in: 80...600, step: 10)
                 .frame(width: 150)
-                Text(String(format: L10n.t("%@pt"), "\(Int(settings.menuBarLyricsWidth))"))
+                Text(String(format: "%@pt", "\(Int(settings.menuBarLyricsWidth))"))
                     .foregroundStyle(.secondary)
                     .monospacedDigit()
                     .frame(width: 46, alignment: .trailing)
@@ -41,8 +41,8 @@ struct MenuBarWidthRow: View {
 extension MenuBarLyricsWidthMode {
     var displayName: String {
         switch self {
-        case .fixed: return L10n.t("固定")
-        case .adaptive: return L10n.t("自适应")
+        case .fixed: return "固定"
+        case .adaptive: return "自适应"
         }
     }
 }
@@ -51,9 +51,9 @@ extension MenuBarLyricsIconPosition {
 
     var displayName: String {
         switch self {
-        case .off: return L10n.t("不显示")
-        case .leading: return L10n.t("左")
-        case .trailing: return L10n.t("右")
+        case .off: return "不显示"
+        case .leading: return "左"
+        case .trailing: return "右"
         }
     }
 }
@@ -64,7 +64,7 @@ struct MenuBarLyricsIconRow: View {
     var body: some View {
         SettingsRow(
             icon: "chart.bar.fill",
-            title: L10n.t("歌词旁的图标")
+            title: "歌词旁的图标"
         ) {
             Picker("", selection: $settings.menuBarLyricsIconPosition) {
                 ForEach(MenuBarLyricsIconPosition.allCases, id: \.self) { position in
@@ -83,7 +83,7 @@ struct MenuBarTitleFallbackRow: View {
     var body: some View {
         SettingsRow(
             icon: "music.note.list",
-            title: L10n.t("无歌词时显示歌名")
+            title: "无歌词时显示歌名"
         ) {
             Toggle("", isOn: $settings.menuBarShowsTitleWhenNoLyrics)
         }
@@ -135,11 +135,11 @@ struct MenuBarWidthModeRow: View {
     var body: some View {
         SettingsRow(
             icon: "arrow.left.and.right.circle",
-            title: L10n.t("宽度模式")
+            title: "宽度模式"
         ) {
             Picker("", selection: $settings.menuBarLyricsWidthMode) {
-                Text(L10n.t("固定")).tag(MenuBarLyricsWidthMode.fixed)
-                Text(L10n.t("自适应")).tag(MenuBarLyricsWidthMode.adaptive)
+                Text("固定").tag(MenuBarLyricsWidthMode.fixed)
+                Text("自适应").tag(MenuBarLyricsWidthMode.adaptive)
             }
             .pickerStyle(.segmented)
             .fixedSize()
@@ -158,7 +158,7 @@ struct MenuBarAlignmentRow: View {
     var body: some View {
         SettingsRow(
             icon: "text.alignleft",
-            title: L10n.t("对齐方式")
+            title: "对齐方式"
         ) {
 
             LyricsAlignmentSegmentedControl(selection: $settings.menuBarLyricsAlignment,
@@ -183,7 +183,7 @@ struct MenuBarSecondaryLineRow: View {
     var body: some View {
         SettingsRow(
             icon: "text.append",
-            title: L10n.t("副行")
+            title: "副行"
         ) {
             Picker("", selection: $settings.menuBarSecondaryLine) {
                 ForEach(LyricSecondaryLine.allCases, id: \.self) { kind in
@@ -203,11 +203,11 @@ struct MenuBarFontSizeRow: View {
     var body: some View {
         SettingsRow(
             icon: "textformat.size",
-            title: L10n.t("字号")
+            title: "字号"
         ) {
 
             if settings.menuBarSecondaryLine.showsSecondaryRow {
-                Text(L10n.t("由副行决定"))
+                Text("由副行决定")
                     .font(.system(size: 13))
                     .foregroundStyle(.secondary)
             } else {
@@ -223,7 +223,7 @@ struct MenuBarFontSizeRow: View {
                         }
                     ), in: Double(MenuBarMarqueeRenderer.fontSizeRange.lowerBound)...Double(MenuBarMarqueeRenderer.fontSizeRange.upperBound), step: 1)
                         .frame(width: 150)
-                    Text(String(format: L10n.t("%@pt"), "\(Int(MenuBarMarqueeRenderer.font.pointSize))"))
+                    Text(String(format: "%@pt", "\(Int(MenuBarMarqueeRenderer.font.pointSize))"))
                         .foregroundStyle(.secondary)
                         .monospacedDigit()
                         .frame(width: 46, alignment: .trailing)
@@ -239,7 +239,7 @@ struct MenuBarFontWeightRow: View {
     var body: some View {
         SettingsRow(
             icon: "bold",
-            title: L10n.t("粗细")
+            title: "粗细"
         ) {
             Picker("", selection: $settings.menuBarLyricsFontWeight) {
                 ForEach(OverlayFontWeight.allCases, id: \.self) { weight in
@@ -262,7 +262,7 @@ struct MenuBarColorRows: View {
         VStack(spacing: 0) {
             SettingsRow(
                 icon: "text.word.spacing",
-                title: L10n.t("卡拉OK效果")
+                title: "卡拉OK效果"
             ) {
                 Toggle("", isOn: $settings.menuBarLyricsKaraoke)
             }
@@ -270,11 +270,11 @@ struct MenuBarColorRows: View {
             SettingsRow(
                 icon: "textformat",
                 title: settings.menuBarLyricsKaraoke
-                    ? L10n.t("未唱到的颜色") : L10n.t("文字颜色")
+                    ? "未唱到的颜色" : "文字颜色"
             ) {
                 HStack(spacing: 8) {
                     if !settings.menuBarLyricsTextColorHex.isEmpty {
-                        Button(L10n.t("跟随系统")) { settings.menuBarLyricsTextColorHex = "" }
+                        Button("跟随系统") { settings.menuBarLyricsTextColorHex = "" }
                     }
 
                     ColorPicker("", selection: Binding(
@@ -293,11 +293,11 @@ struct MenuBarColorRows: View {
                 CardDivider()
                 SettingsRow(
                     icon: "paintpalette.fill",
-                    title: L10n.t("已唱到的颜色")
+                    title: "已唱到的颜色"
                 ) {
                     HStack(spacing: 8) {
                         if !settings.menuBarLyricsFillColorHex.isEmpty {
-                            Button(L10n.t("跟随系统")) { settings.menuBarLyricsFillColorHex = "" }
+                            Button("跟随系统") { settings.menuBarLyricsFillColorHex = "" }
                         }
 
                         ColorPicker("", selection: Binding(
@@ -319,15 +319,15 @@ struct MenuBarColorRows: View {
 struct MenuBarSettingsList: View {
     var body: some View {
         SettingsCard {
-            group(L10n.t("布局")) { MenuBarLayoutRows() }
+            group("布局") { MenuBarLayoutRows() }
             CardDivider()
-            group(L10n.t("配色")) { MenuBarColorRows() }
+            group("配色") { MenuBarColorRows() }
             CardDivider()
-            group(L10n.t("字体")) { MenuBarFontRows() }
+            group("字体") { MenuBarFontRows() }
             CardDivider()
             MenuBarWidthRow()
             CardDivider()
-            group(L10n.t("行为")) { MenuBarBehaviorRows() }
+            group("行为") { MenuBarBehaviorRows() }
             CardDivider()
             resetRow
         }
@@ -344,9 +344,9 @@ struct MenuBarSettingsList: View {
     private var resetRow: some View {
         SettingsRow(
             icon: "arrow.uturn.backward",
-            title: L10n.t("恢复默认")
+            title: "恢复默认"
         ) {
-            Button(L10n.t("恢复")) { MenuBarStyleDefaults.restoreDefaults() }
+            Button("恢复") { MenuBarStyleDefaults.restoreDefaults() }
         }
     }
 }
