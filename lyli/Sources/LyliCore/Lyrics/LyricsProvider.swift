@@ -18,7 +18,6 @@ public struct LyricsCandidate: Sendable, Equatable {
     public let source: String
     public let lyrics: String
     public let translation: String?
-    public let romanization: String?
     public let wordTiming: String?
     public let duration: TimeInterval?
     public let title: String
@@ -31,7 +30,6 @@ public struct LyricsCandidate: Sendable, Equatable {
         source: String,
         lyrics: String,
         translation: String? = nil,
-        romanization: String? = nil,
         wordTiming: String? = nil,
         duration: TimeInterval? = nil,
         title: String = "",
@@ -43,7 +41,6 @@ public struct LyricsCandidate: Sendable, Equatable {
         self.source = source
         self.lyrics = lyrics
         self.translation = translation
-        self.romanization = romanization
         self.wordTiming = wordTiming
         self.duration = duration
         self.title = title
@@ -55,7 +52,6 @@ public struct LyricsCandidate: Sendable, Equatable {
 
     public var hasWordTiming: Bool { !(wordTiming?.isEmpty ?? true) }
     public var hasTranslation: Bool { !(translation?.isEmpty ?? true) }
-    public var hasRomanization: Bool { !(romanization?.isEmpty ?? true) }
 }
 
 public protocol LyricsProvider: Sendable {
