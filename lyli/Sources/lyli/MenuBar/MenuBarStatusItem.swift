@@ -66,6 +66,8 @@ final class MenuBarStatusItem: NSObject {
 
         settings.$menuBarLyricsAlignment.dropFirst().receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.scheduleRefresh() }.store(in: &cancellables)
+        settings.$menuBarIdleIconStyle.dropFirst().receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.scheduleRefresh() }.store(in: &cancellables)
         settings.$menuBarLyricsIconPosition.dropFirst().receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.scheduleRefresh() }.store(in: &cancellables)
         coordinator.$isPlayingNow.dropFirst().receive(on: RunLoop.main)
@@ -507,10 +509,12 @@ final class MenuBarStatusItem: NSObject {
         let placeholderNow = titleFallbackActive || text == MenuBarMarqueeRenderer.placeholderGlyph
 
         guard settings.showLyricsInMenuBar, lyricsActive else {
-            let iconWidth = MenuBarIconArtwork.image.size.width
-            present(class: "icon", length: iconWidth + Self.fixedSlotPadding,
+            let idleImage = coordinator.isPlayingNow
+                ? MenuBarIconArtwork.image
+                : settings.menuBarIdleIconStyle.image
+            present(class: "icon", length: idleImage.size.width + Self.fixedSlotPadding,
                     collapseDelay: settings.showLyricsInMenuBar ? Self.slotReleaseSecs : 0) {
-                showIcon($0)
+                showIcon($0, image: idleImage)
             }
             return
         }
@@ -581,9 +585,9 @@ final class MenuBarStatusItem: NSObject {
         }
     }
 
-    private func showIcon(_ button: NSStatusBarButton) {
+    private func showIcon(_ button: NSStatusBarButton, image: NSImage) {
         scrollingLabel.clear()
-        button.image = MenuBarIconArtwork.image
+        button.image = image
         button.imagePosition = .imageOnly
         button.title = ""
         button.toolTip = nil
