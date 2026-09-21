@@ -10,10 +10,10 @@ struct LyricsAlignmentSegmentedControl: View {
     static func label(for option: LyricsRestingAlignment) -> String {
         switch option {
 
-        case .automatic: return L10n.t("自动")
-        case .leading: return L10n.t("左对齐")
-        case .center: return L10n.t("居中")
-        case .trailing: return L10n.t("右对齐")
+        case .automatic: return "自动"
+        case .leading: return "左对齐"
+        case .center: return "居中"
+        case .trailing: return "右对齐"
         }
     }
 
