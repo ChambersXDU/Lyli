@@ -4,7 +4,6 @@ on:
   push:
     tags:
       - "v*"
-  workflow_dispatch:
 
 concurrency:
   group: release-${{ github.ref }}
@@ -14,113 +13,96 @@ permissions:
   contents: write
 
 jobs:
-  build:
-    name: Build, ad-hoc sign, package
+  release:
+    name: Build and publish arm64 release
     runs-on: macos-26
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
 
-      - name: Validate release tag
-        if: startsWith(github.ref, 'refs/tags/')
-        id: tag
+      - name: Verify arm64 runner
         run: |
-          TAG="${GITHUB_REF#refs/tags/}"
-          if ! bash .github/scripts/check_release_tag.sh "$TAG" --body-out "$RUNNER_TEMP/tag-body.md"; then
-            echo "::error::tag '${TAG}' failed release-tag validation (annotated / non-empty / bilingual notes) -- nothing was built, see the log above" >&2
+          ARCH="$(uname -m)"
+          echo "runner architecture: $ARCH"
+          [ "$ARCH" = "arm64" ] || {
+            echo "::error::release workflow requires an arm64 macOS runner, got $ARCH" >&2
             exit 1
-          fi
-          {
-            echo "body<<CHANGELOG_EOF"
-            cat "$RUNNER_TEMP/tag-body.md"
-            echo "CHANGELOG_EOF"
-          } >> "$GITHUB_OUTPUT"
+          }
 
-      - name: Verify toolchains
-        run: |
-          swift --version
-
-      - name: Run test suites
-        run: |
-          echo "==> Swift selftest (lyli)"
-          (cd lyli && swift build --product lyli-selftest && ./.build/debug/lyli-selftest)
-
-      - name: Determine version string
+      - name: Validate tag and determine version
         id: version
         run: |
-          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
-            VERSION="${GITHUB_REF#refs/tags/}"
-            BUNDLE_VERSION="${VERSION#v}"
-            if ! BUILD_VERSION="$(bash lyli/scripts/build-version.sh "$BUNDLE_VERSION")"; then
-              echo "::error::tag '${VERSION}' is not vX.Y.Z or vX.Y.Z-(alpha|beta|rc).N -- refusing to build" >&2
-              exit 1
-            fi
-            if [[ "$VERSION" == *-* ]]; then IS_PRERELEASE=true; else IS_PRERELEASE=false; fi
+          TAG="$GITHUB_REF_NAME"
+          BUNDLE_VERSION="${TAG#v}"
+          if ! BUILD_VERSION="$(bash lyli/scripts/build-version.sh "$BUNDLE_VERSION")"; then
+            echo "::error::tag '$TAG' must be vX.Y.Z or vX.Y.Z-(alpha|beta|rc).N" >&2
+            exit 1
+          fi
+          if [[ "$TAG" == *-* ]]; then
+            IS_PRERELEASE=true
           else
-            VERSION="dev-$(git rev-parse --short HEAD)"
-            BUNDLE_VERSION="1.0.0"
-            BUILD_VERSION="1.0.0.1000"
             IS_PRERELEASE=false
           fi
           {
-            echo "version=${VERSION}"
-            echo "bundle_version=${BUNDLE_VERSION}"
-            echo "build_version=${BUILD_VERSION}"
-            echo "is_prerelease=${IS_PRERELEASE}"
-            echo "asset_base=Lyli-v${BUNDLE_VERSION}-macos"
+            echo "tag=$TAG"
+            echo "bundle_version=$BUNDLE_VERSION"
+            echo "build_version=$BUILD_VERSION"
+            echo "is_prerelease=$IS_PRERELEASE"
+            echo "asset_base=Lyli-v${BUNDLE_VERSION}-macos-arm64"
           } >> "$GITHUB_OUTPUT"
-          echo "Building ${VERSION} (display ${BUNDLE_VERSION}, CFBundleVersion ${BUILD_VERSION}, prerelease=${IS_PRERELEASE})"
+          echo "Releasing $TAG (CFBundleVersion $BUILD_VERSION, prerelease=$IS_PRERELEASE)"
+
+      - name: Run selftest
+        run: |
+          cd lyli
+          swift build --product lyli-selftest
+          ./.build/debug/lyli-selftest
 
       - name: Install dmgbuild
         run: python3 -m pip install --user --break-system-packages dmgbuild
         continue-on-error: true
 
-      - name: Build + package release assets
+      - name: Build arm64 release assets
         run: |
           LYLI_VERSION="${{ steps.version.outputs.bundle_version }}" ./lyli/package.sh
-          ls -la lyli/dist
+          ls -lah lyli/dist
 
-      - name: Upload workflow artifact (every run -- tag push or manual dispatch)
+      - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.version.outputs.asset_base }}
           path: lyli/dist/*
           retention-days: 14
 
-      - name: Create GitHub Release
-        if: startsWith(github.ref, 'refs/tags/')
+      - name: Publish GitHub Release
         uses: softprops/action-gh-release@v3
         with:
-          name: Lyli ${{ steps.version.outputs.version }} — macOS Desktop Lyrics for Apple Music
-          body: ${{ steps.tag.outputs.body }}
+          name: Lyli ${{ steps.version.outputs.tag }}
           generate_release_notes: true
           prerelease: ${{ steps.version.outputs.is_prerelease == 'true' }}
+          fail_on_unmatched_files: true
           files: |
             lyli/dist/${{ steps.version.outputs.asset_base }}.zip
             lyli/dist/${{ steps.version.outputs.asset_base }}.zip.sha256
             lyli/dist/${{ steps.version.outputs.asset_base }}.dmg
-            lyli/dist/${{ steps.version.outputs.asset_base }}-intel.zip
-            lyli/dist/${{ steps.version.outputs.asset_base }}-intel.zip.sha256
-            lyli/dist/${{ steps.version.outputs.asset_base }}-intel.dmg
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Verify published download URLs
-        if: startsWith(github.ref, 'refs/tags/')
+      - name: Verify published assets
         run: |
-          TAG="${{ steps.version.outputs.version }}"
-          BASE="https://github.com/${{ github.repository }}/releases/download/${TAG}"
-          for name in "${{ steps.version.outputs.asset_base }}.zip" "${{ steps.version.outputs.asset_base }}-intel.zip"; do
+          BASE="https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.tag }}"
+          for name in             "${{ steps.version.outputs.asset_base }}.zip"             "${{ steps.version.outputs.asset_base }}.zip.sha256"             "${{ steps.version.outputs.asset_base }}.dmg"; do
             ok=""
             for attempt in 1 2 3 4 5 6; do
-              if curl -sSfIL --max-time 30 "${BASE}/${name}" -o /dev/null; then ok=1; break; fi
+              if curl -sSfIL --max-time 30 "$BASE/$name" -o /dev/null; then
+                ok=1
+                break
+              fi
               sleep 10
             done
-            if [ -z "$ok" ]; then
-              echo "::error::${BASE}/${name} is not downloadable" >&2
+            [ -n "$ok" ] || {
+              echo "::error::$BASE/$name is not downloadable" >&2
               exit 1
-            fi
-            echo "ok  ${BASE}/${name}"
+            }
+            echo "ok  $BASE/$name"
           done
