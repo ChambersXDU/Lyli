@@ -150,13 +150,9 @@ private struct MenuBarPanelView: View {
     let close: () -> Void
 
     var body: some View {
-        VStack(spacing: 9) {
-            nowPlayingCard
-            footer
-        }
-        .padding(10)
-        .frame(width: 336)
-
+        nowPlayingCard
+            .padding(10)
+            .frame(width: 336)
     }
 
     private var displayTitle: String {
@@ -177,45 +173,59 @@ private struct MenuBarPanelView: View {
         playback.title.isEmpty && playback.artist.isEmpty && !playback.isCurrentTrackAdBreak
     }
 
+    private var trackSubtitle: String {
+        [displayArtist, displayAlbum]
+            .filter { !$0.isEmpty }
+            .joined(separator: " · ")
+    }
+
     private var trackHeader: some View {
         HStack(alignment: .top, spacing: 9) {
-
             VStack(alignment: .leading, spacing: 2) {
                 Text(displayTitle)
                     .font(.system(size: 12, weight: .semibold))
                     .lineLimit(1)
 
-                Text(displayArtist)
-                    .font(.system(size: 10.5))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-
-                if !displayAlbum.isEmpty {
-                    Text(displayAlbum)
+                if !trackSubtitle.isEmpty {
+                    Text(trackSubtitle)
                         .font(.system(size: 10.5))
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
             }
             Spacer(minLength: 0)
 
-            Button {
-                PlaybackCoordinator.shared.openResolvedPlayerApp()
-                close()
-            } label: {
-                if let icon = PlaybackCoordinator.shared.resolvedPlayerIcon {
-                    Image(nsImage: icon)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 18, height: 18)
-                } else {
-                    Image(systemName: "music.note")
-                        .font(.system(size: 14, weight: .medium))
+            HStack(spacing: 7) {
+                Button {
+                    close()
+                    AppActions.shared.openSettings?()
+                } label: {
+                    Image(systemName: "gearshape")
+                        .font(.system(size: 12, weight: .medium))
                         .frame(width: 18, height: 18)
                 }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .accessibilityLabel(L10n.t("设置…"))
+
+                Button {
+                    PlaybackCoordinator.shared.openResolvedPlayerApp()
+                    close()
+                } label: {
+                    if let icon = PlaybackCoordinator.shared.resolvedPlayerIcon {
+                        Image(nsImage: icon)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 18, height: 18)
+                    } else {
+                        Image(systemName: "music.note")
+                            .font(.system(size: 14, weight: .medium))
+                            .frame(width: 18, height: 18)
+                    }
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(PlaybackCoordinator.shared.resolvedPlayerDisplayName ?? L10n.t("打开播放器"))
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel(PlaybackCoordinator.shared.resolvedPlayerDisplayName ?? L10n.t("打开播放器"))
         }
     }
 
@@ -331,56 +341,7 @@ private struct MenuBarPanelView: View {
         }
     }
 
-    private var footer: some View {
-        HStack(spacing: 0) {
-            footerButton("gearshape", L10n.t("设置…")) {
-                close()
-                AppActions.shared.openSettings?()
-            }
-            versionFooterItem
-        }
-    }
 
-    @ViewBuilder private var versionFooterItem: some View {
-        footerItem(
-            title: String(format: L10n.t("版本 %@"),
-                          Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0"),
-            tint: .secondary,
-            icon: { Image(systemName: "info.circle").font(.system(size: 10.5)) }
-        ) {
-            close()
-
-            AppActions.shared.requestSettings(.tab(.about))
-            AppActions.shared.openSettings?()
-        }
-    }
-
-    private func footerButton(_ symbol: String, _ title: String,
-                              action: @escaping () -> Void) -> some View {
-        footerItem(title: title, tint: .secondary,
-                   icon: { Image(systemName: symbol).font(.system(size: 10.5)) },
-                   action: action)
-    }
-
-    private func footerItem<Icon: View>(title: String, tint: Color,
-
-                                        @ViewBuilder icon: @escaping () -> Icon,
-                                        action: @escaping () -> Void) -> some View {
-
-        ChipButton(cornerRadius: 6, pressScale: 0.97, action: action) {
-            HStack(spacing: 4) {
-                icon()
-                Text(title)
-                    .font(.system(size: 10.5))
-
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-            }
-            .foregroundStyle(tint)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 4)
-        }
-    }
 }
 
 private struct ChipButton<Label: View>: View {
