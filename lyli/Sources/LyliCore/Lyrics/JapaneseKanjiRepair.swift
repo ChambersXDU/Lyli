@@ -32,13 +32,13 @@ public enum JapaneseKanjiRepair {
     }
 
     public static func repairLine(_ line: String) -> String {
-        guard Romanizer.looksJapanese(line), Romanizer.containsHan(line),
+        guard LyricScriptDetection.looksJapanese(line), LyricScriptDetection.containsHan(line),
               line.contains(where: { repaired($0) != nil }) else { return line }
         return String(line.map { repaired($0) ?? $0 })
     }
 
     public static func repair(_ text: String, japaneseSong: Bool) -> String {
-        guard japaneseSong, !text.isEmpty, Romanizer.containsHan(text),
+        guard japaneseSong, !text.isEmpty, LyricScriptDetection.containsHan(text),
               text.contains(where: { repaired($0) != nil }) else { return text }
         var out = ""
         out.reserveCapacity(text.utf8.count)
