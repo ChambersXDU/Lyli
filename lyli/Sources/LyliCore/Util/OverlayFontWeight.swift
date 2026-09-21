@@ -29,8 +29,6 @@ public enum OverlayFontWeight: String, CaseIterable, Sendable {
         return all[target]
     }
 
-    public static let romanizationSteps = 2
-
     public static let translationSteps = 3
 
     public static let nextLinePreviewSteps = 2
