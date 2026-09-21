@@ -13,41 +13,21 @@ public struct SyncedLyricWord: Equatable {
     }
 }
 
-public struct SyncedLyricWordGroup: Equatable, Identifiable {
-    public let id: Int
-    public let words: [SyncedLyricWord]
-    public let romanization: String?
-
-    public init(id: Int, words: [SyncedLyricWord], romanization: String?) {
-        self.id = id
-        self.words = words
-        self.romanization = romanization
-    }
-
-    public var startMs: Int { words.first?.startMs ?? 0 }
-    public var endMs: Int { words.last.map { $0.startMs + $0.durationMs } ?? 0 }
-}
-
 public struct SyncedLyricLine: Equatable {
-    public let romanization: String?
     public let translation: String?
     public let mainText: String?
     public let words: [SyncedLyricWord]?
-
-    public let wordGroups: [SyncedLyricWordGroup]?
 
     public var side: LyricDuet.Side?
 
     public let plainText: String?
 
-    public init(romanization: String?, translation: String?, mainText: String?,
-                words: [SyncedLyricWord]?, wordGroups: [SyncedLyricWordGroup]?,
-                side: LyricDuet.Side?, plainText: String? = nil) {
-        self.romanization = romanization
+    public init(translation: String?, mainText: String?,
+                words: [SyncedLyricWord]?, side: LyricDuet.Side?,
+                plainText: String? = nil) {
         self.translation = translation
         self.mainText = mainText
         self.words = words
-        self.wordGroups = wordGroups
         self.side = side
 
         if let plainText, !plainText.isEmpty {
@@ -62,11 +42,10 @@ public struct SyncedLyricLine: Equatable {
     }
 
     public var lineLevel: SyncedLyricLine {
-        guard words != nil || wordGroups != nil else { return self }
+        guard words != nil else { return self }
         return SyncedLyricLine(
-            romanization: romanization, translation: translation,
-            mainText: mainText ?? plainText, words: nil, wordGroups: nil,
-            side: side, plainText: plainText)
+            translation: translation, mainText: mainText ?? plainText,
+            words: nil, side: side, plainText: plainText)
     }
 }
 
@@ -101,12 +80,10 @@ public final class LyricsSyncEngine {
 
     private var baseSides: [LyricDuet.Side?] = []
     private var wordSides: [LyricDuet.Side?] = []
-    private var romaLines: [LyricLine] = []
     private var trLines: [LyricLine] = []
     private var usingWords = false
 
     private var trTextByPlainText: [String: String] = [:]
-    private var romaTextByPlainText: [String: String] = [:]
 
     private static func contentMatchKey(_ text: String) -> String {
         String(text.lowercased().unicodeScalars.filter { CharacterSet.alphanumerics.contains($0) })
@@ -610,25 +587,21 @@ public final class LyricsSyncEngine {
     public init() {}
 
     private struct LoadFingerprint: Equatable {
-        let lyrics, lyricsTr, lyricsRoma, lyricsYRC: String
+        let lyrics, lyricsTr, lyricsYRC: String
         let trackTitle, trackArtist: String
-        let romanizationScripts: RomanizationScripts
     }
     private var loadedFingerprint: LoadFingerprint?
 
     @discardableResult
     public func load(
-        lyrics: String, lyricsTr: String, lyricsRoma: String, lyricsYRC: String,
-        trackTitle: String = "", trackArtist: String = "",
-        romanizationScripts: RomanizationScripts = .default
+        lyrics: String, lyricsTr: String, lyricsYRC: String,
+        trackTitle: String = "", trackArtist: String = ""
     ) -> Bool {
         let fingerprint = LoadFingerprint(
-            lyrics: lyrics, lyricsTr: lyricsTr, lyricsRoma: lyricsRoma, lyricsYRC: lyricsYRC,
-            trackTitle: trackTitle, trackArtist: trackArtist,
-            romanizationScripts: romanizationScripts)
+            lyrics: lyrics, lyricsTr: lyricsTr, lyricsYRC: lyricsYRC,
+            trackTitle: trackTitle, trackArtist: trackArtist)
         if fingerprint == loadedFingerprint { return false }
         loadedFingerprint = fingerprint
-        self.romanizationScripts = romanizationScripts
         let normalizedYRC = LyricTimelineNormalizer.normalize(YRCParser.parse(lyricsYRC))
         let yrc = normalizedYRC.lines
         LyricTimelineNormalizer.logSummary(normalizedYRC.report, track: trackTitle)
@@ -672,47 +645,17 @@ public final class LyricsSyncEngine {
             baseLines = kept.map { LyricLine(timeMs: $0.0.0.0.timeMs, text: $0.0.0.1) }
             baseSides = kept.map { $0.0.1 }
         }
-        romaLines = LRCParser.parse(lyricsRoma)
         trLines = LRCParser.parse(lyricsTr)
 
-        do {
-            let trByTime = Dictionary(trLines.map { ($0.timeMs, $0.text) }, uniquingKeysWith: { _, new in new })
-            let romaByTime = Dictionary(romaLines.map { ($0.timeMs, $0.text) }, uniquingKeysWith: { _, new in new })
-            trTextByPlainText = Dictionary(
-                filteredBase.compactMap { line -> (String, String)? in
-                    let key = Self.contentMatchKey(line.text)
-                    guard !key.isEmpty, let tr = trByTime[line.timeMs], !tr.isEmpty else { return nil }
-                    return (key, tr)
-                }, uniquingKeysWith: { _, new in new })
-            romaTextByPlainText = Dictionary(
-                filteredBase.compactMap { line -> (String, String)? in
-                    let key = Self.contentMatchKey(line.text)
-                    guard !key.isEmpty, let roma = romaByTime[line.timeMs], !roma.isEmpty else { return nil }
-                    return (key, roma)
-                }, uniquingKeysWith: { _, new in new })
-        }
+        let trByTime = Dictionary(
+            trLines.map { ($0.timeMs, $0.text) }, uniquingKeysWith: { _, new in new })
+        trTextByPlainText = Dictionary(
+            filteredBase.compactMap { line -> (String, String)? in
+                let key = Self.contentMatchKey(line.text)
+                guard !key.isEmpty, let tr = trByTime[line.timeMs], !tr.isEmpty else { return nil }
+                return (key, tr)
+            }, uniquingKeysWith: { _, new in new })
 
-        let contentSample = filteredBase.map(\.text).joined(separator: "\n")
-        let contentWordSample = candidateWords
-            .map { $0.words.map(\.text).joined() }
-            .joined(separator: "\n")
-        let scriptSample: String = {
-            if !contentSample.isEmpty { return contentSample }
-            if !contentWordSample.isEmpty { return contentWordSample }
-            return lyrics.isEmpty ? lyricsYRC : lyrics
-        }()
-        songLooksJapanese = Romanizer.looksJapaneseSong(contentSample)
-            || Romanizer.looksJapaneseSong(contentWordSample)
-            || (contentSample.isEmpty && contentWordSample.isEmpty
-                && (Romanizer.looksJapaneseSong(lyrics) || Romanizer.looksJapaneseSong(lyricsYRC)))
-
-        songScript = Romanizer.songScript(of: scriptSample)
-
-        kanaAnnotation = KanaAnnotation.parse(lrc: lyrics)
-
-        romanizerFallbackCache.removeAll()
-        wordGroupCache.removeAll()
-        segmentsCache.removeAll()
         builtLinesCache.removeAll()
 
         cachedActiveIdx = Int.min
@@ -729,16 +672,6 @@ public final class LyricsSyncEngine {
         lastScanIdx = Int.min
         return true
     }
-
-    private var songLooksJapanese = false
-    private var songScript: LyricScript = .other
-    private var romanizationScripts: RomanizationScripts = .default
-
-    private func romanizationAllowed(for line: String) -> Bool {
-        guard let option = Romanizer.script(ofLine: line, song: songScript).option else { return false }
-        return romanizationScripts.contains(option)
-    }
-    private var kanaAnnotation: KanaAnnotation?
 
     public var hasContent: Bool { usingWords ? !wordLines.isEmpty : !baseLines.isEmpty }
 
@@ -781,127 +714,6 @@ public final class LyricsSyncEngine {
             }
         }
         return best
-    }
-
-    private var romanizerFallbackCache: [String: String?] = [:]
-
-    private func romanizationText(timeMs: Int, plainText: String) -> String? {
-
-        guard romanizationAllowed(for: plainText) else { return nil }
-        guard !Self.isBareSpeakerTag(plainText) else { return nil }
-
-        if let byContent = romaTextByPlainText[Self.contentMatchKey(plainText)] {
-            return byContent
-        }
-        if let fromSource = nearestText(romaLines, timeMs) { return fromSource }
-
-        guard romaLines.isEmpty else { return nil }
-        if let cached = romanizerFallbackCache[plainText] { return cached }
-
-        let result = Romanizer.lineReading(
-            plainText,
-            songLooksJapanese: songLooksJapanese,
-            segments: cachedJapaneseSegments(for: plainText))
-        romanizerFallbackCache[plainText] = result
-        return result
-    }
-
-    private var segmentsCache: [String: [Romanizer.JapaneseSegment]] = [:]
-
-    private func cachedJapaneseSegments(for line: String) -> [Romanizer.JapaneseSegment] {
-        if let cached = segmentsCache[line] { return cached }
-        let segs = Romanizer.japaneseSegments(
-            line, marks: kanaAnnotation?.marks(forLine: line) ?? [])
-        segmentsCache[line] = segs
-        return segs
-    }
-
-    private var wordGroupCache: [String: [SyncedLyricWordGroup]?] = [:]
-
-    private func wordGroups(for words: [SyncedLyricWord], line: String) -> [SyncedLyricWordGroup]? {
-        guard !words.isEmpty else { return nil }
-
-        let key = "\(words[0].startMs)|\(line)"
-        if let cached = wordGroupCache[key] { return cached }
-
-        let allowed = romanizationAllowed(for: line)
-
-        let segments: [Romanizer.JapaneseSegment]? =
-            (allowed && Romanizer.looksJapanese(line)) ? cachedJapaneseSegments(for: line) : nil
-
-        var koreanRoma: String?
-        if allowed, segments == nil {
-            let script = Romanizer.script(ofLine: line, song: songScript)
-            if script == .korean {
-                koreanRoma = romanizationText(timeMs: words[0].startMs, plainText: line)
-            }
-        }
-        let result = Self.buildWordGroups(
-            words: words, line: line, japanese: allowed,
-            marks: kanaAnnotation?.marks(forLine: line) ?? [],
-            segments: segments, koreanRomanization: koreanRoma)
-        wordGroupCache[key] = result
-        return result
-    }
-
-    public static func buildWordGroups(
-        words: [SyncedLyricWord], line: String, japanese: Bool,
-        marks: [KanaAnnotation.Mark] = [],
-        segments: [Romanizer.JapaneseSegment]? = nil,
-        koreanRomanization: String? = nil
-    ) -> [SyncedLyricWordGroup]? {
-        if japanese, Romanizer.looksJapanese(line) {
-
-            let segs = segments ?? Romanizer.japaneseSegments(line, marks: marks)
-            return mergeSegmentsIntoWordGroups(words: words, segs: segs)
-        }
-        if let koreanRomanization, !koreanRomanization.isEmpty,
-           let segs = Romanizer.koreanSegments(line, romanization: koreanRomanization)
-        {
-            return mergeSegmentsIntoWordGroups(words: words, segs: segs)
-        }
-        return nil
-    }
-
-    private static func mergeSegmentsIntoWordGroups(
-        words: [SyncedLyricWord], segs: [Romanizer.JapaneseSegment]
-    ) -> [SyncedLyricWordGroup]? {
-        guard !segs.isEmpty else { return nil }
-
-        var starts: [Int] = []
-        var cursor = 0
-        for w in words {
-            starts.append(cursor)
-            cursor += w.text.utf16.count
-        }
-
-        var groups: [SyncedLyricWordGroup] = []
-        var i = 0
-        while i < words.count {
-            var j = i
-            var end = starts[j] + words[j].text.utf16.count
-
-            var grew = true
-            while grew {
-                grew = false
-                for seg in segs where seg.utf16Start < end && seg.utf16End > end {
-                    guard j + 1 < words.count else { break }
-                    j += 1
-                    end = starts[j] + words[j].text.utf16.count
-                    grew = true
-                    break
-                }
-            }
-            let start = starts[i]
-            let latins = segs.filter { $0.utf16Start < end && $0.utf16End > start }.map(\.latin)
-            groups.append(SyncedLyricWordGroup(
-                id: groups.count,
-                words: Array(words[i...j]),
-                romanization: latins.isEmpty ? nil : Romanizer.joinLatin(latins)))
-            i = j + 1
-        }
-
-        return groups.contains { $0.romanization != nil } ? groups : nil
     }
 
     private var builtLinesCache: [Int: SyncedLyricLine] = [:]
@@ -999,11 +811,8 @@ public final class LyricsSyncEngine {
                 nextLineStartMs: idx + 1 < wordLines.count ? wordLines[idx + 1].timeMs : nil)
             let joined = words.map(\.text).joined()
             line = SyncedLyricLine(
-                romanization: romanizationText(timeMs: ln.timeMs, plainText: joined),
                 translation: translationText(timeMs: ln.timeMs, plainText: joined),
-                mainText: nil,
-                words: words,
-                wordGroups: wordGroups(for: words, line: joined),
+                mainText: nil, words: words,
                 side: wordSides.indices.contains(idx) ? wordSides[idx] : nil,
                 plainText: joined
             )
@@ -1011,11 +820,8 @@ public final class LyricsSyncEngine {
             guard idx < baseLines.count else { return nil }
             let ln = baseLines[idx]
             line = SyncedLyricLine(
-                romanization: romanizationText(timeMs: ln.timeMs, plainText: ln.text),
                 translation: translationText(timeMs: ln.timeMs, plainText: ln.text),
-                mainText: ln.text,
-                words: nil,
-                wordGroups: nil,
+                mainText: ln.text, words: nil,
                 side: baseSides.indices.contains(idx) ? baseSides[idx] : nil,
                 plainText: ln.text
             )
