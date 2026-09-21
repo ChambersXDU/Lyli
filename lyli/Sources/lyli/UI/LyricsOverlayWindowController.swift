@@ -578,7 +578,7 @@ final class LyricsOverlayWindowController: NSWindowController, ObservableObject,
 
     private func rejectDragForPreset() {
         let label = OverlayPlacementSegmentedControl.label(for: placementMode)
-        placementLockNotice = String(format: L10n.t("位置已固定为「%@」，在 ⚙ 菜单里可改"), label)
+        placementLockNotice = String(format: "位置已固定为「%@」，在 ⚙ 菜单里可改", label)
         placementLockShakeTick += 1
         placementLockNoticeTimer?.invalidate()
         placementLockNoticeTimer = Timer.scheduledTimer(withTimeInterval: 2.4, repeats: false) { [weak self] _ in
