@@ -7,49 +7,42 @@ DIST="dist"
 STAGE="$(mktemp -d)"
 trap 'rm -rf "$STAGE"' EXIT
 
+ARCH="$(uname -m)"
+[ "$ARCH" = "arm64" ] || {
+  echo "!! release packaging only supports arm64 macOS (current: $ARCH)" >&2
+  exit 1
+}
+
 PYTHON_BIN="${PYTHON_BIN:-python3}"
 DMG_BACKGROUND="$STAGE/dmg-background.tiff"
+APP="$STAGE/Lyli.app"
 
-VARIANTS=(
-  "|--dest|arm64"
-  "-intel|--universal --dest|arm64 x86_64"
-)
+echo "==> building arm64 release"
+./build.sh --dest "$APP" > "$STAGE/build.log" 2>&1 || {
+  echo "!! build.sh failed; log tail:" >&2
+  tail -20 "$STAGE/build.log" >&2
+  exit 1
+}
 
-echo "==> building variants"
-VERSION=""
-for v in "${VARIANTS[@]}"; do
-  suffix="${v%%|*}"; rest="${v#*|}"; flags="${rest%%|*}"; want="${rest##*|}"
-  label="${suffix:-(主包)}"
-  echo "--> $label [$want]"
-  app="$STAGE/${suffix:-primary}/Lyli.app"
-  ./build.sh $flags "$app" > "$STAGE/build${suffix}.log" 2>&1 || {
-    echo "!! build.sh 失败,日志尾部:" >&2; tail -20 "$STAGE/build${suffix}.log" >&2; exit 1
-  }
-  ver="$(/usr/bin/plutil -extract CFBundleShortVersionString raw "$app/Contents/Info.plist")"
-  [ -n "$ver" ] || { echo "!! 读不出 CFBundleShortVersionString" >&2; exit 1; }
-  if [ -z "$VERSION" ]; then VERSION="$ver"; elif [ "$VERSION" != "$ver" ]; then
-    echo "!! 两个变体版本号不一致($VERSION vs $ver)" >&2; exit 1
-  fi
+VERSION="$(/usr/bin/plutil -extract CFBundleShortVersionString raw "$APP/Contents/Info.plist")"
+[ -n "$VERSION" ] || {
+  echo "!! cannot read CFBundleShortVersionString" >&2
+  exit 1
+}
 
-  bad=""
-  while IFS= read -r f; do
-    archs="$(lipo -archs "$f" 2>/dev/null || true)"
-    [ -z "$archs" ] && continue
-    for a in $want; do
-      case " $archs " in *" $a "*) ;; *) bad="$bad ${f#$app/}(缺$a)" ;; esac
-    done
-    for a in $archs; do
-      case " $want " in *" $a "*) ;; *) bad="$bad ${f#$app/}(多余$a)" ;; esac
-    done
-  done < <(find "$app" -type f)
-  if [ -n "$bad" ]; then
-    echo "!! $label 架构与期望[$want]不符,拒绝打包:" >&2
-    for f in $bad; do echo "     $f" >&2; done
-    exit 1
-  fi
-  codesign -v --deep --strict "$app"
-  echo "    架构与签名校验通过"
-done
+bad=""
+while IFS= read -r f; do
+  archs="$(lipo -archs "$f" 2>/dev/null || true)"
+  [ -z "$archs" ] && continue
+  [ "$archs" = "arm64" ] || bad="$bad ${f#$APP/}($archs)"
+done < <(find "$APP" -type f)
+if [ -n "$bad" ]; then
+  echo "!! release contains non-arm64 Mach-O files:" >&2
+  for f in $bad; do echo "     $f" >&2; done
+  exit 1
+fi
+codesign -v --deep --strict "$APP"
+echo "    architecture and signature verified"
 
 rm -rf "$DIST"
 mkdir -p "$DIST"
@@ -58,49 +51,30 @@ human_size() {
   /usr/bin/python3 -c "import sys;n=int(sys.argv[1]);print(f'{n/1048576:.2f} MB' if n>=1048576 else (f'{n/1024:.1f} KB' if n>=1024 else f'{n} B'))" "$(stat -f %z "$1")"
 }
 
-echo "==> packaging"
-for v in "${VARIANTS[@]}"; do
-  suffix="${v%%|*}"
-  app="$STAGE/${suffix:-primary}/Lyli.app"
-  base="Lyli-v$VERSION-macos$suffix"
+BASE="Lyli-v$VERSION-macos-arm64"
+echo "==> packaging $BASE"
 
-  ditto -c -k --sequesterRsrc --keepParent "$app" "$DIST/$base.zip"
-  (cd "$DIST" && shasum -a 256 "$base.zip" > "$base.zip.sha256")
+ditto -c -k --sequesterRsrc --keepParent "$APP" "$DIST/$BASE.zip"
+(cd "$DIST" && shasum -a 256 "$BASE.zip" > "$BASE.zip.sha256")
 
-  volname="Lyli${suffix:+ (Intel)}"
-  dmgstage="$STAGE/dmg$suffix"
-  rm -rf "$dmgstage"; mkdir -p "$dmgstage"
-  ditto "$app" "$dmgstage/Lyli.app"
+DMGSTAGE="$STAGE/dmg"
+mkdir -p "$DMGSTAGE"
+ditto "$APP" "$DMGSTAGE/Lyli.app"
 
-  if "$PYTHON_BIN" -c "import dmgbuild" >/dev/null 2>&1; then
-    if [ ! -f "$DMG_BACKGROUND" ]; then
-      swift "$ROOT/scripts/make_dmg_background.swift" "$DMG_BACKGROUND"
-    fi
-    LYLI_DMG_APP="$dmgstage/Lyli.app" \
-    LYLI_DMG_VOLNAME="$volname" \
-    LYLI_DMG_BACKGROUND="$DMG_BACKGROUND" \
-      "$PYTHON_BIN" -m dmgbuild -s "$ROOT/scripts/dmg_settings.py" \
-        "$volname" "$DIST/$base.dmg" >/dev/null
-  else
-    echo "    (没装 dmgbuild,退回纯 hdiutil:产物功能一样,只是没有背景图和图标摆位)"
-    ln -s /Applications "$dmgstage/Applications"
-    hdiutil create -volname "$volname" -srcfolder "$dmgstage" \
-      -fs HFS+ -format UDZO -ov -quiet "$DIST/$base.dmg"
-  fi
+if "$PYTHON_BIN" -c "import dmgbuild" >/dev/null 2>&1; then
+  swift "$ROOT/scripts/make_dmg_background.swift" "$DMG_BACKGROUND"
+  LYLI_DMG_APP="$DMGSTAGE/Lyli.app" \
+  LYLI_DMG_VOLNAME="Lyli" \
+  LYLI_DMG_BACKGROUND="$DMG_BACKGROUND" \
+    "$PYTHON_BIN" -m dmgbuild -s "$ROOT/scripts/dmg_settings.py" \
+      "Lyli" "$DIST/$BASE.dmg" >/dev/null
+else
+  echo "    (dmgbuild unavailable; falling back to hdiutil)"
+  ln -s /Applications "$DMGSTAGE/Applications"
+  hdiutil create -volname "Lyli" -srcfolder "$DMGSTAGE" \
+    -fs HFS+ -format UDZO -ov -quiet "$DIST/$BASE.dmg"
+fi
 
-  printf "    %-40s %s\n" "$base.zip" "$(human_size "$DIST/$base.zip")"
-  printf "    %-40s %s\n" "$base.zip.sha256" "$(human_size "$DIST/$base.zip.sha256")"
-  printf "    %-40s %s\n" "$base.dmg" "$(human_size "$DIST/$base.dmg")"
-done
-
-PRIMARY="Lyli-v$VERSION-macos"
-INTEL="Lyli-v$VERSION-macos-intel"
-echo
-echo "==> 剩下的手工步骤(这个脚本故意不做):"
-echo "    1) gh release create v$VERSION --title \"Lyli v$VERSION\" \\"
-echo "         dist/$PRIMARY.zip dist/$PRIMARY.zip.sha256 dist/$PRIMARY.dmg \\"
-echo "         dist/$INTEL.zip dist/$INTEL.zip.sha256 dist/$INTEL.dmg"
-echo "       release notes 里写清楚:普通用户下不带后缀那份,Intel Mac 下 -intel 那份"
-echo "    2) 如需发布 Homebrew cask,再更新对应 cask 的 version + sha256,"
-echo "       并加 depends_on arch: :arm64(cask 装的是主包,Intel 机器该被拒绝而不是装个跑不了的)"
-echo "       主包 sha256 = $(awk '{print $1}' "$DIST/$PRIMARY.zip.sha256")"
+printf "    %-48s %s\n" "$BASE.zip" "$(human_size "$DIST/$BASE.zip")"
+printf "    %-48s %s\n" "$BASE.zip.sha256" "$(human_size "$DIST/$BASE.zip.sha256")"
+printf "    %-48s %s\n" "$BASE.dmg" "$(human_size "$DIST/$BASE.dmg")"
