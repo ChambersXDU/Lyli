@@ -1,5 +1,15 @@
 import Foundation
 
+public struct LyricsScoreTermValue: Sendable, Equatable {
+    public let kind: String
+    public let points: Int
+
+    public init(kind: String, points: Int) {
+        self.kind = kind
+        self.points = points
+    }
+}
+
 public struct LyricsMatch: Sendable, Equatable {
     public let candidate: LyricsCandidate
     public let score: Int
