@@ -968,31 +968,11 @@ private struct AppearanceSettingsTab: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-
-        SettingsPageWithStickyHeader {
-
-            Group {
-                switch section {
-                case .overlay:
-                    EmptyView()
-                case .menuBar:
-                    MenuBarPreviewBar()
-                        .frame(maxWidth: SettingsPage<EmptyView>.maxCardColumnWidth)
-                        .padding(.horizontal, 20)
-                        .padding(.top, 10)
-                        .padding(.bottom, 6)
-                }
-            }
-            .animation(.easeOut(duration: 0.18), value: sectionRaw)
-        } page: {
-            SettingsPage(
-                title: "歌词显示"
-            ) {
-                sectionPicker
-                currentSection
-                    .id(section)
-                    .transition(.opacity)
-            }
+        SettingsPage(title: "歌词显示") {
+            sectionPicker
+            currentSection
+                .id(section)
+                .transition(.opacity)
         }
     }
 
@@ -1042,6 +1022,9 @@ private struct AppearanceSettingsTab: View {
                     get: { settings.classicOverlayEnabled },
                     set: { LyricsOverlayWindowController.shared.setVisible($0) }))
             OverlaySettingsList()
+            previewCard {
+                OverlayDesktopPreview()
+            }
 
         case .menuBar:
             modeToggleCard(
@@ -1049,7 +1032,22 @@ private struct AppearanceSettingsTab: View {
                 title: "菜单栏歌词",
                 isOn: $settings.showLyricsInMenuBar)
             MenuBarSettingsList()
+            previewCard {
+                MenuBarPreviewBar()
+            }
         }
+    }
+
+    private func previewCard<Content: View>(
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(spacing: 6) {
+            content()
+            Text("预览")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
     }
 
     private func modeToggleCard(
