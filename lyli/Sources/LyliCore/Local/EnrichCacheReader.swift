@@ -3,7 +3,6 @@ import Foundation
 public struct EnrichCacheLyrics: Equatable {
     public let lyrics: String
     public let lyricsTr: String
-    public let lyricsRoma: String
     public let lyricsYRC: String
     public let instrumental: Bool
     public let resolved: Bool
@@ -55,7 +54,6 @@ public enum EnrichCacheReader {
         return EnrichCacheLyrics(
             lyrics: lyrics,
             lyricsTr: entry["lyrics_tr"] as? String ?? "",
-            lyricsRoma: entry["lyrics_roma"] as? String ?? "",
             lyricsYRC: entry["lyrics_yrc"] as? String ?? "",
             instrumental: entry["instrumental"] as? Bool ?? false,
             resolved: (number(entry["ts"]) ?? 0) > 0,
