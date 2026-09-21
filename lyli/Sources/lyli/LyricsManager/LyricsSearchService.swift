@@ -30,7 +30,6 @@ final class LyricsSearchService {
             case "artistMatch": return L10n.t("歌手吻合")
             case "consensus": return L10n.t("内容获印证")
             case "translation": return L10n.t("自带译文")
-            case "romanization": return L10n.t("自带罗马音")
             case "rejectNotTimed": return L10n.t("不是带时间戳的歌词")
             case "rejectWrongArtist": return L10n.t("歌手跟这首歌对不上")
             case "rejectCreditOnly": return L10n.t("整份只有署名行，没有正文")
@@ -52,7 +51,6 @@ final class LyricsSearchService {
             case "artistMatch": return L10n.t("歌手标准化后匹配")
             case "consensus": return L10n.t("歌词正文与其他源高度一致")
             case "translation": return L10n.t("带有可用译文")
-            case "romanization": return L10n.t("带有可用罗马音")
             case "versionTags": return L10n.t("Live、Remix、Demo 等版本标记不一致")
             case "sourceDurationOff": return L10n.t("源声明的曲长与本地差异较大")
             case "durationOff": return L10n.t("歌词结束时间与曲长差异较大")
@@ -87,7 +85,6 @@ final class LyricsSearchService {
         let source: String
         let lyrics: String
         let lyricsTr: String
-        let lyricsRoma: String
         let lyricsYRC: String
         let hasWordTiming: Bool
         let score: Int
@@ -100,7 +97,6 @@ final class LyricsSearchService {
         let fingerprint: String
 
         var hasTranslation: Bool { !lyricsTr.isEmpty }
-        var hasRomanization: Bool { !lyricsRoma.isEmpty }
 
         static func countLines(of lyrics: String) -> Int {
             lyrics.replacingOccurrences(of: "\r\n", with: "\n").replacingOccurrences(of: "\r", with: "\n")
@@ -278,7 +274,7 @@ final class LyricsSearchService {
             }
             let key = EnrichCacheKeys.normalizedKey(artist: artist, title: title, album: album)
             _ = await EnrichCacheStore.shared.saveEdit(key: key, lyrics: winner.lyrics, tr: winner.lyricsTr,
-                                                        roma: winner.lyricsRoma, yrc: winner.lyricsYRC,
+                                                        yrc: winner.lyricsYRC,
                                                         source: winner.source, markManual: false,
                                                         score: winner.score, scoringVersion: 18,
                                                         resolvedDurationSecs: duration,
@@ -295,7 +291,7 @@ final class LyricsSearchService {
 private extension LyricsSearchService.Candidate {
     init(_ match: LyricsMatch) {
         self.init(source: match.source, lyrics: match.candidate.lyrics,
-                  lyricsTr: match.candidate.translation ?? "", lyricsRoma: match.candidate.romanization ?? "",
+                  lyricsTr: match.candidate.translation ?? "",
                   lyricsYRC: match.candidate.wordTiming ?? "", hasWordTiming: match.candidate.hasWordTiming,
                   score: match.score, scoreTerms: match.terms.map { .init(kind: $0.kind, points: $0.points) },
                   title: match.candidate.title, artist: match.candidate.artist,
