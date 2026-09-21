@@ -47,6 +47,8 @@ final class MenuBarScrollingLabel: NSView {
 
         var fillPath: [MenuBarMarquee.KaraokeFillPoint]?
 
+        var fullyPlayed: Bool
+
         var followPath: [MenuBarMarquee.KaraokeFillPoint]?
 
         var icon: IconBadge?
@@ -150,6 +152,7 @@ final class MenuBarScrollingLabel: NSView {
 
     func present(text: String, windowWidth: CGFloat, pacing: MenuBarMarquee.ScrollPacing?,
                  fillPath: [MenuBarMarquee.KaraokeFillPoint]? = nil,
+                 fullyPlayed: Bool = false,
                  followPath: [MenuBarMarquee.KaraokeFillPoint]? = nil,
                  icon: IconBadge? = nil,
                  secondaryText: String? = nil,
@@ -158,7 +161,8 @@ final class MenuBarScrollingLabel: NSView {
                         alignment: AppSettings.shared.menuBarLyricsAlignment,
                         fontWeight: AppSettings.shared.menuBarLyricsFontWeight,
                         fontSize: AppSettings.shared.menuBarLyricsFontSize,
-                        pacing: pacing, fillPath: fillPath, followPath: followPath, icon: icon,
+                        pacing: pacing, fillPath: fillPath, fullyPlayed: fullyPlayed,
+                        followPath: followPath, icon: icon,
                         secondaryText: secondaryText, secondaryKind: secondaryKind)
         guard next != plan else {
             isHidden = false
@@ -167,6 +171,7 @@ final class MenuBarScrollingLabel: NSView {
 
         let bitmapsUnchanged = prepared != nil && plan?.text == next.text
             && (plan?.fillPath != nil) == (next.fillPath != nil)
+            && plan?.fullyPlayed == next.fullyPlayed
             && plan?.icon == next.icon
             && plan?.fontWeight == next.fontWeight
             && plan?.fontSize == next.fontSize
@@ -450,7 +455,7 @@ final class MenuBarScrollingLabel: NSView {
 
     private func rebuildImage() {
         guard let plan else { return }
-        let color = tintColor
+        let color = highlighted ? tintColor : (plan.fullyPlayed ? karaokeFillColor : tintColor)
 
         let scale = menuBarBitmapScale
         var built: MenuBarMarqueeRenderer.PreparedLine?
@@ -542,6 +547,8 @@ final class MenuBarScrollingLabel: NSView {
 
         let fillPath: [MenuBarMarquee.KaraokeFillPoint]?
 
+        let fullyPlayed: Bool
+
         let followPath: [MenuBarMarquee.KaraokeFillPoint]?
 
         let karaokePositionMs: Int?
@@ -563,7 +570,7 @@ final class MenuBarScrollingLabel: NSView {
             view.appearance = MenuBarAppearanceStore.shared.appearance
 
             view.present(text: text, windowWidth: windowWidth, pacing: pacing, fillPath: fillPath,
-                         followPath: followPath, icon: icon,
+                         fullyPlayed: fullyPlayed, followPath: followPath, icon: icon,
                          secondaryText: secondaryText, secondaryKind: secondaryKind)
 
             view.refreshColors()
