@@ -78,8 +78,7 @@ final class AppSettings: ObservableObject {
         static let menuBarLyricsFontWeight = "np:menuBarLyricsFontWeight"
         static let menuBarLyricsFontSize = "np:menuBarLyricsFontSize"
         static let menuBarSecondaryLine = "np:menuBarSecondaryLine"
-        static let menuBarHoverShowsControls = "np:menuBarHoverShowsControls"
-        static let menuBarShowsTitleWhenNoLyrics = "np:menuBarShowsTitleWhenNoLyrics"
+            static let menuBarShowsTitleWhenNoLyrics = "np:menuBarShowsTitleWhenNoLyrics"
         static let menuBarIconStyle = "np:menuBarIconStyle"
         static let menuBarIconAnimates = "np:menuBarIconAnimates"
         static let lyricsOffsetStepMs = "np:lyricsOffsetStepMs"
@@ -125,7 +124,6 @@ final class AppSettings: ObservableObject {
 
     static let defaultMenuBarLyricsIconPosition = MenuBarLyricsIconPosition.leading
 
-    static let defaultMenuBarHoverShowsControls = false
 
     static let defaultMenuBarShowsTitleWhenNoLyrics = true
     static let defaultMenuBarLyricsTextColorHex = ""
@@ -236,10 +234,6 @@ final class AppSettings: ObservableObject {
 
     @Published var menuBarSecondaryLine: LyricSecondaryLine {
         didSet { defaults.set(menuBarSecondaryLine.rawValue, forKey: Keys.menuBarSecondaryLine) }
-    }
-
-    @Published var menuBarHoverShowsControls: Bool {
-        didSet { defaults.set(menuBarHoverShowsControls, forKey: Keys.menuBarHoverShowsControls) }
     }
 
     @Published var menuBarShowsTitleWhenNoLyrics: Bool {
@@ -441,8 +435,6 @@ final class AppSettings: ObservableObject {
             (defaults.object(forKey: Keys.menuBarLyricsFontSize) as? Double) ?? Double(Self.defaultMenuBarLyricsFontSize))
         menuBarSecondaryLine = defaults.string(forKey: Keys.menuBarSecondaryLine)
             .flatMap(LyricSecondaryLine.init(rawValue:)) ?? Self.defaultMenuBarSecondaryLine
-        menuBarHoverShowsControls = (defaults.object(forKey: Keys.menuBarHoverShowsControls) as? Bool)
-            ?? Self.defaultMenuBarHoverShowsControls
         menuBarShowsTitleWhenNoLyrics = (defaults.object(forKey: Keys.menuBarShowsTitleWhenNoLyrics) as? Bool)
             ?? Self.defaultMenuBarShowsTitleWhenNoLyrics
         menuBarIconStyle = defaults.string(forKey: Keys.menuBarIconStyle)
