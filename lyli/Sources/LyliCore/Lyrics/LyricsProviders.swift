@@ -307,7 +307,7 @@ public struct NeteaseProvider: LyricsProvider {
             if value.contains("[") && value.count < 40_000 { yrc = value }
         }
         return LyricsCandidate(source: id, lyrics: lyrics,
-                               translation: timedOrNil(bundle.tlyric.lyric), romanization: timedOrNil(bundle.romalrc.lyric),
+                               translation: timedOrNil(bundle.tlyric.lyric),
                                wordTiming: yrc, duration: song.duration, title: song.name,
                                artist: song.artists.map(\.name).joined(separator: " & "), album: song.album)
     }
@@ -358,13 +358,11 @@ public struct NeteaseProvider: LyricsProvider {
         struct Text: Decodable { let lyric: String }
         let lrc: Text
         let tlyric: Text
-        let romalrc: Text
-        enum CodingKeys: String, CodingKey { case lrc, tlyric, romalrc }
+        enum CodingKeys: String, CodingKey { case lrc, tlyric }
         init(from decoder: Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
             lrc = try c.decodeIfPresent(Text.self, forKey: .lrc) ?? Text(lyric: "")
             tlyric = try c.decodeIfPresent(Text.self, forKey: .tlyric) ?? Text(lyric: "")
-            romalrc = try c.decodeIfPresent(Text.self, forKey: .romalrc) ?? Text(lyric: "")
         }
     }
 
@@ -410,7 +408,7 @@ public struct KugouProvider: LyricsProvider {
                 let rawLRC = Data(base64Encoded: lrcResponse.content),
                 let lrc = String(data: rawLRC, encoding: .utf8), LyricsMatcher.isValidTimedLyrics(lrc) else { continue }
 
-            var yrc = "", translation: String?, romanization: String?
+            var yrc = "", translation: String?
             if let krcURL = try? makeURL("https://lyrics.kugou.com/download", [
                 ("ver", "1"), ("client", "pc"), ("id", lyric.id), ("accesskey", lyric.accessKey),
                 ("fmt", "krc"), ("charset", "utf8"),
@@ -419,11 +417,9 @@ public struct KugouProvider: LyricsProvider {
                let decoded = decryptKRC(krcResponse.content) {
                 let parts = splitLanguageLine(decoded)
                 yrc = krcToYRC(parts.body)
-                let tracks = languageTracks(parts.language, krc: parts.body)
-                translation = tracks.translation
-                romanization = tracks.romanization
+                translation = translationTrack(parts.language, krc: parts.body)
             }
-            output.append(LyricsCandidate(source: id, lyrics: lrc, translation: translation, romanization: romanization,
+            output.append(LyricsCandidate(source: id, lyrics: lrc, translation: translation,
                                           wordTiming: yrc, duration: song.duration, title: song.songName,
                                           artist: song.singerName, album: song.albumName))
             if output.count == 3 { break }
@@ -496,45 +492,31 @@ public struct KugouProvider: LyricsProvider {
         }.joined(separator: "\n")
     }
 
-    private func languageTracks(_ encoded: String, krc: String) -> (translation: String?, romanization: String?) {
+    private func translationTrack(_ encoded: String, krc: String) -> String? {
         guard let data = Data(base64Encoded: encoded),
               let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let content = object["content"] as? [[String: Any]] else { return (nil, nil) }
+              let content = object["content"] as? [[String: Any]] else { return nil }
         let starts = krc.split(separator: "\n").compactMap { line -> Int? in
             let ns = String(line) as NSString
-            guard let range = ns.range(of: #"^\[(\d+),"#, options: .regularExpression).location == NSNotFound ? nil : ns.range(of: #"^\[(\d+),"#, options: .regularExpression),
+            guard let range = ns.range(of: #"^\[(\d+),"#, options: .regularExpression).location == NSNotFound
+                    ? nil : ns.range(of: #"^\[(\d+),"#, options: .regularExpression),
                   let text = ns.substring(with: range).split(separator: "[", maxSplits: 1).last,
                   let value = Int(text.split(separator: ",").first ?? "") else { return nil }
             return value
         }
-        func makeTrack(_ rows: [[String]]) -> String? {
-            guard rows.count == starts.count else { return nil }
-            let lines = zip(starts, rows).compactMap { start, fragments -> String? in
-                let text = fragments.joined().split(whereSeparator: { $0 == " " || $0 == "\n" }).joined(separator: " ")
-                guard !text.isEmpty, text != "//" else { return nil }
-                return String(format: "[%02d:%02d.%03d]%@", start / 60000, (start / 1000) % 60, start % 1000, text)
-            }.joined(separator: "\n")
-            return LyricsMatcher.isValidTimedLyrics(lines) ? lines : nil
-        }
-        var translation: String?, romanization: String?
-        for item in content {
-            guard let type = item["type"] as? Int, let rows = item["lyricContent"] as? [[String]] else { continue }
-            if type == 1, translation == nil { translation = makeTrack(rows) }
-            if type == 0, romanization == nil { romanization = makeTrack(rows) }
-        }
-        if let value = romanization, hanRatio(value) > 0.3 { romanization = nil }
-        return (translation, romanization)
+        guard let rows = content.first(where: { ($0["type"] as? Int) == 1 })?["lyricContent"] as? [[String]],
+              rows.count == starts.count else { return nil }
+        let lines = zip(starts, rows).compactMap { start, fragments -> String? in
+            let text = fragments.joined()
+                .split(whereSeparator: { $0 == " " || $0 == "\n" })
+                .joined(separator: " ")
+            guard !text.isEmpty, text != "//" else { return nil }
+            return String(format: "[%02d:%02d.%03d]%@", start / 60000,
+                          (start / 1000) % 60, start % 1000, text)
+        }.joined(separator: "\n")
+        return LyricsMatcher.isValidTimedLyrics(lines) ? lines : nil
     }
 
-    private func hanRatio(_ text: String) -> Double {
-        let stripped = text.replacingOccurrences(of: #"\[\d{1,2}:\d{2}[.:]\d{1,3}\]"#, with: "", options: .regularExpression)
-        let characters = stripped.filter { !$0.isWhitespace }
-        guard !characters.isEmpty else { return 0 }
-        let han = characters.reduce(into: 0) { count, character in
-            if Romanizer.containsHan(String(character)) { count += 1 }
-        }
-        return Double(han) / Double(characters.count)
-    }
 }
 
 public struct QQMusicProvider: LyricsProvider {
@@ -590,7 +572,7 @@ public struct QQMusicProvider: LyricsProvider {
 
         let extras = await fetchQRC(item, query: query)
         return LyricsCandidate(source: id, lyrics: result.lyric, translation: extras.translation,
-                               romanization: extras.romanization, wordTiming: extras.yrc,
+                               wordTiming: extras.yrc,
                                duration: item.duration, title: item.title, artist: item.artist,
                                album: item.album)
     }
@@ -603,19 +585,19 @@ public struct QQMusicProvider: LyricsProvider {
         return !lines.isEmpty && lines.allSatisfy { $0.contains("纯音乐") || $0.lowercased().contains("instrumental") }
     }
 
-    private func fetchQRC(_ item: SearchItem, query: LyricsQuery) async -> (yrc: String?, translation: String?, romanization: String?) {
+    private func fetchQRC(_ item: SearchItem, query: LyricsQuery) async -> (yrc: String?, translation: String?) {
         guard let session = try? await fetchSession(), !session.sid.isEmpty,
-              let meta = try? await fetchMeta(item.mid), meta.id > 0 else { return (nil, nil, nil) }
+              let meta = try? await fetchMeta(item.mid), meta.id > 0 else { return (nil, nil) }
         let parameter: [String: Any] = [
             "albumName": Data((item.album.isEmpty ? (query.album ?? "") : item.album).utf8).base64EncodedString(),
             "crypt": 1, "ct": 19, "cv": 2111, "interval": Int(meta.interval),
-            "lrc_t": 0, "qrc": 1, "qrc_t": 0, "roma": 1, "roma_t": 0,
+            "lrc_t": 0, "qrc": 1, "qrc_t": 0,
             "singerName": Data(item.artist.utf8).base64EncodedString(), "songID": meta.id,
             "songName": Data(item.title.utf8).base64EncodedString(), "trans": 1,
             "trans_t": 0, "type": 0,
         ]
         guard let data = try? await musicuPost(method: "GetPlayLyricInfo", module: "music.musichallSong.PlayLyricInfo", parameter: parameter, session: session),
-              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return (nil, nil, nil) }
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return (nil, nil) }
         var yrc: String?
         if qqTimingFlag(object["qrc_t"]) || qqTimingFlag(object["lrc_t"]),
            let hex = object["lyric"] as? String, let plaintext = decryptQRC(hex),
@@ -623,8 +605,7 @@ public struct QQMusicProvider: LyricsProvider {
             yrc = qrcToYRC(stripQQKanaLine(content))
         }
         let translation = (object["trans"] as? String).flatMap(auxiliaryLRC)
-        let romanization = (object["roma"] as? String).flatMap(auxiliaryLRC)
-        return (yrc, translation, romanization)
+        return (yrc, translation)
     }
 
     private struct SearchResponse: Decodable {
