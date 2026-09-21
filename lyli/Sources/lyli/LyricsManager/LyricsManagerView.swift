@@ -25,8 +25,8 @@ private enum SourceFilter: Hashable, Identifiable {
     var id: String { label }
     var label: String {
         switch self {
-        case .all: return L10n.t("全部来源")
-        case .none: return L10n.t("无来源")
+        case .all: return "全部来源"
+        case .none: return "无来源"
         case .named(let s): return sourceDisplayName(s)
         }
     }
@@ -145,12 +145,12 @@ func sourceColor(_ source: String) -> Color {
 
 func sourceDisplayName(_ source: String) -> String {
     switch source {
-    case "netease": return L10n.t("网易云音乐")
-    case "qq": return L10n.t("QQ音乐")
-    case "kugou": return L10n.t("酷狗音乐")
+    case "netease": return "网易云音乐"
+    case "qq": return "QQ音乐"
+    case "kugou": return "酷狗音乐"
     case "lrclib": return "LRCLIB"
-    case "kuwo": return L10n.t("酷我音乐")
-    case "": return L10n.t("无来源")
+    case "kuwo": return "酷我音乐"
+    case "": return "无来源"
     default: return source
     }
 }
@@ -519,7 +519,7 @@ struct LyricsManagerView: View {
                                   startPoint: .topLeading, endPoint: .bottomTrailing),
                     in: RoundedRectangle(cornerRadius: 8, style: .continuous)
                 )
-            Text(L10n.t("歌词管理"))
+            Text("歌词管理")
                 .font(.system(size: 15, weight: .semibold))
             Spacer()
         }
@@ -533,7 +533,7 @@ struct LyricsManagerView: View {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(.secondary)
 
-                TextField(L10n.t("搜索歌手/歌名/专辑"), text: $searchText)
+                TextField("搜索歌手/歌名/专辑", text: $searchText)
                     .textFieldStyle(.plain)
                     .focused($searchFieldFocused)
                     .onSubmit(commitSearch)
@@ -584,21 +584,21 @@ struct LyricsManagerView: View {
                 Image(systemName: "line.3.horizontal.decrease.circle")
                     .foregroundStyle(.secondary)
 
-                Picker(L10n.t("歌手"), selection: $artistFilter) {
-                    Text(L10n.t("全部歌手")).tag(String?.none)
+                Picker("歌手", selection: $artistFilter) {
+                    Text("全部歌手").tag(String?.none)
                     ForEach(store.distinctArtists, id: \.self) { a in Text(a).tag(String?.some(a)) }
                 }
                 .pickerStyle(.menu)
                 .frame(maxWidth: 140)
 
-                Picker(L10n.t("专辑"), selection: $albumFilter) {
-                    Text(L10n.t("全部专辑")).tag(String?.none)
+                Picker("专辑", selection: $albumFilter) {
+                    Text("全部专辑").tag(String?.none)
                     ForEach(store.distinctAlbums, id: \.self) { a in Text(a).tag(String?.some(a)) }
                 }
                 .pickerStyle(.menu)
                 .frame(maxWidth: 140)
 
-                Picker(L10n.t("排序"), selection: $sortOption) {
+                Picker("排序", selection: $sortOption) {
                     ForEach(LyricsSortOption.allCases) { option in
                         Text(L10n.t(option.rawValue)).tag(option)
                     }
@@ -639,13 +639,13 @@ struct LyricsManagerView: View {
 
     @ViewBuilder
     private var filterControlsGroup: some View {
-        Picker(L10n.t("来源"), selection: $sourceFilter) {
+        Picker("来源", selection: $sourceFilter) {
             ForEach(SourceFilter.all_) { f in Text(f.label).tag(f) }
         }
         .pickerStyle(.menu)
         .frame(width: 150)
 
-        Picker(L10n.t("时间轴"), selection: $timingFilter) {
+        Picker("时间轴", selection: $timingFilter) {
             ForEach(TimingFilter.allCases) { f in Text(L10n.t(f.rawValue)).tag(f) }
         }
         .pickerStyle(.menu)
@@ -653,11 +653,11 @@ struct LyricsManagerView: View {
 
         Divider().frame(height: 14)
 
-        Toggle(L10n.t("仅人工修正"), isOn: $manualOnly)
-        Toggle(L10n.t("仅无歌词"), isOn: $missingLyricsOnly)
-        Toggle(L10n.t("仅纯音乐"), isOn: $instrumentalOnly)
-        Toggle(L10n.t("仅证据薄"), isOn: $thinEvidenceOnly)
-            .help(L10n.t("当初只有 1~3 个歌词源应答就定下了这份歌词。想换一份就逐条点「重新自动匹配」"))
+        Toggle("仅人工修正", isOn: $manualOnly)
+        Toggle("仅无歌词", isOn: $missingLyricsOnly)
+        Toggle("仅纯音乐", isOn: $instrumentalOnly)
+        Toggle("仅证据薄", isOn: $thinEvidenceOnly)
+            .help("当初只有 1~3 个歌词源应答就定下了这份歌词。想换一份就逐条点「重新自动匹配」")
     }
 
     private var selectionAndFilterActions: some View {
@@ -665,21 +665,21 @@ struct LyricsManagerView: View {
 
             if selectedKeys.isEmpty {
                 if !selectableFiltered.isEmpty {
-                    Button(String(format: L10n.t("全选 %@ 首"), "\(selectableFiltered.count)")) {
+                    Button(String(format: "全选 %@ 首", "\(selectableFiltered.count)")) {
                         selectedKeys = Set(selectableFiltered.map(\.key))
                     }
                     .foregroundStyle(.secondary)
                 }
             } else {
-                Text(String(format: L10n.t("已选 %@ 首"), "\(selectedVisibleKeys.count)"))
+                Text(String(format: "已选 %@ 首", "\(selectedVisibleKeys.count)"))
                     .foregroundStyle(.secondary)
-                Button(L10n.t("取消选择")) { selectedKeys.removeAll() }
+                Button("取消选择") { selectedKeys.removeAll() }
                     .foregroundStyle(.secondary)
             }
 
             if hasActiveFilters {
                 Divider().frame(height: 14)
-                Button(L10n.t("清除筛选"), action: resetFilters)
+                Button("清除筛选", action: resetFilters)
                     .foregroundStyle(.secondary)
             }
         }
@@ -718,14 +718,14 @@ struct LyricsManagerView: View {
 
     private var listColumnHeader: some View {
         HStack(spacing: 8) {
-            Text(L10n.t("歌名")).frame(maxWidth: .infinity, alignment: .leading)
-            Text(L10n.t("歌手")).frame(width: shownWidths.artist, alignment: .leading)
+            Text("歌名").frame(maxWidth: .infinity, alignment: .leading)
+            Text("歌手").frame(width: shownWidths.artist, alignment: .leading)
                 .overlay(alignment: .leading) { columnDivider(0) }
-            Text(L10n.t("专辑")).frame(width: shownWidths.album, alignment: .leading)
+            Text("专辑").frame(width: shownWidths.album, alignment: .leading)
                 .overlay(alignment: .leading) { columnDivider(1) }
-            Text(L10n.t("来源")).frame(width: shownWidths.source, alignment: .leading)
+            Text("来源").frame(width: shownWidths.source, alignment: .leading)
                 .overlay(alignment: .leading) { columnDivider(2) }
-            Text(L10n.t("偏移")).frame(width: Self.offsetColumnWidth, alignment: .leading)
+            Text("偏移").frame(width: Self.offsetColumnWidth, alignment: .leading)
         }
         .font(.caption2.weight(.semibold))
         .foregroundStyle(.secondary)
@@ -736,7 +736,7 @@ struct LyricsManagerView: View {
         .padding(.vertical, 5)
         .frame(maxWidth: .infinity, alignment: .leading)
         .contextMenu {
-            Button(L10n.t("重置列宽")) { columnWidths.reset() }
+            Button("重置列宽") { columnWidths.reset() }
         }
     }
 
@@ -817,7 +817,7 @@ struct LyricsManagerView: View {
                         if store.isLoading {
                             VStack(spacing: 8) {
                                 ProgressView().controlSize(.small)
-                                Text(L10n.t("正在加载…"))
+                                Text("正在加载…")
                                     .font(.callout)
                                     .foregroundStyle(.secondary)
                             }
@@ -830,8 +830,8 @@ struct LyricsManagerView: View {
                                 requestDelete(keys)
                             } label: {
                                 Text(deletable.count == 1
-                                    ? L10n.t("删除本地记录")
-                                    : String(format: L10n.t("删除选中的 %@ 条"), "\(deletable.count)"))
+                                    ? "删除本地记录"
+                                    : String(format: "删除选中的 %@ 条", "\(deletable.count)"))
                             }
                         }
                     }
@@ -845,13 +845,13 @@ struct LyricsManagerView: View {
                     ) {
                         Button(
                             pendingDeleteKeys.count == 1
-                                ? L10n.t("删除")
-                                : String(format: L10n.t("删除 %@ 条"), "\(pendingDeleteKeys.count)"),
+                                ? "删除"
+                                : String(format: "删除 %@ 条", "\(pendingDeleteKeys.count)"),
                             role: .destructive
                         ) {
                             performPendingDelete()
                         }
-                        Button(L10n.t("取消"), role: .cancel) {}
+                        Button("取消", role: .cancel) {}
                     } message: {
                         Text(batchDeleteMessage)
                     }
@@ -880,12 +880,12 @@ struct LyricsManagerView: View {
                 .onPreferenceChange(RowContentBoundsKey.self) { bounds in
                     if let bounds { rowContentBounds = bounds }
                 }
-                .navigationTitle(L10n.t("歌词管理"))
-                .navigationSubtitle(String(format: L10n.t("%@ / %@ 首"), "\(selectableFiltered.count)", "\(store.summaries.count)"))
+                .navigationTitle("歌词管理")
+                .navigationSubtitle(String(format: "%@ / %@ 首", "\(selectableFiltered.count)", "\(store.summaries.count)"))
                 .toolbar {
                     ToolbarItem {
                         Button(action: refreshWithFeedback) {
-                            Label(showRefreshedFeedback ? L10n.t("已刷新") : L10n.t("刷新"),
+                            Label(showRefreshedFeedback ? "已刷新" : "刷新",
                                   systemImage: showRefreshedFeedback ? "checkmark" : "arrow.clockwise")
                         }
                     }
@@ -893,14 +893,14 @@ struct LyricsManagerView: View {
                         Button {
                             focusCurrentlyPlaying(scrollProxy: scrollProxy)
                         } label: {
-                            Label(L10n.t("回到当前播放"), systemImage: "location.fill")
+                            Label("回到当前播放", systemImage: "location.fill")
                         }
                     }
                     ToolbarItem {
                         Button {
                             requestDelete(selectedKeys)
                         } label: {
-                            Label(showDeletedFeedback ? L10n.t("已删除") : L10n.t("删除记录"),
+                            Label(showDeletedFeedback ? "已删除" : "删除记录",
                                   systemImage: showDeletedFeedback ? "checkmark" : "trash")
                         }
                         .disabled(selectedVisibleKeys.isEmpty)
@@ -913,21 +913,21 @@ struct LyricsManagerView: View {
                                 Button(role: .destructive) {
                                     showClearAllConfirm = true
                                 } label: {
-                                    Label(L10n.t("清空全部缓存"), systemImage: "trash")
+                                    Label("清空全部缓存", systemImage: "trash")
                                 }
                             } header: {
-                                Text(String(format: L10n.t("共 %d 条，占用 %@"),
+                                Text(String(format: "共 %d 条，占用 %@",
                                             store.summaries.count, cacheSizeText))
                             }
                             Section {
                                 Button(role: .destructive) {
                                     showClearOffsetsConfirm = true
                                 } label: {
-                                    Label(L10n.t("清空全部时间轴校正"), systemImage: "timer")
+                                    Label("清空全部时间轴校正", systemImage: "timer")
                                 }
                                 .disabled(offsets.trackOffsetCount == 0)
                             } header: {
-                                Text(String(format: L10n.t("已校准 %d 首歌的歌词时间轴"),
+                                Text(String(format: "已校准 %d 首歌的歌词时间轴",
                                             offsets.trackOffsetCount))
                             }
 
@@ -941,20 +941,20 @@ struct LyricsManagerView: View {
                 .toolbar(removing: .sidebarToggle)
                 .navigationSplitViewColumnWidth(min: 480, ideal: 630, max: 900)
                 .confirmationDialog(
-                    L10n.t("确定要清空全部歌词缓存吗?"),
+                    "确定要清空全部歌词缓存吗?",
                     isPresented: $showClearAllConfirm,
                     titleVisibility: .visible
                 ) {
-                    Button(L10n.t("清空全部缓存"), role: .destructive) {
+                    Button("清空全部缓存", role: .destructive) {
                         Task {
                             await store.clearAll()
                             selectedKeys.removeAll()
                         }
                     }
-                    Button(L10n.t("取消"), role: .cancel) {}
+                    Button("取消", role: .cancel) {}
                 } message: {
 
-                    Text(String(format: L10n.t("这会删除当前全部 %d 条本地记录，包括手动编辑和联网搜索采纳过的内容。下次播放会重新搜索歌词。"), store.summaries.count))
+                    Text(String(format: "这会删除当前全部 %d 条本地记录，包括手动编辑和联网搜索采纳过的内容。下次播放会重新搜索歌词。", store.summaries.count))
                 }
 
                 .onChange(of: nowPlaying.trackSignature) { _, _ in
@@ -975,7 +975,7 @@ struct LyricsManagerView: View {
                 } else if selectedKeys.count > 1 {
                     batchSelectionPanel
                 } else {
-                    ContentUnavailableView(L10n.t("选择左侧一首歌"), systemImage: "text.quote")
+                    ContentUnavailableView("选择左侧一首歌", systemImage: "text.quote")
                 }
             }
 
@@ -986,17 +986,17 @@ struct LyricsManagerView: View {
         .background(LyricsManagerWindowCapture(controller: windowFrame).frame(width: 0, height: 0))
 
         .confirmationDialog(
-            L10n.t("确定要清空全部歌词时间轴校正吗?"),
+            "确定要清空全部歌词时间轴校正吗?",
             isPresented: $showClearOffsetsConfirm,
             titleVisibility: .visible
         ) {
-            Button(L10n.t("清空全部时间轴校正"), role: .destructive) {
+            Button("清空全部时间轴校正", role: .destructive) {
                 LyricsOffsetStore.shared.clearAllTrackOffsets()
                 PlaybackCoordinator.shared.refreshLyricsOffsetForCurrentTrack()
             }
-            Button(L10n.t("取消"), role: .cancel) {}
+            Button("取消", role: .cancel) {}
         } message: {
-            Text(String(format: L10n.t("这会清掉你为 %d 首歌手动调出来的歌词时间轴校正值,无法撤销。歌词内容本身不受影响;设置里的全局偏移和按播放器补偿也不会被清掉。清掉之后,这些歌会重新交给后台自动更新歌词源"), offsets.trackOffsetCount))
+            Text(String(format: "这会清掉你为 %d 首歌手动调出来的歌词时间轴校正值,无法撤销。歌词内容本身不受影响;设置里的全局偏移和按播放器补偿也不会被清掉。清掉之后,这些歌会重新交给后台自动更新歌词源", offsets.trackOffsetCount))
         }
 
         .onAppear { AuxiliaryWindowActivation.windowDidAppear() }
@@ -1024,21 +1024,21 @@ struct LyricsManagerView: View {
     private var batchDeleteTitle: String {
         if pendingDeleteKeys.count == 1,
            let summary = store.summaries.first(where: { $0.key == pendingDeleteKeys[0] }) {
-            return String(format: L10n.t("确定要删除「%@ - %@」的本地记录吗?"), summary.artist, summary.title)
+            return String(format: "确定要删除「%@ - %@」的本地记录吗?", summary.artist, summary.title)
         }
-        return String(format: L10n.t("确定要删除选中的 %@ 条本地记录吗?"), "\(pendingDeleteKeys.count)")
+        return String(format: "确定要删除选中的 %@ 条本地记录吗?", "\(pendingDeleteKeys.count)")
     }
 
     private var batchDeleteMessage: String {
         if pendingDeleteKeys.count == 1 {
-            return L10n.t("已导出到本地的歌词文件也会一并删除,下次播放这首歌会重新走一遍匹配解析,不保证一定能找到一样的歌词")
+            return "已导出到本地的歌词文件也会一并删除,下次播放这首歌会重新走一遍匹配解析,不保证一定能找到一样的歌词"
         }
         let pending = Set(pendingDeleteKeys)
         let manual = store.summaries.filter { pending.contains($0.key) && $0.isManual }.count
         if manual > 0 {
-            return String(format: L10n.t("其中 %@ 条是你手动修正过的,删掉之后找不回来。已导出到本地的歌词文件也会一并删除,且无法撤销。下次播放这些歌会重新走一遍匹配解析,不保证能找到一样的歌词"), "\(manual)")
+            return String(format: "其中 %@ 条是你手动修正过的,删掉之后找不回来。已导出到本地的歌词文件也会一并删除,且无法撤销。下次播放这些歌会重新走一遍匹配解析,不保证能找到一样的歌词", "\(manual)")
         }
-        return L10n.t("已导出到本地的歌词文件也会一并删除,且无法撤销。下次播放这些歌会重新走一遍匹配解析,不保证能找到一样的歌词")
+        return "已导出到本地的歌词文件也会一并删除,且无法撤销。下次播放这些歌会重新走一遍匹配解析,不保证能找到一样的歌词"
     }
 
     private func performPendingDelete() {
@@ -1068,28 +1068,28 @@ struct LyricsManagerView: View {
             Image(systemName: "checklist")
                 .font(.system(size: 40))
                 .foregroundStyle(.secondary)
-            Text(String(format: L10n.t("已选择 %@ 首"), "\(picked.count)"))
+            Text(String(format: "已选择 %@ 首", "\(picked.count)"))
                 .font(.title2.weight(.semibold))
             HStack(spacing: 8) {
                 if manual > 0 {
-                    InfoChip(icon: "pencil.circle.fill", text: String(format: L10n.t("人工修正 %@ 首"), "\(manual)"), tint: .orange)
+                    InfoChip(icon: "pencil.circle.fill", text: String(format: "人工修正 %@ 首", "\(manual)"), tint: .orange)
                 }
                 if wordTiming > 0 {
-                    InfoChip(icon: "text.word.spacing", text: String(format: L10n.t("逐字时间轴 %@ 首"), "\(wordTiming)"), tint: .blue)
+                    InfoChip(icon: "text.word.spacing", text: String(format: "逐字时间轴 %@ 首", "\(wordTiming)"), tint: .blue)
                 }
                 if missing > 0 {
-                    InfoChip(icon: "text.badge.xmark", text: String(format: L10n.t("无歌词 %@ 首"), "\(missing)"), tint: .red)
+                    InfoChip(icon: "text.badge.xmark", text: String(format: "无歌词 %@ 首", "\(missing)"), tint: .red)
                 }
                 if noResponder > 0 {
                     InfoChip(icon: "antenna.radiowaves.left.and.right.slash",
-                             text: String(format: L10n.t("无源应答 %@ 首"), "\(noResponder)"), tint: .secondary)
+                             text: String(format: "无源应答 %@ 首", "\(noResponder)"), tint: .secondary)
                 }
                 if indexed > 0 {
-                    InfoChip(icon: "music.note", text: String(format: L10n.t("源里有歌、无词 %@ 首"), "\(indexed)"), tint: .secondary)
+                    InfoChip(icon: "music.note", text: String(format: "源里有歌、无词 %@ 首", "\(indexed)"), tint: .secondary)
                 }
             }
             if manual > 0 {
-                Text(L10n.t("人工修正过的歌词删掉之后找不回来"))
+                Text("人工修正过的歌词删掉之后找不回来")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -1097,11 +1097,11 @@ struct LyricsManagerView: View {
             Button(role: .destructive) {
                 requestDelete(selectedKeys)
             } label: {
-                Label(String(format: L10n.t("删除选中的 %@ 条"), "\(picked.count)"), systemImage: "trash")
+                Label(String(format: "删除选中的 %@ 条", "\(picked.count)"), systemImage: "trash")
             }
             .buttonStyle(.borderedProminent)
             .padding(.top, 4)
-            Button(L10n.t("取消选择")) { selectedKeys.removeAll() }
+            Button("取消选择") { selectedKeys.removeAll() }
                 .buttonStyle(.link)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -1204,11 +1204,11 @@ struct LyricsManagerView: View {
         VStack(alignment: .leading, spacing: 16) {
             headerTitleBlock(summary)
             ContentUnavailableView {
-                Label(L10n.t("正在搜索歌词…"), systemImage: "magnifyingglass")
+                Label("正在搜索歌词…", systemImage: "magnifyingglass")
             } description: {
-                Text(L10n.t("这首歌第一次播放，正在联网搜索歌词，完成后会自动显示，不需要手动刷新。"))
+                Text("这首歌第一次播放，正在联网搜索歌词，完成后会自动显示，不需要手动刷新。")
             } actions: {
-                Button(L10n.t("停止搜索")) { cancelPlaceholderSearch() }
+                Button("停止搜索") { cancelPlaceholderSearch() }
             }
             Spacer(minLength: 0)
         }
@@ -1236,7 +1236,7 @@ struct LyricsManagerView: View {
                     wordTimingHint
                 }
 
-                editorSection(title: L10n.t("歌词(LRC)"), icon: "text.alignleft", text: $editedLyricsBody, minHeight: 220, monospaced: true, disabled: summary.hasWordTiming, showCopyButton: true)
+                editorSection(title: "歌词(LRC)", icon: "text.alignleft", text: $editedLyricsBody, minHeight: 220, monospaced: true, disabled: summary.hasWordTiming, showCopyButton: true)
 
                     .onChange(of: editedLyrics, initial: true) { _, raw in
                         if raw == lyricsBodyEdit.reassembled(body: editedLyricsBody) { return }
@@ -1247,8 +1247,8 @@ struct LyricsManagerView: View {
                         let full = lyricsBodyEdit.reassembled(body: newBody)
                         if full != editedLyrics { editedLyrics = full }
                     }
-                editorSection(title: L10n.t("译文"), icon: "character.book.closed", text: $editedTr, minHeight: 70, monospaced: false)
-                editorSection(title: L10n.t("罗马音"), icon: "textformat.abc", text: $editedRoma, minHeight: 70, monospaced: false, latinIcon: true)
+                editorSection(title: "译文", icon: "character.book.closed", text: $editedTr, minHeight: 70, monospaced: false)
+                editorSection(title: "罗马音", icon: "textformat.abc", text: $editedRoma, minHeight: 70, monospaced: false, latinIcon: true)
 
                 if let error = store.lastError {
                     Label(error, systemImage: "exclamationmark.triangle.fill")
@@ -1342,30 +1342,30 @@ struct LyricsManagerView: View {
                       GridItem(.fixed(ActionTile.size.width), spacing: 8)],
             spacing: 8
         ) {
-            ActionTile(icon: "wand.and.stars", title: L10n.t("重新自动匹配"),
-                       help: L10n.t("重新联网跑一遍匹配，直接采用算法选出的那一份，不用自己挑；跟设置里的「匹配算法」一致"),
+            ActionTile(icon: "wand.and.stars", title: "重新自动匹配",
+                       help: "重新联网跑一遍匹配，直接采用算法选出的那一份，不用自己挑；跟设置里的「匹配算法」一致",
                        disabled: rematchRunningKey != nil) {
                 Task { await runRematch(key: summary.key, summary: summary) }
             }
-            ActionTile(icon: "magnifyingglass", title: L10n.t("联网搜索候选歌词"),
+            ActionTile(icon: "magnifyingglass", title: "联网搜索候选歌词",
                        disabled: rematchRunningKey != nil) {
                 showSearchSheet = true
             }
 
             if !summary.hasLyrics {
                 if summary.isInstrumental {
-                    ActionTile(icon: "waveform.slash", title: L10n.t("取消纯音乐标记"),
-                               help: L10n.t("撤回「纯音乐」结论，这首歌重新回到自动补搜歌词的队列")) {
+                    ActionTile(icon: "waveform.slash", title: "取消纯音乐标记",
+                               help: "撤回「纯音乐」结论，这首歌重新回到自动补搜歌词的队列") {
                         Task { await store.setInstrumental(key: summary.key, false) }
                     }
                 } else {
-                    ActionTile(icon: "waveform", title: L10n.t("标为纯音乐"),
-                               help: L10n.t("这首本来就没有歌词（口白、过场、纯乐器）：标上之后不再显示为「无歌词」，也不再自动重搜")) {
+                    ActionTile(icon: "waveform", title: "标为纯音乐",
+                               help: "这首本来就没有歌词（口白、过场、纯乐器）：标上之后不再显示为「无歌词」，也不再自动重搜") {
                         Task { await store.setInstrumental(key: summary.key, true) }
                     }
                 }
             }
-            ActionTile(icon: "trash", title: L10n.t("删除本地记录"),
+            ActionTile(icon: "trash", title: "删除本地记录",
                        destructive: true) {
                 requestDelete([summary.key])
             }
@@ -1383,39 +1383,39 @@ struct LyricsManagerView: View {
             if summary.hasLyrics {
                 InfoChip(
                     icon: summary.hasWordTiming ? "text.word.spacing" : "text.alignleft",
-                    text: summary.hasWordTiming ? L10n.t("逐字时间轴") : L10n.t("整行歌词"),
+                    text: summary.hasWordTiming ? "逐字时间轴" : "整行歌词",
                     tint: summary.hasWordTiming ? .blue : .secondary
                 )
             }
             if summary.isManual {
-                InfoChip(icon: "pencil.circle.fill", text: L10n.t("人工修正"), tint: .orange)
+                InfoChip(icon: "pencil.circle.fill", text: "人工修正", tint: .orange)
             }
 
             if !summary.sourceChoice.isEmpty {
                 InfoChip(icon: "pin.circle.fill",
-                         text: String(format: L10n.t("来源已选定：%@"),
+                         text: String(format: "来源已选定：%@",
                                       sourceDisplayName(summary.sourceChoice)),
                          tint: .indigo)
             }
             if pins.isPinned(summary.key) {
-                InfoChip(icon: "timer", text: L10n.t("已校准"), tint: .teal)
+                InfoChip(icon: "timer", text: "已校准", tint: .teal)
             }
             if summary.hasTranslation
                 && summary.lyricsTrSource == LyricsTranslationSource.machineSentinel {
-                InfoChip(icon: "character.book.closed", text: L10n.t("机器翻译"), tint: .purple)
+                InfoChip(icon: "character.book.closed", text: "机器翻译", tint: .purple)
             }
             if !summary.hasLyrics {
                 if summary.isInstrumental {
-                    InfoChip(icon: "waveform", text: L10n.t("纯音乐"), tint: .secondary)
+                    InfoChip(icon: "waveform", text: "纯音乐", tint: .secondary)
                 } else if summary.hasPlainTextFallback {
-                    InfoChip(icon: "text.quote", text: L10n.t("仅纯文本"), tint: .orange)
+                    InfoChip(icon: "text.quote", text: "仅纯文本", tint: .orange)
                 } else if summary.lastRoundHadNoResponder {
                     InfoChip(icon: "antenna.radiowaves.left.and.right.slash",
-                             text: L10n.t("这一轮没有源应答"), tint: .secondary)
+                             text: "这一轮没有源应答", tint: .secondary)
                 } else if summary.knownOnSources {
-                    InfoChip(icon: "music.note", text: L10n.t("源里有歌、无词"), tint: .secondary)
+                    InfoChip(icon: "music.note", text: "源里有歌、无词", tint: .secondary)
                 } else {
-                    InfoChip(icon: "text.badge.xmark", text: L10n.t("无歌词"), tint: .red)
+                    InfoChip(icon: "text.badge.xmark", text: "无歌词", tint: .red)
                 }
             }
             Spacer()
@@ -1425,7 +1425,7 @@ struct LyricsManagerView: View {
     private func offsetSection(_ summary: EnrichCacheStore.Summary) -> some View {
         VStack(alignment: .leading, spacing: 4) {
         HStack(spacing: 8) {
-            Label(L10n.t("歌词时间轴偏移"), systemImage: "timer")
+            Label("歌词时间轴偏移", systemImage: "timer")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.secondary)
             TextField("0.0", text: $editedOffsetSeconds)
@@ -1433,21 +1433,21 @@ struct LyricsManagerView: View {
                 .frame(width: 64)
                 .multilineTextAlignment(.trailing)
                 .onSubmit { applyOffsetEdit(summary) }
-            Text(L10n.t("秒"))
+            Text("秒")
                 .font(.callout)
                 .foregroundStyle(.secondary)
-            Button(L10n.t("应用")) { applyOffsetEdit(summary) }
+            Button("应用") { applyOffsetEdit(summary) }
             if LyricsOffsetStore.shared.offset(forKey: currentOffsetKey(summary)) != 0 {
-                Button(L10n.t("重置")) { resetOffsetEdit(summary) }
+                Button("重置") { resetOffsetEdit(summary) }
             }
             Spacer()
-            Text(L10n.t("正数=提前显示,负数=延后显示"))
+            Text("正数=提前显示,负数=延后显示")
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
         }
 
         if pins.isPinned(summary.key) {
-            Text(L10n.t("已校准的歌不再自动更换歌词源:后台一换歌词内容,这个校正值就会失效。把偏移改回 0 即解除"))
+            Text("已校准的歌不再自动更换歌词源:后台一换歌词内容,这个校正值就会失效。把偏移改回 0 即解除")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
         }
@@ -1461,7 +1461,7 @@ struct LyricsManagerView: View {
     private var wordTimingHint: some View {
         Label(
 
-            L10n.t("播放用的是逐字时间轴,改「歌词(LRC)」不生效。要手改主歌词,先用「联网搜索候选歌词」换一份不带逐字的;译文/罗马音不受影响"),
+            "播放用的是逐字时间轴,改「歌词(LRC)」不生效。要手改主歌词,先用「联网搜索候选歌词」换一份不带逐字的;译文/罗马音不受影响",
             systemImage: "info.circle"
         )
         .font(.caption)
@@ -1497,7 +1497,7 @@ struct LyricsManagerView: View {
                             withAnimation { showCopyLyricsFeedback = false }
                         }
                     } label: {
-                        Label(showCopyLyricsFeedback ? L10n.t("已拷贝") : L10n.t("拷贝"),
+                        Label(showCopyLyricsFeedback ? "已拷贝" : "拷贝",
                               systemImage: showCopyLyricsFeedback ? "checkmark" : "doc.on.doc")
                     }
                     .buttonStyle(.plain)
@@ -1530,7 +1530,7 @@ struct LyricsManagerView: View {
                     withAnimation { showSaveEditFeedback = false }
                 }
             } label: {
-                Label(showSaveEditFeedback ? L10n.t("已保存") : L10n.t("保存修改"),
+                Label(showSaveEditFeedback ? "已保存" : "保存修改",
                       systemImage: showSaveEditFeedback ? "checkmark" : "square.and.arrow.down")
             }
             .buttonStyle(.borderedProminent)
@@ -1546,8 +1546,8 @@ struct LyricsManagerView: View {
             HStack(spacing: 6) {
                 ProgressView().controlSize(.small)
                 Text(rematchTotal > 0
-                     ? String(format: L10n.t("正在重新匹配…（%1$@/%2$@）"), "\(rematchDone)", "\(rematchTotal)")
-                     : L10n.t("正在重新匹配…"))
+                     ? String(format: "正在重新匹配…（%1$@/%2$@）", "\(rematchDone)", "\(rematchTotal)")
+                     : "正在重新匹配…")
             }
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -1595,7 +1595,7 @@ struct LyricsManagerView: View {
             rematchResult = RematchOutcome(key: key, kind: kind, text: text)
         }
         guard let update, let pick = update.pick else {
-            done(.failed, L10n.t("这一轮没拿到结论，可以再点一次"))
+            done(.failed, "这一轮没拿到结论，可以再点一次")
             return
         }
         let currentName = sourceDisplayName(summary.lyricsSource)
@@ -1613,39 +1613,39 @@ struct LyricsManagerView: View {
         )
         switch outcome {
         case .keptNotDecidable:
-            done(.kept, String(format: L10n.t("这一轮「%@」没应答，没有换（避免误降级），可以再点一次"), currentName))
+            done(.kept, String(format: "这一轮「%@」没应答，没有换（避免误降级），可以再点一次", currentName))
             return
         case .keptNoCandidate:
 
             if update.instrumental {
 
                 await store.markInstrumental(key: key)
-                done(.empty, L10n.t("有源明确说这首是纯音乐，没有可用的歌词候选"))
+                done(.empty, "有源明确说这首是纯音乐，没有可用的歌词候选")
             } else if !summary.hasPlainTextFallback,
                       let plain = update.candidates.first(where: { $0.isPlainTextOnly }) {
 
                 await store.savePlainTextEdit(key: key, plainLyrics: plain.lyrics, source: plain.source)
-                done(.empty, L10n.t("没有找到带时间戳的版本，已自动采纳一份纯文本兜底"))
+                done(.empty, "没有找到带时间戳的版本，已自动采纳一份纯文本兜底")
             } else if update.networkLooksDown {
-                done(.empty, L10n.t("网络似乎不通，这一轮没搜到任何候选"))
+                done(.empty, "网络似乎不通，这一轮没搜到任何候选")
             } else {
-                done(.empty, L10n.t("这一轮没有一个能用的候选，保留现有的"))
+                done(.empty, "这一轮没有一个能用的候选，保留现有的")
             }
             return
         case .keptWouldLoseWordTiming:
-            done(.kept, String(format: L10n.t("这一轮没搜到逐字歌词，保留现有的「%@」（逐字）——换过去会丢掉逐字时间轴"), currentName))
+            done(.kept, String(format: "这一轮没搜到逐字歌词，保留现有的「%@」（逐字）——换过去会丢掉逐字时间轴", currentName))
             return
         case .unchanged:
 
             await store.recordUnchangedRematchDecision(key: key, decisionJSON: pick.decisionJSON)
-            done(.unchanged, String(format: L10n.t("已重新匹配：仍然是「%1$@」（%2$@ 分），没有更好的"),
+            done(.unchanged, String(format: "已重新匹配：仍然是「%1$@」（%2$@ 分），没有更好的",
                                     sourceDisplayName(pick.winner), "\(pick.winnerScore)"))
             return
         case .adopt:
             break
         }
         guard let winner else {
-            done(.failed, L10n.t("这一轮没拿到结论，可以再点一次"))
+            done(.failed, "这一轮没拿到结论，可以再点一次")
             return
         }
         let winnerName = sourceDisplayName(winner.source)
@@ -1683,15 +1683,15 @@ struct LyricsManagerView: View {
             let timingChanged = winner.lyricsYRC != detail.yrc
             let template: String
             if textChanged && timingChanged {
-                template = L10n.t("已重新匹配：还是「%1$@」，但正文和逐字时间轴都跟原来那份不一样，已换成这一轮抓到的（%2$@ 分）")
+                template = "已重新匹配：还是「%1$@」，但正文和逐字时间轴都跟原来那份不一样，已换成这一轮抓到的（%2$@ 分）"
             } else if timingChanged {
-                template = L10n.t("已重新匹配：还是「%1$@」，但逐字时间轴跟原来那份不一样，已换成这一轮抓到的（%2$@ 分）")
+                template = "已重新匹配：还是「%1$@」，但逐字时间轴跟原来那份不一样，已换成这一轮抓到的（%2$@ 分）"
             } else {
-                template = L10n.t("已重新匹配：还是「%1$@」，但正文跟原来那份不一样，已换成这一轮抓到的（%2$@ 分）")
+                template = "已重新匹配：还是「%1$@」，但正文跟原来那份不一样，已换成这一轮抓到的（%2$@ 分）"
             }
             done(.changed, String(format: template, winnerName, "\(pick.winnerScore)"))
         } else {
-            done(.changed, String(format: L10n.t("已换成「%1$@」（%2$@ 分），原来是「%3$@」"),
+            done(.changed, String(format: "已换成「%1$@」（%2$@ 分），原来是「%3$@」",
                                   winnerName, "\(pick.winnerScore)", currentName))
         }
     }
@@ -1850,43 +1850,43 @@ private struct LyricsManagerRow: View {
 
                     if !summary.isSearching {
                         badge("pencil.circle.fill", tint: .orange, on: summary.isManual,
-                              help: L10n.t("人工修正过"))
+                              help: "人工修正过")
 
                         badge("pin.circle.fill", tint: .indigo, on: !summary.sourceChoice.isEmpty,
-                              help: String(format: L10n.t("来源已选定：%@"),
+                              help: String(format: "来源已选定：%@",
                                            sourceDisplayName(summary.sourceChoice)))
 
                         badge(summary.hasWordTiming ? "text.word.spacing" : "text.alignleft",
                               tint: summary.hasWordTiming ? .blue : .secondary, on: summary.hasLyrics,
-                              help: summary.hasWordTiming ? L10n.t("逐字时间戳") : L10n.t("整行时间戳"))
+                              help: summary.hasWordTiming ? "逐字时间戳" : "整行时间戳")
 
                         badge("character.book.closed",
                               tint: summary.lyricsTrSource == LyricsTranslationSource.machineSentinel ? .purple : .green,
                               on: summary.hasTranslation,
                               help: summary.lyricsTrSource == LyricsTranslationSource.machineSentinel
-                                  ? L10n.t("译文(机器翻译)") : L10n.t("译文(歌词源自带)"))
+                                  ? "译文(机器翻译)" : "译文(歌词源自带)")
                         badge("textformat.abc", tint: .purple, on: summary.hasRomanization,
-                              help: L10n.t("罗马音"), forceLatinIcon: true)
+                              help: "罗马音", forceLatinIcon: true)
                     }
                 }
                 if summary.isSearching {
-                    Text(L10n.t("搜索歌词中…")).font(.caption2).foregroundStyle(.secondary)
+                    Text("搜索歌词中…").font(.caption2).foregroundStyle(.secondary)
                 } else if !summary.hasLyrics {
 
                     if summary.isInstrumental {
-                        Text(L10n.t("纯音乐")).font(.caption2).foregroundStyle(.secondary)
+                        Text("纯音乐").font(.caption2).foregroundStyle(.secondary)
                     } else if summary.hasPlainTextFallback {
 
-                        Text(L10n.t("仅纯文本")).font(.caption2).foregroundStyle(.orange)
+                        Text("仅纯文本").font(.caption2).foregroundStyle(.orange)
                     } else if summary.lastRoundHadNoResponder {
 
-                        Text(L10n.t("无源应答")).font(.caption2).foregroundStyle(.secondary)
-                            .help(L10n.t("最近一轮解析时一个歌词源都没有应答（多半是那一刻网络不通），不是「这首歌没有词」。会自动重搜，也可以用工具栏「重试无歌词」立刻重来"))
+                        Text("无源应答").font(.caption2).foregroundStyle(.secondary)
+                            .help("最近一轮解析时一个歌词源都没有应答（多半是那一刻网络不通），不是「这首歌没有词」。会自动重搜，也可以用工具栏「重试无歌词」立刻重来")
                     } else if summary.knownOnSources {
 
-                        Text(L10n.t("源里有歌、无词")).font(.caption2).foregroundStyle(.secondary)
+                        Text("源里有歌、无词").font(.caption2).foregroundStyle(.secondary)
                     } else {
-                        Text(L10n.t("无歌词")).font(.caption2).foregroundStyle(.red)
+                        Text("无歌词").font(.caption2).foregroundStyle(.red)
                     }
                 }
             }
@@ -1918,7 +1918,7 @@ private struct LyricsManagerRow: View {
                             .padding(.horizontal, 5).padding(.vertical, 1)
                             .foregroundStyle(.orange)
                             .background(Color.orange.opacity(0.12), in: Capsule())
-                            .help(String(format: L10n.t("这份歌词定下来时，%1$d 个歌词源里只有 %2$d 个给出了候选（老条目当年的源数可能少于 %1$d）"),
+                            .help(String(format: "这份歌词定下来时，%1$d 个歌词源里只有 %2$d 个给出了候选（老条目当年的源数可能少于 %1$d）",
                                                 total, summary.sourcesRespondedCount))
                     }
                 }
