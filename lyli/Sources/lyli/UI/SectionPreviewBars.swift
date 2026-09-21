@@ -95,12 +95,11 @@ struct MenuBarPreviewBar<Lane: View>: View {
     private var previewIconBadge: MenuBarScrollingLabel.IconBadge? {
         let position = settings.menuBarLyricsIconPosition
         guard position != .off else { return nil }
-        return MenuBarScrollingLabel.IconBadge(style: settings.menuBarIconStyle,
-                                               position: position)
+        return MenuBarScrollingLabel.IconBadge(position: position)
     }
 
     private var reservedIconWidth: CGFloat {
-        MenuBarProgressIcon.reservedWidth(for: previewIconBadge?.style)
+        MenuBarProgressIcon.reservedWidth(enabled: previewIconBadge != nil)
     }
 
     private var progressPositionMs: Int? {
