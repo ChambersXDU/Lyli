@@ -122,55 +122,6 @@ struct SettingsView: View {
     @State private var selection: SettingsSidebarItem? = .tab(SettingsTab.restoredLastTab())
     @AppStorage(SettingsTab.lastTabStorageKey) private var lastTabRaw = SettingsTab.lyrics.rawValue
 
-    @State private var settingsSearchText = ""
-
-    @FocusState private var settingsSearchFocused: Bool
-
-    @ObservedObject private var searchRouter = SettingsSearchRouter.shared
-
-    private var isSearchingSettings: Bool {
-        !settingsSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-
-    private var settingsSearchHits: [SettingsSearchHit] {
-        SettingsSearchIndex.shared.search(settingsSearchText)
-    }
-
-    @ViewBuilder private var settingsSearchResultsSection: some View {
-        let hits = settingsSearchHits
-        if hits.isEmpty {
-            Text(L10n.t("没有找到匹配的设置"))
-                .font(.system(size: 12))
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.vertical, 6)
-        } else {
-            Section {
-                ForEach(hits) { hit in
-                    SettingsSearchResultRow(hit: hit) { openSettingsSearchHit(hit) }
-                }
-            }
-        }
-    }
-
-    private func openFirstSettingsSearchResult() {
-        if let first = settingsSearchHits.first { openSettingsSearchHit(first) }
-    }
-
-    private func openSettingsSearchHit(_ hit: SettingsSearchHit) {
-        let entry = hit.entry
-        switch entry.destination {
-        case .tab(let raw):
-            if let tab = SettingsTab(rawValue: raw) { selection = .tab(tab) }
-        }
-        if let key = entry.sectionKey, let value = entry.sectionValue {
-            UserDefaults.standard.set(value, forKey: key)
-        }
-        searchRouter.reveal(hit)
-        settingsSearchText = ""
-        settingsSearchFocused = false
-    }
-
     @ViewBuilder private var sidebarSections: some View {
         Section {
             sidebarLabel(.lyrics)
@@ -184,19 +135,9 @@ struct SettingsView: View {
     var body: some View {
         NavigationSplitView {
             List(selection: $selection) {
-
-                if isSearchingSettings {
-                    settingsSearchResultsSection
-                } else {
-                    sidebarSections
-                }
+                sidebarSections
             }
             .listStyle(.sidebar)
-
-            .safeAreaInset(edge: .top, spacing: 0) {
-                SettingsSearchField(text: $settingsSearchText, focused: $settingsSearchFocused,
-                                    onSubmit: openFirstSettingsSearchResult)
-            }
 
             .navigationSplitViewColumnWidth(min: 180, ideal: 205, max: 240)
 
@@ -218,7 +159,6 @@ struct SettingsView: View {
 
         .frame(minWidth: 760, idealWidth: 860, minHeight: 690, idealHeight: 720)
 
-        .environment(\.settingsSearchHighlightedTitles, searchRouter.highlightedTitles)
         .background(SettingsWindowConfigurator())
 
         .onAppear {
@@ -234,10 +174,8 @@ struct SettingsView: View {
             AppActions.shared.pendingSettingsSelection = nil
         }
 
-        .onChange(of: selection) { previous, item in
+        .onChange(of: selection) { _, item in
             if case .tab(let tab)? = item { lastTabRaw = tab.rawValue }
-
-            settingsSearchFocused = false
         }
 
         .onAppear {
