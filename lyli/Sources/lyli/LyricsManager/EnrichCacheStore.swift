@@ -104,7 +104,7 @@ public final class EnrichCacheStore: ObservableObject {
         if loaded {
             lastError = nil
         } else {
-            lastError = L10n.t("读取本地记录文件失败")
+            lastError = "读取本地记录文件失败"
         }
         applySummaries(Self.buildSummaries(
             from: raw,
@@ -557,7 +557,7 @@ public final class EnrichCacheStore: ObservableObject {
             PlaybackCoordinator.shared.refreshLyricsForCurrentTrack()
             return true
         } catch {
-            lastError = String(format: L10n.t("写入本地记录文件失败: %@"), error.localizedDescription)
+            lastError = String(format: "写入本地记录文件失败: %@", error.localizedDescription)
             logger.error("write failed: \(error.localizedDescription, privacy: .public)")
             return false
         }
