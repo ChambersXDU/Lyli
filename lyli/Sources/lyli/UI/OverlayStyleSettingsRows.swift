@@ -396,38 +396,3 @@ enum OverlayStyleSummary {
     }
 }
 
-@MainActor
-struct OverlayTextPopover: View {
-    var body: some View {
-        SettingsPopoverShell(title: L10n.t("文字")) {
-            OverlayTextSettingsRows()
-        }
-    }
-}
-
-@MainActor
-struct OverlayThemePopover: View {
-    var body: some View {
-        SettingsPopoverShell(title: L10n.t("主题")) {
-            OverlayThemeSettingsRows()
-        }
-    }
-}
-
-@MainActor
-struct OverlayBackgroundPopover: View {
-    var body: some View {
-        SettingsPopoverShell(title: L10n.t("背景"), width: 420) {
-            OverlayBackgroundSettingsRows()
-        }
-    }
-}
-
-@MainActor
-struct OverlayLayoutPopover: View {
-    var body: some View {
-        SettingsPopoverShell(title: L10n.t("排版"), width: 460) {
-            OverlayLayoutSettingsRows()
-        }
-    }
-}
