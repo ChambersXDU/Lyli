@@ -9,7 +9,6 @@ private func testPlainTimeline() {
         [00:09.00]last
         """,
         lyricsTr: "",
-        lyricsRoma: "",
         lyricsYRC: ""
     )
     expectEqual(loaded, true, "首次加载普通 LRC")
@@ -70,7 +69,6 @@ private func testSeekingUsesTheNewPosition() {
         [00:09.00]last
         """,
         lyricsTr: "",
-        lyricsRoma: "",
         lyricsYRC: ""
     )
 
@@ -100,7 +98,6 @@ private func testOffsetsChangeDisplayedLine() {
         [00:20.00]b
         """,
         lyricsTr: "",
-        lyricsRoma: "",
         lyricsYRC: ""
     )
 
@@ -123,7 +120,6 @@ private func testWordTiming() {
     let loaded = engine.load(
         lyrics: "",
         lyricsTr: "",
-        lyricsRoma: "",
         lyricsYRC: """
         [1000,2000](1000,1000,0)one (2000,1000,0)two
         [5000,1000](5000,500,0)next
@@ -179,7 +175,6 @@ private func testReloadReplacesTheDisplayedSong() {
     engine.load(
         lyrics: "[00:10.00]old song",
         lyricsTr: "",
-        lyricsRoma: "",
         lyricsYRC: ""
     )
     expectEqual(
@@ -190,7 +185,6 @@ private func testReloadReplacesTheDisplayedSong() {
     engine.load(
         lyrics: "[00:02.00]new song",
         lyricsTr: "",
-        lyricsRoma: "",
         lyricsYRC: ""
     )
     expectEqual(engine.activeLine(atMs: 12_000)?.plainText, "new song", "换歌后不显示旧时间轴")
@@ -212,7 +206,6 @@ private func testOneDuetTimeline() {
         [00:06.00]All night yeah
         """,
         lyricsTr: "",
-        lyricsRoma: "",
         lyricsYRC: ""
     )
 
