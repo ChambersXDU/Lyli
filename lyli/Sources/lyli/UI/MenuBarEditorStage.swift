@@ -7,7 +7,6 @@ extension LyricSecondaryLine {
         case .off: return "不显示"
         case .nextLine: return "下一句"
         case .translation: return "译文"
-        case .romanization: return "罗马音"
         }
     }
 }
