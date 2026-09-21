@@ -473,8 +473,8 @@ struct LyricsOverlayView<Chrome: OverlayChromeSource>: View {
                     .transition(.opacity)
             } else if overlayController.showDragHint {
                 Text(AppSettings.shared.overlayDragNeedsLongPress
-                        ? L10n.t("长按即可拖动位置")
-                        : L10n.t("按住歌词即可拖动位置"))
+                        ? "长按即可拖动位置"
+                        : "按住歌词即可拖动位置")
                     .font(.caption)
                     .foregroundStyle(playback.displayForegroundColor.opacity(0.8))
                     .lyricsTextStroke(playback.textStrokeEnabled, color: playback.textStrokeColor)
@@ -632,31 +632,31 @@ struct LyricsOverlayView<Chrome: OverlayChromeSource>: View {
                 .lyricsTextStroke(playback.textStrokeEnabled, color: playback.textStrokeColor)
         } else if playback.isCurrentTrackAdBreak {
 
-            Text(L10n.t("广告中"))
+            Text("广告中")
                 .font(playback.mainFont)
                 .foregroundStyle(playback.displayForegroundColor.opacity(0.5))
                 .lyricsTextStroke(playback.textStrokeEnabled, color: playback.textStrokeColor)
         } else if playback.isCurrentTrackInstrumental {
 
-            Text(L10n.t("纯音乐"))
+            Text("纯音乐")
                 .font(playback.mainFont)
                 .foregroundStyle(playback.displayForegroundColor.opacity(0.5))
                 .lyricsTextStroke(playback.textStrokeEnabled, color: playback.textStrokeColor)
         } else if playback.currentTrackHasNoLyrics {
 
-            Text(L10n.t("暂无歌词"))
+            Text("暂无歌词")
                 .font(playback.mainFont)
                 .foregroundStyle(playback.displayForegroundColor.opacity(0.5))
                 .lyricsTextStroke(playback.textStrokeEnabled, color: playback.textStrokeColor)
         } else if playback.networkDown && !playback.hasLyricsContent {
 
-            Text(L10n.t("网络连接失败"))
+            Text("网络连接失败")
                 .font(playback.mainFont)
                 .foregroundStyle(playback.displayForegroundColor.opacity(0.5))
                 .lyricsTextStroke(playback.textStrokeEnabled, color: playback.textStrokeColor)
         } else if playback.isPlayingNow && !playback.hasLyricsContent {
 
-            Text(L10n.t("搜索歌词中…"))
+            Text("搜索歌词中…")
                 .font(playback.mainFont)
                 .foregroundStyle(playback.displayForegroundColor.opacity(0.5))
                 .lyricsTextStroke(playback.textStrokeEnabled, color: playback.textStrokeColor)
