@@ -1,10 +1,10 @@
 # Lyli
 
-Native macOS menu-bar and desktop lyrics for Apple Music. It follows playback with LRC/YRC word timing, translation, romanization, duet lines, and a Lyrics Manager for editing, deleting, and re-matching cached songs.
+Native macOS menu-bar and desktop lyrics for Apple Music. It follows playback with LRC/YRC word timing, translation and duet lines, with a Lyrics Manager for manual search, editing, deleting and re-matching cached songs.
 
 The app queries five lyric providers (LRCLIB, Kuwo, NetEase, Kugou, and QQ Music), scores their candidates, and stores lyrics in `~/.config/lyli/lyli-enrich-cache.json`. Cached lyrics work offline.
 
-Apple Music control and playback position use macOS Automation permission. The app also provides a desktop overlay, menu-bar lyrics, offset correction, pinning, Settings Search, configuration import/export, backups, shortcuts, and optional listening integrations.
+Apple Music control and playback position use macOS Automation permission. The app focuses on automatic lyric matching, desktop lyrics, menu-bar lyrics, timing correction and simple manual lyric selection.
 
 ## Install
 
