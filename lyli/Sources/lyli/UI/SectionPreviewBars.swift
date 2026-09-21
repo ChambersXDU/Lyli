@@ -3,30 +3,7 @@ import LyliCore
 import SwiftUI
 
 @MainActor
-enum SectionPreviewMetrics {
-    static let bottomPadding: CGFloat = 10
-    static let captionSpacing: CGFloat = 6
-
-    static let captionHeight: CGFloat = 15
-
-}
-
-extension MenuBarPreviewBar where Lane == EmptyView {
-
-    init(reservesWidthLane: Bool = false) {
-        self.reservesWidthLane = reservesWidthLane
-        self.lane = { EmptyView() }
-    }
-}
-
-@MainActor
-struct MenuBarPreviewBar<Lane: View>: View {
-
-    var reservesWidthLane = false
-
-    @ViewBuilder var lane: () -> Lane
-
-    static var widthLaneHeight: CGFloat { 28 }
+struct MenuBarPreviewBar: View {
 
     @ObservedObject private var settings = AppSettings.shared
 
@@ -112,13 +89,6 @@ struct MenuBarPreviewBar<Lane: View>: View {
             .compactMap { $0 }.first { $0 > 0 }
     }
 
-    private func lyricsSlotWidth(_ p: MenuBarMarqueeRenderer.Presentation) -> CGFloat {
-        switch p {
-        case .text(let visible): return adaptiveWindowWidth(for: visible)
-        case .fixed(_, let windowWidth, _): return windowWidth
-        }
-    }
-
     private var previewTextColor: Color {
         guard fullyPlayed else { return Color(nsColor: .labelColor) }
         return Color(nsColor: MenuBarScrollingLabel.fillColor(
@@ -159,12 +129,6 @@ struct MenuBarPreviewBar<Lane: View>: View {
         ZStack(alignment: .top) {
             desktopSurface
             menuBarStrip(p)
-            if reservesWidthLane {
-                VStack {
-                    Spacer()
-                    lane()
-                }
-            }
         }
             .frame(height: stageHeight, alignment: .top)
             .frame(maxWidth: .infinity)
