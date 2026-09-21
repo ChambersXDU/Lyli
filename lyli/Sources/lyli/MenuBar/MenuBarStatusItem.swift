@@ -52,7 +52,7 @@ final class MenuBarStatusItem: NSObject {
         coordinator.$currentLine
             .map { line -> String in
                 guard let line else { return "" }
-                return "\(line.words?.first?.startMs ?? -1)#\(line.plainText ?? "")#\(line.translation ?? "")#\(line.romanization ?? "")"
+                return "\(line.words?.first?.startMs ?? -1)#\(line.plainText ?? "")#\(line.translation ?? "")"
             }
             .removeDuplicates()
             .receive(on: RunLoop.main)
