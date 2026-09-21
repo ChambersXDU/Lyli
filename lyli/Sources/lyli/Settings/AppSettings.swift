@@ -77,6 +77,7 @@ final class AppSettings: ObservableObject {
         static let menuBarLyricsFontSize = "np:menuBarLyricsFontSize"
         static let menuBarSecondaryLine = "np:menuBarSecondaryLine"
             static let menuBarShowsTitleWhenNoLyrics = "np:menuBarShowsTitleWhenNoLyrics"
+        static let menuBarIdleIconStyle = "np:menuBarIdleIconStyle"
         static let lyricsOffsetStepMs = "np:lyricsOffsetStepMs"
         static let manualPickLocksLyrics = "np:manualPickLocksLyrics"
         static let textStrokeEnabled = "np:textStrokeEnabled"
@@ -226,6 +227,10 @@ final class AppSettings: ObservableObject {
 
     @Published var menuBarShowsTitleWhenNoLyrics: Bool {
         didSet { defaults.set(menuBarShowsTitleWhenNoLyrics, forKey: Keys.menuBarShowsTitleWhenNoLyrics) }
+    }
+
+    @Published var menuBarIdleIconStyle: MenuBarIdleIconStyle {
+        didSet { defaults.set(menuBarIdleIconStyle.rawValue, forKey: Keys.menuBarIdleIconStyle) }
     }
 
     @Published var textStrokeEnabled: Bool {
@@ -404,6 +409,8 @@ final class AppSettings: ObservableObject {
             .flatMap(LyricSecondaryLine.init(rawValue:)) ?? Self.defaultMenuBarSecondaryLine
         menuBarShowsTitleWhenNoLyrics = (defaults.object(forKey: Keys.menuBarShowsTitleWhenNoLyrics) as? Bool)
             ?? Self.defaultMenuBarShowsTitleWhenNoLyrics
+        menuBarIdleIconStyle = defaults.string(forKey: Keys.menuBarIdleIconStyle)
+            .flatMap(MenuBarIdleIconStyle.init(rawValue:)) ?? .classic
         lyricsOffsetStepMs = (defaults.object(forKey: Keys.lyricsOffsetStepMs) as? Int) ?? 200
         manualPickLocksLyrics = (defaults.object(forKey: Keys.manualPickLocksLyrics) as? Bool) ?? false
         textStrokeEnabled = (defaults.object(forKey: Keys.textStrokeEnabled) as? Bool) ?? ColorTheme.defaultTheme.textStrokeEnabled
