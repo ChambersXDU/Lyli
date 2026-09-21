@@ -26,7 +26,7 @@ struct OverlaySettingsList: View {
 
     private var themeGroup: some View {
         Group {
-            SettingsCardHeader(title: L10n.t("主题"))
+            SettingsCardHeader(title: "主题")
             CardDivider()
             OverlayThemeSettingsRows()
         }
@@ -34,7 +34,7 @@ struct OverlaySettingsList: View {
 
     private var backgroundGroup: some View {
         Group {
-            SettingsCardHeader(title: L10n.t("背景"))
+            SettingsCardHeader(title: "背景")
             CardDivider()
             OverlayBackgroundSettingsRows()
         }
@@ -42,7 +42,7 @@ struct OverlaySettingsList: View {
 
     private var textGroup: some View {
         Group {
-            SettingsCardHeader(title: L10n.t("文字"))
+            SettingsCardHeader(title: "文字")
             CardDivider()
             OverlayTextSettingsRows()
         }
@@ -50,7 +50,7 @@ struct OverlaySettingsList: View {
 
     private var layoutGroup: some View {
         Group {
-            SettingsCardHeader(title: L10n.t("排版"))
+            SettingsCardHeader(title: "排版")
             CardDivider()
             OverlayLayoutSettingsRows()
         }
@@ -58,7 +58,7 @@ struct OverlaySettingsList: View {
 
     private var behaviorGroup: some View {
         Group {
-            SettingsCardHeader(title: L10n.t("行为"))
+            SettingsCardHeader(title: "行为")
             CardDivider()
             OverlayBehaviorSettingsRows()
         }
@@ -66,14 +66,14 @@ struct OverlaySettingsList: View {
 
     private var placementGroup: some View {
         Group {
-            SettingsCardHeader(title: L10n.t("位置"))
+            SettingsCardHeader(title: "位置")
             CardDivider()
             OverlayPlacementSettingsRows()
         }
     }
 
     private var widthRow: some View {
-        SettingsRow(icon: "arrow.left.and.right", title: L10n.t("宽度")) {
+        SettingsRow(icon: "arrow.left.and.right", title: "宽度") {
             HStack(spacing: 8) {
 
                 SteppedSlider(value: Binding(
@@ -89,7 +89,7 @@ struct OverlaySettingsList: View {
                     }
                 ), in: 300...1400, step: 10)
                 .frame(width: 150)
-                Text(String(format: L10n.t("%@pt"), "\(Int(settings.overlayWidth))"))
+                Text(String(format: "%@pt", "\(Int(settings.overlayWidth))"))
                     .foregroundStyle(.secondary)
                     .monospacedDigit()
                     .frame(width: 46, alignment: .trailing)
@@ -100,9 +100,9 @@ struct OverlaySettingsList: View {
     private var resetRow: some View {
         SettingsRow(
             icon: "arrow.uturn.backward",
-            title: L10n.t("恢复默认")
+            title: "恢复默认"
         ) {
-            Button(L10n.t("恢复")) { OverlayStyleDefaults.restoreTextAndColors() }
+            Button("恢复") { OverlayStyleDefaults.restoreTextAndColors() }
         }
     }
 }
