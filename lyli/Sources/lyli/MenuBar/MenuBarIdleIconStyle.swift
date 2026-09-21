@@ -3,7 +3,6 @@ import SwiftUI
 
 @MainActor
 enum MenuBarIdleIconStyle: String, CaseIterable, Identifiable {
-    case classic
     case note
     case noteList
     case waveform
@@ -16,7 +15,6 @@ enum MenuBarIdleIconStyle: String, CaseIterable, Identifiable {
 
     var displayName: String {
         switch self {
-        case .classic: return "经典"
         case .note: return "音符"
         case .noteList: return "歌词"
         case .waveform: return "声波"
@@ -28,11 +26,8 @@ enum MenuBarIdleIconStyle: String, CaseIterable, Identifiable {
     }
 
     var image: NSImage {
-        if self == .classic { return MenuBarIconArtwork.image }
-
         let symbol: String
         switch self {
-        case .classic: symbol = "music.note"
         case .note: symbol = "music.note"
         case .noteList: symbol = "music.note.list"
         case .waveform: symbol = "waveform"
@@ -43,7 +38,7 @@ enum MenuBarIdleIconStyle: String, CaseIterable, Identifiable {
         }
         let config = NSImage.SymbolConfiguration(pointSize: 15, weight: .regular)
         let image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)?
-            .withSymbolConfiguration(config) ?? MenuBarIconArtwork.image
+            .withSymbolConfiguration(config) ?? NSImage(size: NSSize(width: 16, height: 16))
         image.isTemplate = true
         return image
     }
