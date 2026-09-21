@@ -82,17 +82,13 @@ public struct JSONConfigDocument {
         return try JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys])
     }
 
-    public mutating func save(fields: [String: Any], knownKeys: Set<String>? = nil, secure: Bool) throws {
+    public mutating func save(fields: [String: Any], knownKeys: Set<String>? = nil) throws {
         if case .corrupt(let reason) = state {
             throw Failure.refusedCorruptFile(reason: reason)
         }
         let merged = merging(fields: fields, knownKeys: knownKeys)
         let data = try Self.serialize(merged)
-        if secure {
-            try data.writeSecurely(to: url)
-        } else {
-            try data.write(to: url, options: .atomic)
-        }
+        try data.write(to: url, options: .atomic)
         raw = merged
         state = .loaded
     }
