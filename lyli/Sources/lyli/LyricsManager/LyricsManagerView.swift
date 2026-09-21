@@ -3,18 +3,6 @@ import Combine
 import LyliCore
 
 @MainActor
-final class AppLanguageObserver: ObservableObject {
-    static let shared = AppLanguageObserver()
-    @Published private(set) var appLanguage = ""
-    private var sub: AnyCancellable?
-    private init() {
-
-        sub = AppSettings.shared.$appLanguage.removeDuplicates()
-            .sink { [weak self] in self?.appLanguage = $0 }
-    }
-}
-
-@MainActor
 final class LyricsManagerNowPlayingObserver: ObservableObject {
     @Published private(set) var trackSignature = ""
     private var sub: AnyCancellable?
@@ -317,7 +305,6 @@ private struct LyricsManagerWindowCapture: NSViewRepresentable {
 struct LyricsManagerView: View {
     @ObservedObject private var store = EnrichCacheStore.shared
     @StateObject private var windowFrame = LyricsManagerWindowFramePersistence()
-    @ObservedObject private var languageSettings = AppLanguageObserver.shared
     @StateObject private var nowPlaying = LyricsManagerNowPlayingObserver()
 
     @State private var searchText = ""
