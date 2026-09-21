@@ -16,8 +16,7 @@ let package = Package(
         .executableTarget(
             name: "lyli",
             dependencies: ["LyliCore"],
-            path: "Sources/lyli",
-            resources: [.process("Resources")]
+            path: "Sources/lyli"
         ),
         .executableTarget(
             name: "lyli-selftest",
