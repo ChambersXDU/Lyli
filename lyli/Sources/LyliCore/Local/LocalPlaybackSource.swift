@@ -37,9 +37,6 @@ public final class LocalPlaybackSource: ObservableObject {
     @Published public private(set) var pausedPositionMs: Int?
     @Published public private(set) var currentDurationMs: Int?
     public var onTrackChanged: ((String, String, String, Double) -> Void)?
-    @Published public var romanizationScripts: RomanizationScripts = .default {
-        didSet { reloadCurrentLyrics() }
-    }
     @Published public var chineseVariant: ChineseVariant = .off {
         didSet { reloadCurrentLyrics() }
     }
@@ -322,7 +319,7 @@ public final class LocalPlaybackSource: ObservableObject {
         if let words = line?.words, let index {
             if settledThresholdIndex != index {
                 settledThresholdIndex = index
-                settledThresholdMs = KaraokeFill.lineFillSettledMs(words: words, groups: line?.wordGroups)
+                settledThresholdMs = KaraokeFill.lineFillSettledMs(words: words)
             }
             settled = atRawMs + syncEngine.effectiveOffsetMs >= settledThresholdMs
         } else {
@@ -388,10 +385,9 @@ public final class LocalPlaybackSource: ObservableObject {
 
     private struct LyricsReloadSnapshot: Equatable {
         let trackKey: String
-        let lyrics, lyricsTr, lyricsRoma, lyricsYRC: String
+        let lyrics, lyricsTr, lyricsYRC: String
         let instrumental, resolved, searchIncomplete: Bool
         let variant: ChineseVariant
-        let romanizationScripts: RomanizationScripts
         let plainLyrics: String
     }
 
@@ -404,21 +400,18 @@ public final class LocalPlaybackSource: ObservableObject {
             lyrics: raw, translation: found?.lyricsTr ?? "", translationVisible: showsTranslation)
         let reload = LyricsReloadSnapshot(
             trackKey: snapshot.trackKey,
-            lyrics: raw, lyricsTr: found?.lyricsTr ?? "", lyricsRoma: found?.lyricsRoma ?? "", lyricsYRC: found?.lyricsYRC ?? "",
+            lyrics: raw, lyricsTr: found?.lyricsTr ?? "", lyricsYRC: found?.lyricsYRC ?? "",
             instrumental: found?.instrumental ?? false, resolved: found?.resolved ?? false,
             searchIncomplete: found?.searchIncomplete ?? false, variant: chineseVariant,
-            romanizationScripts: romanizationScripts,
             plainLyrics: found?.plainLyrics ?? "")
         guard reload != lastReloadSnapshot else { return }
         lastReloadSnapshot = reload
-        let japaneseSong = Romanizer.looksJapaneseSong(raw.isEmpty ? reload.lyricsYRC : raw)
+        let japaneseSong = LyricScriptDetection.looksJapaneseSong(raw.isEmpty ? reload.lyricsYRC : raw)
         syncEngine.load(
             lyrics: chineseVariant.converted(JapaneseKanjiRepair.repair(raw, japaneseSong: japaneseSong)),
             lyricsTr: chineseVariant.converted(found?.lyricsTr ?? ""),
-            lyricsRoma: found?.lyricsRoma ?? "",
             lyricsYRC: chineseVariant.converted(JapaneseKanjiRepair.repair(reload.lyricsYRC, japaneseSong: japaneseSong)),
-            trackTitle: snapshot.title ?? "", trackArtist: snapshot.artist ?? "",
-            romanizationScripts: romanizationScripts)
+            trackTitle: snapshot.title ?? "", trackArtist: snapshot.artist ?? "")
         currentOffsetKey = LyricsOffsetStore.trackKey(artist: snapshot.artist ?? "", title: snapshot.title ?? "",
                                                        lyrics: raw, lyricsYRC: reload.lyricsYRC)
         currentPinKey = EnrichCacheKeys.normalizedKey(artist: snapshot.artist ?? "", title: snapshot.title ?? "", album: snapshot.album ?? "")
