@@ -32,18 +32,11 @@ public enum KaraokeFill {
         return Double(ms - startMs) / Double(effectiveDuration)
     }
 
-    public static func lineFillSettledMs(words: [SyncedLyricWord], groups: [SyncedLyricWordGroup]?) -> Int {
-        var settled = 0
-        for w in words {
-            let eff = Double(max(w.durationMs, minWordDurationMs))
-            settled = max(settled, w.startMs + Int((eff * (1 + wordEdgeSoftenBand)).rounded(.up)))
+    public static func lineFillSettledMs(words: [SyncedLyricWord]) -> Int {
+        words.reduce(0) { settled, word in
+            let effective = Double(max(word.durationMs, minWordDurationMs))
+            return max(settled, word.startMs + Int((effective * (1 + wordEdgeSoftenBand)).rounded(.up)))
         }
-        for g in groups ?? [] {
-
-            let eff = Double(max(g.endMs - g.startMs, 1, minWordDurationMs))
-            settled = max(settled, g.startMs + Int((eff * (1 + wordEdgeSoftenBand)).rounded(.up)))
-        }
-        return settled
     }
 
     public struct Stop: Equatable, Sendable {
