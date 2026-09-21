@@ -612,7 +612,7 @@ final class MenuBarStatusItem: NSObject {
         button.imagePosition = .imageOnly
         button.title = ""
         button.toolTip = nil
-        button.setAccessibilityLabel(L10n.t("Lyli"))
+        button.setAccessibilityLabel("Lyli")
     }
 
     private func showStaticText(_ button: NSStatusBarButton, visible: String, full: String) {
