@@ -8,7 +8,7 @@ Apple Music control and playback position use macOS Automation permission. The a
 
 ## Install
 
-Download the latest release from [GitHub](https://github.com/ChambersXDU/Lyli/releases). macOS 14 or newer is required.
+Download the latest release from [GitHub](https://github.com/ChambersXDU/Lyli/releases). Apple Silicon (arm64) and macOS 14 or newer are required.
 
 ## Build and test
 
@@ -18,7 +18,7 @@ cd lyli
 swift run lyli-selftest
 ```
 
-Use `./build.sh --universal` for an arm64 + Intel build and `./package.sh` for release assets.
+Use `./package.sh` to produce the arm64 release assets.
 
 ## License
 
