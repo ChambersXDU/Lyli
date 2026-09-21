@@ -1155,201 +1155,49 @@ private struct GeneralSettingsTab: View {
     }
 }
 
-private struct GitHubStarsBadge: View {
-    let count: Int
-
-    var body: some View {
-        HStack(spacing: 3) {
-            Image(systemName: "star.fill")
-                .font(.system(size: 10))
-            Text(String(count))
-                .font(.system(size: 12, weight: .medium))
-
-                .monospacedDigit()
-        }
-        .foregroundStyle(.secondary)
-        .fixedSize()
-
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(L10n.t("GitHub Star 数"))
-        .accessibilityValue(String(count))
-    }
-}
-
 private struct AboutSettingsTab: View {
-
-    @ObservedObject private var githubStars = GitHubStarsService.shared
-
-    @State private var versionCopied = false
-
     private var appIcon: NSImage { NSApplication.shared.applicationIconImage }
     private var versionString: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0"
     }
 
     var body: some View {
+        SettingsPage(title: L10n.t("关于"), heroImage: appIcon) {
+            SettingsCard {
+                SettingsRow(icon: "info.circle", title: LyliIdentity.displayName) {
+                    Text(String(format: L10n.t("版本 %@"), versionString))
+                        .foregroundStyle(.secondary)
+                }
+                CardDivider()
+                SettingsRow(icon: "chevron.left.forwardslash.chevron.right", title: "GitHub") {
+                    Button(L10n.t("打开")) {
+                        NSWorkspace.shared.open(URL(string: "https://github.com/ChambersXDU/Lyli")!)
+                    }
+                }
+            }
 
-        SettingsPageCustomHeader {
-            hero
-        } content: {
-            communityCard
-            legalCard
+            SettingsCard {
+                SettingsCardHeader(title: L10n.t("许可与版权"))
+                CardDivider()
+                SettingsRow(icon: "doc.text", title: L10n.t("版权说明")) {
+                    Button(L10n.t("打开")) { LegalNotices.openUsageNotice() }
+                }
+                CardDivider()
+                SettingsRow(icon: "checkmark.seal", title: L10n.t("第三方许可")) {
+                    Button(L10n.t("打开")) { LegalNotices.openThirdPartyLicenses() }
+                }
+                CardDivider()
+                SettingsRow(icon: "scroll", title: L10n.t("开源许可证")) {
+                    Button(L10n.t("打开")) { LegalNotices.openLicense() }
+                }
+            }
+
             Text("© 2026 ChambersXDU · GPL-3.0")
                 .font(.caption)
                 .foregroundStyle(.tertiary)
-                .padding(.top, 2)
         }
-
         .id(L10n.current)
-
-        .task { await githubStars.refreshIfStale() }
     }
-
-    private var hero: some View {
-        VStack(spacing: 8) {
-            Image(nsImage: appIcon)
-                .resizable()
-                .frame(width: 96, height: 96)
-
-                .shadow(color: .black.opacity(0.14), radius: 12, y: 6)
-                .padding(.bottom, 6)
-
-            Text(LyliIdentity.displayName)
-                .font(.system(size: 24, weight: .bold))
-            versionChip
-            HStack(spacing: 10) {
-
-                Button {
-                    NSWorkspace.shared.open(URL(string: "https://github.com/ChambersXDU")!)
-                } label: {
-                    Label(L10n.t("请作者喝杯咖啡"), systemImage: "cup.and.saucer.fill")
-                }
-                .settingsProminentGlassButton(tint: .orange)
-                Button {
-                    NSWorkspace.shared.open(URL(string: "https://github.com/ChambersXDU/Lyli")!)
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "chevron.left.forwardslash.chevron.right")
-                        Text("GitHub")
-
-                        if let stars = githubStars.starCount {
-                            GitHubStarsBadge(count: stars)
-                        }
-                    }
-                }
-                .settingsGlassButtons()
-            }
-            .padding(.top, 8)
-
-        }
-
-        .frame(maxWidth: .infinity)
-
-        .background { AboutHeroBackdrop() }
-    }
-
-    private var versionChip: some View {
-        Button {
-            copyVersionInfo()
-        } label: {
-            HStack(spacing: 6) {
-                if versionCopied {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
-                    Text(L10n.t("已复制版本信息"))
-                } else {
-                    Text(String(format: L10n.t("版本 %@"), versionString))
-                    Text("·")
-                        .foregroundStyle(.tertiary)
-                    Text(Self.architectureName)
-                }
-            }
-            .font(.system(size: 11, weight: .medium))
-            .foregroundStyle(.secondary)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 4)
-
-            .background(Capsule().fill(Color.primary.opacity(0.06)))
-            .overlay(Capsule().strokeBorder(Color.primary.opacity(0.07), lineWidth: 0.5))
-        }
-        .buttonStyle(.plain)
-        .animation(.easeInOut(duration: 0.15), value: versionCopied)
-    }
-
-    private static var architectureName: String {
-        #if arch(arm64)
-        return "Apple Silicon"
-        #else
-        return "Intel"
-        #endif
-    }
-
-    private func copyVersionInfo() {
-        let os = ProcessInfo.processInfo.operatingSystemVersion
-        let text = "Lyli \(versionString) (\(Self.architectureName)) · macOS \(os.majorVersion).\(os.minorVersion).\(os.patchVersion)"
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(text, forType: .string)
-        versionCopied = true
-        Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 1_600_000_000)
-            versionCopied = false
-        }
-    }
-
-    private var communityCard: some View {
-        SettingsCard {
-            SettingsCardHeader(title: L10n.t("反馈与社区"))
-            CardDivider()
-            SettingsRow(
-                icon: "exclamationmark.bubble",
-                title: L10n.t("反馈问题")
-            ) {
-                Button(L10n.t("前往")) {
-                    NSWorkspace.shared.open(URL(string: "https://github.com/ChambersXDU/Lyli/issues")!)
-                }
-            }
-            CardDivider()
-
-            SettingsRow(
-                icon: "lightbulb",
-                title: L10n.t("想法与建议")
-            ) {
-                Button(L10n.t("前往")) {
-                    NSWorkspace.shared.open(URL(string: "https://github.com/ChambersXDU/Lyli/discussions/categories/ideas")!)
-                }
-            }
-        }
-    }
-
-    private var legalCard: some View {
-        SettingsCard {
-            SettingsCardHeader(title: L10n.t("许可与版权"))
-            CardDivider()
-
-            SettingsRow(
-                icon: "doc.text",
-                title: L10n.t("版权说明")
-            ) {
-                Button(L10n.t("打开")) { LegalNotices.openUsageNotice() }
-            }
-            CardDivider()
-
-            SettingsRow(
-                icon: "checkmark.seal",
-                title: L10n.t("第三方许可")
-            ) {
-                Button(L10n.t("打开")) { LegalNotices.openThirdPartyLicenses() }
-            }
-            CardDivider()
-            SettingsRow(
-                icon: "scroll",
-                title: L10n.t("开源许可证")
-            ) {
-                Button(L10n.t("打开")) { LegalNotices.openLicense() }
-            }
-        }
-    }
-
 }
 
 struct SettingsWindowConfigurator: NSViewRepresentable {
