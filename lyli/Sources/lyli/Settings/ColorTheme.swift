@@ -59,7 +59,7 @@ extension ColorTheme {
 
     public static var darkCard: ColorTheme {
         ColorTheme(
-            id: "builtin-card", name: L10n.t("深色卡片"),
+            id: "builtin-card", name: "深色卡片",
             foregroundColorHex: "#FFFFFFFF", backgroundColorHex: "#000000B3",
             textStrokeEnabled: false, textStrokeColorHex: "#000000A6"
         )
@@ -67,7 +67,7 @@ extension ColorTheme {
 
     public static var classicBlack: ColorTheme {
         ColorTheme(
-            id: "builtin-classic-black", name: L10n.t("经典黑字"),
+            id: "builtin-classic-black", name: "经典黑字",
             foregroundColorHex: "#000000FF", backgroundColorHex: "#00000000",
 
             textStrokeEnabled: false, textStrokeColorHex: "#FFFFFFFF"
@@ -76,7 +76,7 @@ extension ColorTheme {
 
     public static var classicBlackStroke: ColorTheme {
         ColorTheme(
-            id: "builtin-classic-black-stroke", name: L10n.t("黑字描边"),
+            id: "builtin-classic-black-stroke", name: "黑字描边",
             foregroundColorHex: classicBlack.foregroundColorHex, backgroundColorHex: classicBlack.backgroundColorHex,
             textStrokeEnabled: true, textStrokeColorHex: classicBlack.textStrokeColorHex
         )
@@ -84,13 +84,13 @@ extension ColorTheme {
 
     public static var builtInPresets: [ColorTheme] { [
         ColorTheme(
-            id: "builtin-classic", name: L10n.t("经典白字"),
+            id: "builtin-classic", name: "经典白字",
             foregroundColorHex: "#FFFFFFFF", backgroundColorHex: "#00000000",
             textStrokeEnabled: false, textStrokeColorHex: "#000000A6"
         ),
 
         ColorTheme(
-            id: "builtin-classic-white-stroke", name: L10n.t("白字描边"),
+            id: "builtin-classic-white-stroke", name: "白字描边",
             foregroundColorHex: "#FFFFFFFF", backgroundColorHex: "#00000000",
             textStrokeEnabled: true, textStrokeColorHex: "#000000A6"
         ),
@@ -99,7 +99,7 @@ extension ColorTheme {
         darkCard,
 
         ColorTheme(
-            id: "builtin-light-card", name: L10n.t("浅色卡片"),
+            id: "builtin-light-card", name: "浅色卡片",
             foregroundColorHex: "#000000FF", backgroundColorHex: "#FFFFFFB3",
             textStrokeEnabled: false, textStrokeColorHex: "#FFFFFFA6"
         ),
