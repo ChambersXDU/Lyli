@@ -104,7 +104,7 @@ enum ConfigPortability {
     static func exportableAppSettings() -> [String: Any] {
         var out: [String: Any] = [:]
         for (key, value) in UserDefaults.standard.dictionaryRepresentation() {
-            guard key.hasPrefix("np:") || key.hasPrefix("KeyboardShortcuts_") else { continue }
+            guard key.hasPrefix("np:") else { continue }
             guard !excludedDefaultsKeys.contains(key) else { continue }
             out[key] = value
         }
@@ -226,7 +226,7 @@ enum ConfigPortability {
         }
         var clearedCount = 0
         for key in UserDefaults.standard.dictionaryRepresentation().keys {
-            guard key.hasPrefix("np:") || key.hasPrefix("KeyboardShortcuts_") else { continue }
+            guard key.hasPrefix("np:") else { continue }
             UserDefaults.standard.removeObject(forKey: key)
             clearedCount += 1
         }
