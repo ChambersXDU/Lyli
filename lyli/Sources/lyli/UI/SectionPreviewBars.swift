@@ -40,7 +40,7 @@ struct MenuBarPreviewBar<Lane: View>: View {
 
     private var fullText: String {
         if let text = line?.plainText, !text.isEmpty { return text }
-        return L10n.t("这里是一句歌词示例")
+        return "这里是一句歌词示例"
     }
 
     private var secondaryKind: LyricSecondaryLine { settings.menuBarSecondaryLine }
@@ -136,7 +136,7 @@ struct MenuBarPreviewBar<Lane: View>: View {
     }
 
     private func previewCaption(_ p: MenuBarMarqueeRenderer.Presentation) -> String {
-        Self.willScroll(p) ? L10n.t("预览 · 本句会横向滚动") : L10n.t("预览")
+        Self.willScroll(p) ? "预览 · 本句会横向滚动" : "预览"
     }
 
     static var cardHeight: CGFloat { 24 }
