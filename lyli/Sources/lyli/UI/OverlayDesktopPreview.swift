@@ -47,9 +47,6 @@ struct OverlayDesktopPreview: View {
                     .frame(width: stageWidth, height: Self.stageHeight)
                     .clipped()
 
-                Color(nsColor: .windowBackgroundColor)
-                    .opacity(0.14)
-
                 LyricsOverlayView(
                     overlayController: chrome,
                     onContentHeightChange: { contentHeight = $0 },
