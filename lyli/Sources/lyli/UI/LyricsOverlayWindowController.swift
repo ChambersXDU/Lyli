@@ -337,8 +337,6 @@ final class LyricsOverlayWindowController: NSWindowController, ObservableObject,
 
     private var controlRectsLocal: [OverlayControlID: CGRect] = [:]
 
-    private let overlayQuickSettingsMenu = OverlayQuickSettingsMenu()
-
     private func performControlAction(_ id: OverlayControlID) {
         switch id {
         case .previous: withMusicPermission { MusicPlaybackController.previousTrack() }
@@ -357,7 +355,11 @@ final class LyricsOverlayWindowController: NSWindowController, ObservableObject,
             setLocked(false)
 
         case .settingsMenu:
-            overlayQuickSettingsMenu.popUp()
+            UserDefaults.standard.set(
+                LyricsSurface.overlay.appearanceSectionRawValue,
+                forKey: LyricsSurface.appearanceSectionStorageKey)
+            AppActions.shared.requestSettings(.tab(.appearance))
+            AppActions.shared.openSettings?()
 
         case .closeOverlay:
             setVisible(false)
