@@ -6,7 +6,7 @@ import KeyboardShortcuts
 
 enum SettingsTab: String, Hashable, CaseIterable, Identifiable {
 
-    case lyrics, player, appearance, shortcuts, general, about
+    case lyrics, appearance, shortcuts, general, about
 
     var id: Self { self }
 
@@ -19,8 +19,6 @@ enum SettingsTab: String, Hashable, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .lyrics: return L10n.t("歌词")
-        case .player: return L10n.t("播放器")
-
         case .appearance: return L10n.t("歌词显示")
         case .shortcuts: return L10n.t("快捷键")
         case .general: return L10n.t("通用")
@@ -31,8 +29,6 @@ enum SettingsTab: String, Hashable, CaseIterable, Identifiable {
     var icon: String {
         switch self {
         case .lyrics: return "text.quote"
-        case .player: return "play.circle"
-
         case .appearance: return "rectangle.3.group"
         case .shortcuts: return "keyboard"
         case .general: return "gearshape"
@@ -43,7 +39,6 @@ enum SettingsTab: String, Hashable, CaseIterable, Identifiable {
     var tint: Color {
         switch self {
         case .lyrics: return .indigo
-        case .player: return .mint
         case .appearance: return .yellow
         case .shortcuts: return .teal
         case .general: return .gray
@@ -183,7 +178,6 @@ struct SettingsView: View {
     @ViewBuilder private var sidebarSections: some View {
         Section {
             sidebarLabel(.lyrics)
-            sidebarLabel(.player)
             sidebarLabel(.appearance)
             sidebarLabel(.shortcuts)
             sidebarLabel(.general)
@@ -216,7 +210,6 @@ struct SettingsView: View {
             Group {
                 switch selection {
                 case .tab(.lyrics): LyricsSettingsTab()
-                case .tab(.player): PlayerSettingsTab()
                 case .tab(.appearance): AppearanceSettingsTab()
                 case .tab(.shortcuts): ShortcutsSettingsTab()
                 case .tab(.general): GeneralSettingsTab()
@@ -232,7 +225,6 @@ struct SettingsView: View {
         .frame(minWidth: 760, idealWidth: 860, minHeight: 690, idealHeight: 720)
 
         .environment(\.settingsSearchHighlightedTitles, searchRouter.highlightedTitles)
-        .environment(\.settingsSearchPendingDrawer, searchRouter.pendingDrawer)
         .background(SettingsWindowConfigurator())
 
         .onAppear {
@@ -1153,24 +1145,20 @@ private struct AppearanceSettingsTab: View {
     private var currentSection: some View {
         switch section {
         case .overlay:
-
-            OverlayEditorStage()
             modeToggleCard(
                 icon: "captions.bubble",
                 title: L10n.t("桌面悬浮歌词"),
                 isOn: Binding(
                     get: { settings.classicOverlayEnabled },
                     set: { LyricsOverlayWindowController.shared.setVisible($0) }))
+            OverlaySettingsList()
 
-            OverlayAllSettingsDrawer()
         case .menuBar:
-
-            MenuBarEditorStage()
             modeToggleCard(
                 icon: "menubar.rectangle",
                 title: L10n.t("菜单栏歌词"),
                 isOn: $settings.showLyricsInMenuBar)
-            MenuBarAllSettingsDrawer()
+            MenuBarSettingsList()
         }
     }
 
@@ -1187,69 +1175,6 @@ private struct AppearanceSettingsTab: View {
                     }
                 ))
             }
-        }
-    }
-
-}
-
-private struct PlayerSettingsTab: View {
-    @State private var automationStatus: MusicAutomationPermissionStatus = .notDetermined
-    @State private var requestingAutomation = false
-
-    var body: some View {
-        SettingsPage(title: L10n.t("播放器")) {
-            SettingsCard {
-                SettingsRow(
-                    icon: "music.note",
-                    title: L10n.t("Apple Music 自动化")
-                ) {
-                    if requestingAutomation {
-                        ProgressView().controlSize(.small)
-                    } else {
-                        Button(automationActionTitle) { handleAutomationAction() }
-                    }
-                }
-                if automationStatus == .denied {
-                    CardDivider()
-                    SettingsNote {
-                        Button(L10n.t("打开系统设置")) {
-                            NSWorkspace.shared.open(MusicAutomationPermission.systemSettingsURL)
-                        }
-                    }
-                }
-            }
-            .onAppear { refreshAutomationStatus() }
-            .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-                refreshAutomationStatus()
-            }
-
-        }
-        .id(L10n.current)
-    }
-
-    private var automationActionTitle: String {
-        automationStatus == .notDetermined ? L10n.t("请求权限") : L10n.t("打开系统设置")
-    }
-
-    private func handleAutomationAction() {
-        if automationStatus == .notDetermined {
-            requestingAutomation = true
-            Task {
-                _ = await MusicAutomationPermission.requestWithTimeout()
-                requestingAutomation = false
-                refreshAutomationStatus()
-            }
-        } else {
-            NSWorkspace.shared.open(MusicAutomationPermission.systemSettingsURL)
-        }
-    }
-
-    private func refreshAutomationStatus() {
-        Task {
-            let status = await Task.detached(priority: .utility) {
-                MusicAutomationPermission.check(askIfNeeded: false)
-            }.value
-            automationStatus = status
         }
     }
 
