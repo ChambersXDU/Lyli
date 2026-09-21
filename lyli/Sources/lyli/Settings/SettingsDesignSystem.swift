@@ -17,18 +17,6 @@ extension View {
     }
 
     @ViewBuilder
-    func settingsSearchFieldBackground() -> some View {
-        let shape = RoundedRectangle(cornerRadius: 8, style: .continuous)
-        if #available(macOS 26.0, *) {
-            glassEffect(.regular, in: shape)
-                .overlay(shape.strokeBorder(Color.primary.opacity(0.06), lineWidth: 0.5))
-        } else {
-            background(shape.fill(.quaternary.opacity(0.7)))
-                .overlay(shape.strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5))
-        }
-    }
-
-    @ViewBuilder
     func settingsProminentGlassButton(tint: Color) -> some View {
         if #available(macOS 26.0, *) {
             buttonStyle(.glassProminent).tint(tint)
@@ -246,8 +234,7 @@ struct SettingsCardHeader<Trailing: View>: View {
         .padding(.top, 10)
         .padding(.bottom, 7)
 
-        .settingsSearchHighlight(title: title)
-    }
+            }
 }
 
 extension SettingsCardHeader where Trailing == EmptyView {
@@ -304,8 +291,7 @@ struct SettingsRow<Trailing: View>: View {
         .padding(.horizontal, SettingsRowMetrics.horizontalPadding)
         .padding(.vertical, SettingsRowMetrics.verticalPadding)
 
-        .settingsSearchHighlight(title: title)
-    }
+            }
 }
 
 extension SettingsRow where Trailing == EmptyView {
@@ -370,8 +356,7 @@ struct SettingsSubRow<Trailing: View>: View {
         .padding(.leading, SettingsRowMetrics.textLeadingInset - 12)
         .padding(.trailing, SettingsRowMetrics.horizontalPadding)
         .padding(.vertical, SettingsRowMetrics.verticalPadding)
-        .settingsSearchHighlight(title: title)
-    }
+            }
 }
 
 struct SettingsRawRow<Content: View>: View {
