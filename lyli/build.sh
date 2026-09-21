@@ -88,13 +88,6 @@ mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources"
 cp "$FAT_DIR/lyli" "$BIN"
 cp AppIcon.icns "$APP_DIR/Contents/Resources/AppIcon.icns"
 
-
-rm -rf "$APP_DIR/Contents/Resources/zh-hans.lproj" "$APP_DIR/Contents/Resources/en.lproj"
-cp -R Sources/lyli/Resources/zh-hans.lproj "$APP_DIR/Contents/Resources/zh-hans.lproj"
-cp -R Sources/lyli/Resources/en.lproj "$APP_DIR/Contents/Resources/en.lproj"
-for png in Sources/lyli/Resources/*.png; do
-  cp "$png" "$APP_DIR/Contents/Resources/$(basename "$png")"
-done
 printf 'APPL????' > "$APP_DIR/Contents/PkgInfo"
 cat > "$APP_DIR/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
