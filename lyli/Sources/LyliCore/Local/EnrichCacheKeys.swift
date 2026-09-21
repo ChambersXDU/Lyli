@@ -2,7 +2,7 @@ import Foundation
 
 public enum EnrichCacheKeys {
 
-    public static let lyricsFileSuffixes = [".lrc", ".tr.lrc", ".roma.lrc", ".yrc"]
+    public static let lyricsFileSuffixes = [".lrc", ".tr.lrc", ".yrc"]
 
     static let versionWords = [
         "remix", "mix", "live", "acoustic", "instrumental", "inst", "demo", "cover",
