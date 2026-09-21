@@ -195,37 +195,23 @@ private struct MenuBarPanelView: View {
             }
             Spacer(minLength: 0)
 
-            HStack(spacing: 7) {
-                Button {
-                    close()
-                    AppActions.shared.openSettings?()
-                } label: {
-                    Image(systemName: "gearshape")
-                        .font(.system(size: 12, weight: .medium))
+            Button {
+                PlaybackCoordinator.shared.openResolvedPlayerApp()
+                close()
+            } label: {
+                if let icon = PlaybackCoordinator.shared.resolvedPlayerIcon {
+                    Image(nsImage: icon)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 18, height: 18)
+                } else {
+                    Image(systemName: "music.note")
+                        .font(.system(size: 14, weight: .medium))
                         .frame(width: 18, height: 18)
                 }
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
-                .accessibilityLabel(L10n.t("设置…"))
-
-                Button {
-                    PlaybackCoordinator.shared.openResolvedPlayerApp()
-                    close()
-                } label: {
-                    if let icon = PlaybackCoordinator.shared.resolvedPlayerIcon {
-                        Image(nsImage: icon)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 18, height: 18)
-                    } else {
-                        Image(systemName: "music.note")
-                            .font(.system(size: 14, weight: .medium))
-                            .frame(width: 18, height: 18)
-                    }
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(PlaybackCoordinator.shared.resolvedPlayerDisplayName ?? L10n.t("打开播放器"))
             }
+            .buttonStyle(.plain)
+            .accessibilityLabel(PlaybackCoordinator.shared.resolvedPlayerDisplayName ?? L10n.t("打开播放器"))
         }
     }
 
@@ -243,13 +229,30 @@ private struct MenuBarPanelView: View {
                 durationMs: playback.currentDurationMs,
                 trackLyricsOffsetMs: playback.trackLyricsOffsetMs,
                 lyricsOffsetStepMs: playback.lyricsOffsetStepMs)
-            HStack(spacing: 28) {
-                controlButton("backward.fill", size: 13) { MusicPlaybackController.previousTrack() }
-                controlButton(playback.isPlayingNow ? "pause.fill" : "play.fill", size: 18) {
-
-                    PlaybackCoordinator.shared.userTogglePlayPause()
+            ZStack {
+                HStack(spacing: 28) {
+                    controlButton("backward.fill", size: 13) { MusicPlaybackController.previousTrack() }
+                    controlButton(playback.isPlayingNow ? "pause.fill" : "play.fill", size: 18) {
+                        PlaybackCoordinator.shared.userTogglePlayPause()
+                    }
+                    controlButton("forward.fill", size: 13) { MusicPlaybackController.nextTrack() }
                 }
-                controlButton("forward.fill", size: 13) { MusicPlaybackController.nextTrack() }
+
+                HStack {
+                    Button {
+                        close()
+                        AppActions.shared.openSettings?()
+                    } label: {
+                        Image(systemName: "gearshape")
+                            .font(.system(size: 12, weight: .medium))
+                            .frame(width: 26, height: 26)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                    .accessibilityLabel(L10n.t("设置…"))
+
+                    Spacer()
+                }
             }
         }
         .padding(10)
