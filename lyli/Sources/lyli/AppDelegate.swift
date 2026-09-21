@@ -100,7 +100,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         NSApp.setActivationPolicy(settings.showInDock ? .regular : .accessory)
         LocalPlaybackSource.shared.chineseVariant = settings.lyricsChineseVariant
-        LocalPlaybackSource.shared.romanizationScripts = settings.romanizationScripts
         LocalPlaybackSource.shared.showsTranslation = settings.showTranslation
 
         Publishers.CombineLatest(settings.$classicOverlayEnabled, settings.$showLyricsInMenuBar)
