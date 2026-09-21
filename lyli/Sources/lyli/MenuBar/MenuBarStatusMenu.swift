@@ -30,52 +30,52 @@ final class MenuBarStatusMenu: NSObject, NSMenuDelegate {
 
         let quick = NSMenu()
         quick.autoenablesItems = false
-        quick.addItem(toggle(L10n.t("显示桌面悬浮歌词"), symbol: "captions.bubble",
+        quick.addItem(toggle("显示桌面悬浮歌词", symbol: "captions.bubble",
                              on: settings.classicOverlayEnabled,
                              action: #selector(toggleClassicOverlay)))
-        quick.addItem(toggle(L10n.t("显示菜单栏歌词"), symbol: "menubar.rectangle",
+        quick.addItem(toggle("显示菜单栏歌词", symbol: "menubar.rectangle",
                              on: settings.showLyricsInMenuBar,
                              action: #selector(toggleMenuBarLyrics)))
 
         if settings.classicOverlayEnabled {
             let locked = LyricsOverlayWindowController.shared.isPositionLocked
 
-            quick.addItem(toggle(L10n.t("锁定位置"),
+            quick.addItem(toggle("锁定位置",
                                  symbol: locked ? "lock.fill" : "lock.open.fill",
                                  on: locked, action: #selector(toggleLockPosition)))
         }
         quick.addItem(.separator())
-        quick.addItem(toggle(L10n.t("开机启动"), symbol: "power",
+        quick.addItem(toggle("开机启动", symbol: "power",
                              on: settings.launchAtLoginEnabled,
                              action: #selector(toggleLaunchAtLogin)))
-        menu.addItem(submenu(L10n.t("快速开关"), symbol: "switch.2", menu: quick))
+        menu.addItem(submenu("快速开关", symbol: "switch.2", menu: quick))
 
         if !coordinator.title.isEmpty {
             let offset = NSMenu()
             offset.autoenablesItems = false
-            offset.addItem(action(nudgeTitle(L10n.t("提前")), symbol: "gobackward",
+            offset.addItem(action(nudgeTitle("提前"), symbol: "gobackward",
                                   selector: #selector(nudgeEarlier)))
-            offset.addItem(action(nudgeTitle(L10n.t("延后")), symbol: "goforward",
+            offset.addItem(action(nudgeTitle("延后"), symbol: "goforward",
                                   selector: #selector(nudgeLater)))
 
             if coordinator.trackLyricsOffsetMs != 0 {
                 offset.addItem(.separator())
-                offset.addItem(action(L10n.t("重置"), symbol: "arrow.counterclockwise",
+                offset.addItem(action("重置", symbol: "arrow.counterclockwise",
                                       selector: #selector(resetOffset)))
             }
             menu.addItem(submenu(offsetMenuTitle, symbol: "timer", menu: offset))
         }
 
         menu.addItem(.separator())
-        menu.addItem(action(L10n.t("设置…"), symbol: "gearshape",
+        menu.addItem(action("设置…", symbol: "gearshape",
                             selector: #selector(openSettings)))
-        menu.addItem(action(L10n.t("歌词管理…"), symbol: "music.note.list",
+        menu.addItem(action("歌词管理…", symbol: "music.note.list",
                             selector: #selector(openLyricsManager)))
 
-        menu.addItem(action(L10n.t("关于 Lyli"), symbol: "info.circle",
+        menu.addItem(action("关于 Lyli", symbol: "info.circle",
                             selector: #selector(openAbout)))
         menu.addItem(.separator())
-        menu.addItem(action(L10n.t("退出 Lyli"),
+        menu.addItem(action("退出 Lyli",
                             symbol: "rectangle.portrait.and.arrow.right",
                             selector: #selector(quit)))
     }
@@ -111,16 +111,16 @@ final class MenuBarStatusMenu: NSObject, NSMenuDelegate {
 
     private func nudgeTitle(_ verb: String) -> String {
         let step = AppSettings.shared.lyricsOffsetStepMs
-        return "\(verb) \(AppSettings.formattedSeconds(ms: step))\(L10n.t("秒"))"
+        return "\(verb) \(AppSettings.formattedSeconds(ms: step))\("秒")"
     }
 
     private var offsetMenuTitle: String {
 
         let ms = PlaybackCoordinator.shared.trackLyricsOffsetMs
-        guard ms != 0 else { return L10n.t("歌词时间轴") }
+        guard ms != 0 else { return "歌词时间轴" }
 
         let sign = ms > 0 ? "+" : ""
-        return "\(L10n.t("歌词时间轴"))(\(sign)\(AppSettings.formattedSeconds(ms: ms))s)"
+        return "\("歌词时间轴")(\(sign)\(AppSettings.formattedSeconds(ms: ms))s)"
     }
 
     @objc private func toggleClassicOverlay() {
