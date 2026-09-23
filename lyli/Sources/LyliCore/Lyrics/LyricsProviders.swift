@@ -1,6 +1,7 @@
 import Foundation
 import Compression
 import CommonCrypto
+import CryptoKit
 
 private enum LyricsProviderError: LocalizedError {
     case invalidURL
@@ -383,14 +384,41 @@ public struct KugouProvider: LyricsProvider {
     public init() {}
 
     public func search(_ query: LyricsQuery) async throws -> [LyricsCandidate] {
-        let url = try makeURL("https://mobilecdn.kugou.com/api/v3/search/song", [
-            ("format", "json"), ("keyword", "\(query.artist) \(query.title)"),
-            ("page", "1"), ("pagesize", "10"), ("showtype", "1"),
-        ])
-        let response: SearchResponse = try await requestJSON(SearchResponse.self, url,
-                                                              headers: ["User-Agent": "Mozilla/5.0"], timeout: 8)
+        // Match the H5 signature and JSONP contract used by Kugou's current web search.
+        let signatureKey = "NVPh5oo715z5DIWAeQlhMDsWXXQV4hwt"
+        let timestamp = String(Int(Date().timeIntervalSince1970 * 1_000))
+        let mid = Insecure.MD5.hash(data: Data(UUID().uuidString.lowercased().utf8))
+            .map { String(format: "%02x", $0) }.joined()
+        var parameters = [
+            "srcappid": "2919", "clientver": "1000", "clienttime": timestamp,
+            "mid": mid, "uuid": mid, "dfid": "-",
+            "keyword": "\(query.artist) \(query.title)", "page": "1", "pagesize": "10",
+            "bitrate": "0", "isfuzzy": "0", "inputtype": "0", "platform": "WebFilter",
+            "userid": "0", "iscorrection": "1", "privilege_filter": "0",
+            "callback": "callback123", "filter": "10", "token": "", "appid": "1014",
+        ]
+        let signatureSource = signatureKey
+            + parameters.keys.sorted().map { "\($0)=\(parameters[$0] ?? "")" }.joined()
+            + signatureKey
+        parameters["signature"] = Insecure.MD5.hash(data: Data(signatureSource.utf8))
+            .map { String(format: "%02x", $0) }.joined()
+        let url = try makeURL("https://complexsearch.kugou.com/v2/search/song",
+                              parameters.keys.sorted().map { ($0, parameters[$0] ?? "") })
+        let data = try await requestData(url, headers: ["User-Agent": "Mozilla/5.0"], timeout: 8)
+        // The official web endpoint wraps the JSON payload in the requested callback.
+        guard let jsonp = String(data: data, encoding: .utf8),
+              let openingParenthesis = jsonp.firstIndex(of: "("),
+              let closingParenthesis = jsonp.lastIndex(of: ")"),
+              openingParenthesis < closingParenthesis else {
+            throw LyricsProviderError.invalidResponse
+        }
+        let json = Data(jsonp[jsonp.index(after: openingParenthesis)..<closingParenthesis].utf8)
+        let response = try JSONDecoder().decode(SearchResponse.self, from: json)
+        guard response.status == 1, response.errorCode == 0 else {
+            throw LyricsProviderError.invalidResponse
+        }
         var output: [LyricsCandidate] = []
-        for song in response.data.info where !song.hash.isEmpty
+        for song in response.data.lists where !song.hash.isEmpty
             && roughTitleMatch(song.songName, query.title)
             && roughArtistMatch(song.singerName, query.artist) {
             let durationMs = Int((song.duration * 1000).rounded())
@@ -428,8 +456,11 @@ public struct KugouProvider: LyricsProvider {
     }
 
     private struct SearchResponse: Decodable {
-        struct DataPart: Decodable { let info: [Song] }
+        struct DataPart: Decodable { let lists: [Song] }
+        let status: Int
+        let errorCode: Int
         let data: DataPart
+        enum CodingKeys: String, CodingKey { case status, errorCode = "error_code", data }
     }
     private struct Song: Decodable {
         let hash: String
@@ -438,8 +469,8 @@ public struct KugouProvider: LyricsProvider {
         let albumName: String
         let duration: Double
         enum CodingKeys: String, CodingKey {
-            case hash, songName = "songname", singerName = "singername", albumName = "album_name"
-            case duration
+            case hash = "FileHash", songName = "SongName", singerName = "SingerName"
+            case albumName = "AlbumName", duration = "Duration"
         }
     }
     private struct LyricSearchResponse: Decodable {
