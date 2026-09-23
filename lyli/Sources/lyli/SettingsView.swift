@@ -132,10 +132,16 @@ struct SettingsView: View {
 
     var body: some View {
         NavigationSplitView {
-            List(selection: $selection) {
-                sidebarSections
+            VStack(spacing: 0) {
+                Color.clear
+                    .frame(height: 24)
+                    .accessibilityHidden(true)
+
+                List(selection: $selection) {
+                    sidebarSections
+                }
+                .listStyle(.sidebar)
             }
-            .listStyle(.sidebar)
 
             .navigationSplitViewColumnWidth(min: 180, ideal: 205, max: 240)
 
@@ -192,6 +198,7 @@ struct SettingsView: View {
         } icon: {
             iconBadge(tab.icon, tint: tab.tint)
         }
+        .padding(.vertical, 2)
         .tag(SettingsSidebarItem.tab(tab))
     }
 
@@ -718,8 +725,6 @@ private struct LyricsSettingsTab: View {
                     NSApp.activate(ignoringOtherApps: true)
                     openWindow(id: "lyrics-manager")
                 }
-                .font(.system(size: 11, weight: .medium))
-                .controlSize(.small)
                 .settingsGlassButtons()
             }
         }
