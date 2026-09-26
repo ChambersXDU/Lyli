@@ -188,7 +188,10 @@ final class LyricsSearchService {
         let enabledSourceIDs = FeatureSettingsStore.shared.lyricsSourceOrder
             .filter { FeatureSettingsStore.shared.lyricsSources.contains($0) }
             .map(\.rawValue)
-        let task = Task { [resolver] in await resolver.resolve(query, enabledIDs: enabledSourceIDs) }
+        let prioritizeSources = FeatureSettingsStore.shared.lyricsSourceMode == .priority
+        let task = Task { [resolver] in
+            await resolver.resolve(query, enabledIDs: enabledSourceIDs, prioritizeSources: prioritizeSources)
+        }
         runningTask = task
         await withTaskCancellationHandler(operation: {
             let resolution = await task.value

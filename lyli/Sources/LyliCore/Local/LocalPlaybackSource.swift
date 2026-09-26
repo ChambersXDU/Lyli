@@ -7,7 +7,7 @@ private let logger = Logger(subsystem: "com.chambersxdu.lyli", category: "local"
 @MainActor
 public final class LocalPlaybackSource: ObservableObject {
     public static let shared = LocalPlaybackSource()
-    private static let positionProbeInterval: TimeInterval = 0.25
+    private static let positionProbeInterval: TimeInterval = 3
 
     @Published public private(set) var title = ""
     @Published public private(set) var artist = ""

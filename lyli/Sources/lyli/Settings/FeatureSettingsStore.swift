@@ -117,7 +117,8 @@ public final class FeatureSettingsStore: ObservableObject {
         lyricsSourceMode = f.lyricsSourceMode.flatMap(LyricsSourceMode.init(rawValue:)) ?? .smart
 
         let decodedOrder = (f.lyricsSourceOrder ?? []).compactMap(LyricsSource.init(rawValue:))
-        lyricsSourceOrder = decodedOrder.count == LyricsSource.allCases.count ? decodedOrder : LyricsSource.allCases
+        lyricsSourceOrder = Set(decodedOrder).count == LyricsSource.allCases.count
+            ? decodedOrder : LyricsSource.allCases
         lyricsDir = f.lyricsDir ?? ""
         savedSnapshot = currentSnapshot
     }

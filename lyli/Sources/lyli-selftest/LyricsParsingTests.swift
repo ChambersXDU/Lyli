@@ -41,8 +41,8 @@ private func testMetadataAndOffsets() {
     )
     expectEqual(
         LRCParser.parse("[00:01.00]\n[broken\n"),
-        [],
-        "空歌词与坏标签不产生行"
+        [LyricLine(timeMs: 1000, text: "")],
+        "空时间戳保留为清屏标记，坏标签仍忽略"
     )
 
     expectEqual(LRCParser.parseOffsetMs("[offset:-240]\n[00:01.00]a\n"), -240)
@@ -123,6 +123,15 @@ private func testRealFragmentsAndOrdering() {
     )
 }
 
+private func testChineseLyricsWithKanaCredit() {
+    let lyrics = "[00:01.00]繁體歌詞\r\n[00:02.00]一段歌詞\r\n[00:03.00]編曲 カナ\r\n[00:04.00]更多歌詞\r\n[00:05.00]最後一句"
+    expectEqual(ChineseVariant.affects(lyrics), true, "少量假名署名不应阻断整首中文歌的简繁转换")
+    let converted = ChineseVariant.simplified.converted(lyrics)
+    expectEqual(converted.contains("繁体歌词"), true)
+    expectEqual(converted.contains("编曲 カナ"), false, "含假名的原行保留")
+    expectEqual(converted.contains("編曲 カナ"), true)
+}
+
 func runLyricsParsingTests() {
     testOrdinaryLRC()
     testRepeatedTimestamps()
@@ -131,4 +140,5 @@ func runLyricsParsingTests() {
     testMalformedYRC()
     testNormalizedTimeline()
     testRealFragmentsAndOrdering()
+    testChineseLyricsWithKanaCredit()
 }

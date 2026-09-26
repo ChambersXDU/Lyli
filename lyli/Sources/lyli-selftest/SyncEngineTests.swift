@@ -60,6 +60,22 @@ private func testPlainTimeline() {
     )
 }
 
+private func testBlankTimestampClearsLine() {
+    let engine = LyricsSyncEngine()
+    _ = engine.load(lyrics: "[00:01.00]verse\n[00:05.00]\n[00:10.00]chorus", lyricsTr: "", lyricsYRC: "")
+    expectEqual(engine.activeLine(atMs: 4000)?.plainText, "verse")
+    expectEqual(engine.activeLine(atMs: 5000), nil, "纯时间戳在间奏开始时清空当前行")
+    expectEqual(engine.activeLine(atMs: 10000)?.plainText, "chorus")
+
+    let karaoke = LyricsSyncEngine()
+    _ = karaoke.load(lyrics: "[00:01.00]verse\n[00:05.00]\n[00:10.00]chorus",
+                     lyricsTr: "",
+                     lyricsYRC: "[1000,1000](1000,1000,0)verse\n[10000,1000](10000,1000,0)chorus")
+    expectEqual(karaoke.activeLine(atMs: 4000)?.plainText, "verse")
+    expectEqual(karaoke.activeLine(atMs: 5000), nil, "逐字时间轴也遵守 LRC 清屏标记")
+    expectEqual(karaoke.activeLine(atMs: 10000)?.plainText, "chorus")
+}
+
 private func testSeekingUsesTheNewPosition() {
     let engine = LyricsSyncEngine()
     engine.load(
@@ -238,6 +254,7 @@ private func testOneDuetTimeline() {
 
 func runSyncEngineTests() {
     testPlainTimeline()
+    testBlankTimestampClearsLine()
     testSeekingUsesTheNewPosition()
     testOffsetsChangeDisplayedLine()
     testWordTiming()

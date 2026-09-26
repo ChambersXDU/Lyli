@@ -40,7 +40,6 @@ public enum LRCParser {
             let stripped = bracketRegex
                 .stringByReplacingMatches(in: line, range: fullRange, withTemplate: "")
                 .trimmingCharacters(in: .whitespaces)
-            if stripped.isEmpty { continue }
             for m in matches {
                 let minutes = Int(nsLine.substring(with: m.range(at: 1))) ?? 0
                 let seconds = Int(nsLine.substring(with: m.range(at: 2))) ?? 0

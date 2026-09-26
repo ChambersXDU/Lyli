@@ -1,6 +1,5 @@
 import Foundation
 import Compression
-import CommonCrypto
 import CryptoKit
 
 private enum LyricsProviderError: LocalizedError {
@@ -73,22 +72,35 @@ private func roughArtistMatch(_ candidate: String, _ query: String) -> Bool {
         || a.split { "/&、,，".contains($0) }.contains { b.contains($0) })
 }
 
-private func zlibDecompress(_ data: Data) -> Data? {
-    guard !data.isEmpty else { return nil }
-    var capacity = max(data.count * 4, 64 * 1024)
-    for _ in 0..<6 {
+func zlibDecompress(_ data: Data) -> Data? {
+    guard data.count >= 6 else { return nil }
+    let bytes = [UInt8](data)
+    let header = Int(bytes[0]) << 8 | Int(bytes[1])
+    guard bytes[0] & 0x0f == 8, bytes[0] >> 4 <= 7,
+          header.isMultiple(of: 31), bytes[1] & 0x20 == 0 else { return nil }
+    let payload = Data(bytes[2..<(bytes.count - 4)])
+    guard !payload.isEmpty else { return nil }
+    let checksum = bytes.suffix(4).reduce(UInt32(0)) { ($0 << 8) | UInt32($1) }
+    var capacity = max(payload.count * 4, 64 * 1024)
+    while capacity <= 64 * 1024 * 1024 {
         var output = Data(count: capacity)
         let decoded = output.withUnsafeMutableBytes { destination in
-            data.withUnsafeBytes { source in
+            payload.withUnsafeBytes { source in
                 compression_decode_buffer(
                     destination.bindMemory(to: UInt8.self).baseAddress!, capacity,
-                    source.bindMemory(to: UInt8.self).baseAddress!, data.count,
+                    source.bindMemory(to: UInt8.self).baseAddress!, payload.count,
                     nil, COMPRESSION_ZLIB)
             }
         }
         if decoded > 0 {
             output.removeSubrange(decoded..<output.count)
-            return output
+            var s1: UInt32 = 1
+            var s2: UInt32 = 0
+            for byte in output {
+                s1 = (s1 + UInt32(byte)) % 65_521
+                s2 = (s2 + s1) % 65_521
+            }
+            if s2 << 16 | s1 == checksum { return output }
         }
         capacity *= 2
     }
@@ -559,15 +571,41 @@ public struct QQMusicProvider: LyricsProvider {
         var lastError: Error?
         for title in normalizeTitleVariants(query.title) {
             do {
-                let url = try makeURL("https://c.y.qq.com/soso/fcgi-bin/client_search_cp", [
-                    ("format", "json"), ("new_json", "1"), ("t", "0"), ("aggr", "1"),
-                    ("cr", "1"), ("p", "1"), ("n", "10"), ("w", "\(query.artist) \(title)"),
-                ])
-                let response: SearchResponse = try await requestJSON(SearchResponse.self, url,
-                                                                      headers: ["Referer": "https://y.qq.com/", "User-Agent": Self.userAgent], timeout: 8)
-                items.append(contentsOf: response.data.song.list.map { item in
-                    SearchItem(mid: item.mid, title: item.title, artist: item.singers.map(\.name).joined(separator: "/"),
-                               album: item.album.name, duration: item.interval)
+                let body: [String: Any] = [
+                    "music.search.SearchCgiService": [
+                        "module": "music.search.SearchCgiService",
+                        "method": "DoSearchForQQMusicDesktop",
+                        "param": [
+                            "search_type": 0,
+                            "query": "\(query.artist) \(title)",
+                            "page_num": 1,
+                            "num_per_page": 10,
+                        ],
+                    ],
+                ]
+                guard JSONSerialization.isValidJSONObject(body) else { throw LyricsProviderError.invalidResponse }
+                let requestBody = try JSONSerialization.data(withJSONObject: body)
+                let url = URL(string: "https://u.y.qq.com/cgi-bin/musicu.fcg")!
+                let raw = try await requestData(url, method: "POST", headers: [
+                    "Content-Type": "application/json",
+                    "Referer": "https://y.qq.com/",
+                    "User-Agent": Self.userAgent,
+                ], body: requestBody, timeout: 8)
+                let response = try JSONDecoder().decode(SearchResponse.self, from: raw)
+                guard response.code == 0, response.search.code == 0 else {
+                    throw LyricsProviderError.invalidResponse
+                }
+                items.append(contentsOf: response.search.data.body.song.list.compactMap { item in
+                    guard let mid = [item.mid, item.songmid].compactMap({ $0 }).first(where: { !$0.isEmpty }) else {
+                        return nil
+                    }
+                    let itemTitle = [item.title, item.name].compactMap({ $0 })
+                        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                        .first(where: { !$0.isEmpty }) ?? ""
+                    guard !itemTitle.isEmpty else { return nil }
+                    let artist = item.singer?.compactMap(\.name).filter { !$0.isEmpty }.joined(separator: "/") ?? ""
+                    return SearchItem(mid: mid, id: item.id ?? item.songid, title: itemTitle, artist: artist,
+                                      album: item.album?.name ?? "", duration: item.interval ?? 0)
                 })
             } catch { lastError = error }
             if items.contains(where: { roughTitleMatch($0.title, query.title) }) { break }
@@ -618,12 +656,12 @@ public struct QQMusicProvider: LyricsProvider {
 
     private func fetchQRC(_ item: SearchItem, query: LyricsQuery) async -> (yrc: String?, translation: String?) {
         guard let session = try? await fetchSession(), !session.sid.isEmpty,
-              let meta = try? await fetchMeta(item.mid), meta.id > 0 else { return (nil, nil) }
+              let songID = item.id, songID > 0 else { return (nil, nil) }
         let parameter: [String: Any] = [
             "albumName": Data((item.album.isEmpty ? (query.album ?? "") : item.album).utf8).base64EncodedString(),
-            "crypt": 1, "ct": 19, "cv": 2111, "interval": Int(meta.interval),
+            "crypt": 1, "ct": 19, "cv": 2111, "interval": Int(item.duration),
             "lrc_t": 0, "qrc": 1, "qrc_t": 0,
-            "singerName": Data(item.artist.utf8).base64EncodedString(), "songID": meta.id,
+            "singerName": Data(item.artist.utf8).base64EncodedString(), "songID": songID,
             "songName": Data(item.title.utf8).base64EncodedString(), "trans": 1,
             "trans_t": 0, "type": 0,
         ]
@@ -640,32 +678,46 @@ public struct QQMusicProvider: LyricsProvider {
     }
 
     private struct SearchResponse: Decodable {
-        struct DataPart: Decodable {
-            struct SongPart: Decodable {
-                struct Item: Decodable {
-                    let mid: String
-                    let title: String
-                    let interval: Double
-                    let singers: [Singer]
-                    let album: Album
+        struct SearchPart: Decodable {
+            struct DataPart: Decodable {
+                struct Body: Decodable {
+                    struct SongPart: Decodable {
+                        struct Item: Decodable {
+                            let mid: String?
+                            let songmid: String?
+                            let id: Int64?
+                            let songid: Int64?
+                            let title: String?
+                            let name: String?
+                            let interval: Double?
+                            let singer: [Singer]?
+                            let album: Album?
 
-                    enum CodingKeys: String, CodingKey {
-                        case mid, title, interval, album
-                        case singers = "singer"
+                            struct Singer: Decodable { let name: String? }
+                            struct Album: Decodable { let name: String? }
+                        }
+                        let list: [Item]
                     }
-
-                    struct Singer: Decodable { let name: String }
-                    struct Album: Decodable { let name: String }
+                    let song: SongPart
                 }
-                let list: [Item]
+                let body: Body
             }
-            let song: SongPart
+            let code: Int
+            let data: DataPart
         }
-        let data: DataPart
+
+        let code: Int
+        let search: SearchPart
+
+        enum CodingKeys: String, CodingKey {
+            case code
+            case search = "music.search.SearchCgiService"
+        }
     }
 
     private struct SearchItem: Sendable {
         let mid: String
+        let id: Int64?
         let title: String
         let artist: String
         let album: String
@@ -675,7 +727,6 @@ public struct QQMusicProvider: LyricsProvider {
     private struct SimpleLyric: Decodable { let lyric: String }
 
     private struct Session: Sendable { let uid: String; let sid: String; let userIP: String }
-    private struct Meta: Sendable { let id: Int64; let interval: Double }
 
     private func musicuPost(method: String, module: String, parameter: [String: Any], session: Session?) async throws -> Data {
         var comm: [String: Any] = [
@@ -715,38 +766,15 @@ public struct QQMusicProvider: LyricsProvider {
         return Session(uid: uid, sid: sid, userIP: session["userip"] as? String ?? "")
     }
 
-    private func fetchMeta(_ mid: String) async throws -> Meta {
-        let url = try makeURL("https://c.y.qq.com/v8/fcg-bin/fcg_play_single_song.fcg", [
-            ("format", "json"), ("platform", "yqq"), ("inCharset", "utf8"),
-            ("outCharset", "utf-8"), ("songmid", mid),
-        ])
-        let response: MetaResponse = try await requestJSON(MetaResponse.self, url,
-                                                            headers: ["Referer": "https://y.qq.com/", "User-Agent": Self.userAgent], timeout: 8)
-        guard let first = response.data.first else { throw LyricsProviderError.invalidResponse }
-        return Meta(id: first.id, interval: first.interval)
-    }
-
-    private struct MetaResponse: Decodable {
-        struct Item: Decodable { let id: Int64; let interval: Double }
-        let data: [Item]
-    }
-
     private func decryptQRC(_ hex: String) -> String? {
-        guard let raw = Data(hexString: hex), !raw.isEmpty, raw.count.isMultiple(of: 8) else { return nil }
-        let key = Data("!@#)(*$%123ZXC!@!@#)(NHL".utf8)
-        var output = Data(count: raw.count)
-        let outputCount = output.count
-        let status = output.withUnsafeMutableBytes { destination in
-            raw.withUnsafeBytes { source in
-                key.withUnsafeBytes { keyBytes in
-                    CCCrypt(CCOperation(kCCDecrypt), CCAlgorithm(kCCAlgorithm3DES), CCOptions(kCCOptionECBMode),
-                            keyBytes.baseAddress, kCCKeySize3DES, nil,
-                            source.baseAddress, raw.count, destination.baseAddress, outputCount, nil)
-                }
+        guard let output = QQMusicDES.decrypt(hex) else { return nil }
+        for padding in 0...7 where output.count - padding >= 6 {
+            if let inflated = zlibDecompress(Data(output.dropLast(padding))),
+               let text = String(data: inflated, encoding: .utf8) {
+                return text
             }
         }
-        guard status == kCCSuccess else { return nil }
-        return zlibDecompress(output).flatMap { String(data: $0, encoding: .utf8) }
+        return nil
     }
 
     private func extractLyricContent(_ text: String) -> String? {

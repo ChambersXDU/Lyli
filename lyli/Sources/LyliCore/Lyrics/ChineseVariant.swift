@@ -5,7 +5,7 @@ public enum ChineseVariant: String, CaseIterable, Sendable {
 
     public static func affects(_ text: String) -> Bool {
         !text.isEmpty && LyricScriptDetection.containsHan(text)
-            && !LyricScriptDetection.looksJapanese(text)
+            && !LyricScriptDetection.looksJapaneseSong(text)
     }
 
     public func converted(_ text: String) -> String {
@@ -14,8 +14,13 @@ public enum ChineseVariant: String, CaseIterable, Sendable {
             self == .traditional
             ? StringTransform("Simplified-Traditional")
             : StringTransform("Traditional-Simplified")
-        let icu = text.applyingTransform(transform, reverse: false) ?? text
-        return self == .simplified ? HanVariants.normalizeToSimplified(icu) : icu
+        let normalized = text.replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+        return normalized.components(separatedBy: "\n").map { line in
+            guard !LyricScriptDetection.looksJapanese(line) else { return line }
+            let icu = line.applyingTransform(transform, reverse: false) ?? line
+            return self == .simplified ? HanVariants.normalizeToSimplified(icu) : icu
+        }.joined(separator: "\n")
     }
 }
 
@@ -37,7 +42,7 @@ enum LyricScriptDetection {
     static func looksJapaneseSong(_ text: String) -> Bool {
         var total = 0
         var kana = 0
-        for raw in text.split(separator: "\n", omittingEmptySubsequences: false) {
+        for raw in text.split(whereSeparator: \.isNewline) {
             let line = raw.trimmingCharacters(in: .whitespaces)
             guard !line.isEmpty else { continue }
             total += 1

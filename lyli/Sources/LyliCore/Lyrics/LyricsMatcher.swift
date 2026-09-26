@@ -35,7 +35,8 @@ public enum LyricsMatcher {
         "stereo", "dub", "unplugged", "现场", "伴奏", "翻唱", "重制", "修复", "纯音乐",
     ]
 
-    public static func rank(_ candidates: [LyricsCandidate], for query: LyricsQuery) -> [LyricsMatch] {
+    public static func rank(_ candidates: [LyricsCandidate], for query: LyricsQuery,
+                            sourceOrder: [String] = [], prioritizeSources: Bool = false) -> [LyricsMatch] {
         let unique = deduplicate(candidates)
         guard !unique.isEmpty else { return [] }
 
@@ -51,17 +52,28 @@ public enum LyricsMatcher {
             return LyricsMatch(candidate: match.candidate, score: match.score - 400,
                                terms: terms, consensusPeers: match.consensusPeers)
         }
+        var sourceRanks: [String: Int] = [:]
+        for (index, source) in sourceOrder.enumerated() where sourceRanks[source] == nil {
+            sourceRanks[source] = index
+        }
         return adjusted.sorted {
             if $0.isRejected != $1.isRejected { return !$0.isRejected }
+            if prioritizeSources {
+                let left = sourceRanks[$0.source] ?? Int.max
+                let right = sourceRanks[$1.source] ?? Int.max
+                if left != right { return left < right }
+            }
             if $0.score != $1.score { return $0.score > $1.score }
-            return $0.source < $1.source
+            let left = sourceRanks[$0.source] ?? Int.max
+            let right = sourceRanks[$1.source] ?? Int.max
+            return left == right ? $0.source < $1.source : left < right
         }
     }
 
     public static func isValidTimedLyrics(_ text: String) -> Bool {
         let lines = LRCParser.parse(text)
         guard !lines.isEmpty else { return false }
-        let useful = lines.filter { !isCreditLine($0.text) }
+        let useful = lines.filter { !$0.text.isEmpty && !isCreditLine($0.text) }
         return !useful.isEmpty && useful.count >= 2 && useful.last!.timeMs > useful.first!.timeMs
     }
 
@@ -124,14 +136,15 @@ public enum LyricsMatcher {
 
         let end = endTime(candidate)
         if let end, let duration = query.duration, duration > 0 {
-            let delta = abs(end - duration)
-            let relative = delta / duration
-            if relative > 0.25 {
+            let relative = abs(end - duration) / duration
+            if end > duration + 5 {
                 terms.append(.init(kind: "durationOff", points: -300))
+                terms.append(.init(kind: "durationOvershoot", points: -500))
             } else {
-                terms.append(.init(kind: "duration", points: max(0, 300 - Int(relative * 500))))
+                let points = end < duration && relative > 0.25
+                    ? 0 : max(0, 300 - Int(relative * 500))
+                terms.append(.init(kind: "duration", points: points))
             }
-            if end > duration + 5 { terms.append(.init(kind: "durationOvershoot", points: -500)) }
         } else if end != nil {
             terms.append(.init(kind: "duration", points: 40))
         }
@@ -139,7 +152,7 @@ public enum LyricsMatcher {
            abs(reported - duration) / duration > 0.12 {
             terms.append(.init(kind: "sourceDurationOff", points: -250))
         }
-        let lineCount = LRCParser.parse(candidate.lyrics).count
+        let lineCount = LRCParser.parse(candidate.lyrics).filter { !$0.text.isEmpty }.count
         terms.append(.init(kind: "lines", points: min(200, lineCount)))
         if candidate.hasWordTiming { terms.append(.init(kind: "wordTiming", points: 400)) }
         if candidate.hasTranslation { terms.append(.init(kind: "translation", points: 35)) }

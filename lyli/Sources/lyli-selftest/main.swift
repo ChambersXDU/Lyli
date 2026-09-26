@@ -7,6 +7,9 @@ runLyricsParsingTests()
 print("lyrics-resolver")
 runLyricsResolverTests()
 
+print("qq-music-des")
+runQQMusicDESTests()
+
 print("sync-engine")
 runSyncEngineTests()
 

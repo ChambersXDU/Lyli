@@ -166,10 +166,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 reopenLogger.notice("reopen: counter says open but no window found")
             } else if r.alreadyFront && wasActive {
                 reopenLogger.notice("reopen: app already in front and nothing to bring forward")
+                return false
             } else {
                 return false
             }
         }
+        AppActions.shared.openSettings?()
         return false
     }
 

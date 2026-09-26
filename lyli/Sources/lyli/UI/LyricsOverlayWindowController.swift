@@ -197,12 +197,13 @@ final class LyricsOverlayWindowController: NSWindowController, ObservableObject,
         let shouldShow = isVisible && (!hideWhenNotPlaying || isPlayingNow)
         if shouldShow { window?.orderFront(nil) } else { window?.orderOut(nil) }
         syncMouseMonitors()
+        updateMouseInterception()
     }
 
     func setLocked(_ locked: Bool) {
         isPositionLocked = locked
         window?.isMovableByWindowBackground = false
-        window?.ignoresMouseEvents = true
+        updateMouseInterception()
         if locked {
 
             cancelPendingPress()
@@ -314,6 +315,7 @@ final class LyricsOverlayWindowController: NSWindowController, ObservableObject,
         if let localMouseMonitor { NSEvent.removeMonitor(localMouseMonitor) }
         globalMouseMonitor = nil
         localMouseMonitor = nil
+        window?.ignoresMouseEvents = true
 
         cancelPendingPress()
         clearControlsHoverState()
@@ -419,6 +421,19 @@ final class LyricsOverlayWindowController: NSWindowController, ObservableObject,
 
         chromeHoverZoneLocal = OverlayControlHitTest.chromeHoverZone(
             lyrics: lyricsHotZoneLocal, controlsPill: controlsHotZoneLocal, controlRects: controlRectsLocal)
+        updateMouseInterception()
+    }
+
+    private func updateMouseInterception() {
+        guard let window else { return }
+        let point = window.convertPoint(fromScreen: NSEvent.mouseLocation)
+        let inside = window.isVisible && window.frame.contains(NSEvent.mouseLocation)
+        let onControl = OverlayControlHitTest.control(at: point, in: controlRectsLocal)
+        let onLyrics = lyricsHotZoneLocal?.contains(point) ?? false
+        let shouldIntercept = inside && (isPositionLocked
+            ? onControl == .unlockPill
+            : onControl != nil || onLyrics)
+        window.ignoresMouseEvents = !shouldIntercept
     }
 
     private func handleMouseEvent(type: NSEvent.EventType) {
@@ -479,6 +494,7 @@ final class LyricsOverlayWindowController: NSWindowController, ObservableObject,
             if isHoveringLyrics != insideLyrics {
                 isHoveringLyrics = insideLyrics
             }
+            updateMouseInterception()
 
         case .leftMouseDown:
 
@@ -551,7 +567,7 @@ final class LyricsOverlayWindowController: NSWindowController, ObservableObject,
         isDragArmed = true
         window.ignoresMouseEvents = false
         defer {
-            window.ignoresMouseEvents = true
+            updateMouseInterception()
             cancelPendingPress()
         }
 

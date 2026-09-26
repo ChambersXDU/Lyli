@@ -627,13 +627,21 @@ public final class LyricsSyncEngine {
         }
 
         usingWords = !candidateWords.isEmpty
-            && (filteredBase.isEmpty || candidateWords.count * 2 >= filteredBase.count)
+            && (filteredBase.isEmpty || candidateWords.count * 2 >= filteredBase.filter { !$0.text.isEmpty }.count)
 
         if usingWords {
             let plan = LyricDuet.planWords(candidateWords)
             let kept = zip(zip(plan.lines, plan.sides), plan.dropped).filter { !$0.1 }
             wordLines = kept.map { $0.0.0 }
             wordSides = kept.map { $0.0.1 }
+            let clearTimes = Set(filteredBase.filter { $0.text.isEmpty }.map(\.timeMs))
+            for time in clearTimes where !wordLines.contains(where: { $0.timeMs == time }) {
+                wordLines.append(LyricLineWords(timeMs: time, words: []))
+                wordSides.append(nil)
+            }
+            let ordered = zip(wordLines, wordSides).sorted { $0.0.timeMs < $1.0.timeMs }
+            wordLines = ordered.map(\.0)
+            wordSides = ordered.map(\.1)
             baseLines = []
             baseSides = []
         } else {
@@ -673,7 +681,7 @@ public final class LyricsSyncEngine {
         return true
     }
 
-    public var hasContent: Bool { usingWords ? !wordLines.isEmpty : !baseLines.isEmpty }
+    public var hasContent: Bool { usingWords ? !wordLines.isEmpty : baseLines.contains { !$0.text.isEmpty } }
 
     private static func isBareSpeakerTag(_ text: String) -> Bool {
         guard let sep = text.firstIndex(where: { $0 == ":" || $0 == "：" }) else { return false }
@@ -804,6 +812,7 @@ public final class LyricsSyncEngine {
         if usingWords {
             guard idx < wordLines.count else { return nil }
             let ln = wordLines[idx]
+            guard !ln.words.isEmpty else { return nil }
             let words = KaraokeFill.tailClamped(
                 ln.words.map { w in
                     SyncedLyricWord(text: w.text, startMs: w.startMs, durationMs: w.durationMs)
@@ -819,6 +828,7 @@ public final class LyricsSyncEngine {
         } else {
             guard idx < baseLines.count else { return nil }
             let ln = baseLines[idx]
+            guard !ln.text.isEmpty else { return nil }
             line = SyncedLyricLine(
                 translation: translationText(timeMs: ln.timeMs, plainText: ln.text),
                 mainText: ln.text, words: nil,

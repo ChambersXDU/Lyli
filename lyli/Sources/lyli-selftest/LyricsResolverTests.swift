@@ -115,6 +115,15 @@ func runLyricsResolverTests() {
     expectEqual(durations.map(\.source), ["exact", "far"], "时长明显不符的候选被压低")
     expectEqual(durations.last?.isRejected, false)
 
+    let outro = candidate(source: "outro", title: "Song", artist: "Artist", album: "Album", end: 110)
+    let outroMatch = LyricsMatcher.rank([outro], for: query).first
+    expectEqual(outroMatch?.terms.contains { $0.kind == "durationOff" }, false,
+                "器乐尾奏不构成时长冲突")
+
+    let priority = LyricsMatcher.rank([exact, outro], for: query,
+                                      sourceOrder: ["outro", "exact"], prioritizeSources: true)
+    expectEqual(priority.first?.source, "outro", "顺序优先使用用户配置的来源顺序")
+
     let titles = LyricsMatcher.rank([wrongTitle, exact], for: query)
     expectEqual(titles.first?.source, "exact", "明显错误 title 不抢占正确结果")
     expectEqual(titles.last?.isRejected, false)
@@ -202,6 +211,6 @@ func runLyricsResolverTests() {
         query: earlyQuery
     )
     expectEqual(early?.winner?.source, "fast", "高置信候选可以提前结束")
-    expectEqual(early?.sourcesResponded ?? [], ["fast"])
-    expectEqual(Date().timeIntervalSince(started) < 0.5, true)
+    expectEqual(early?.sourcesResponded ?? [], ["fast", "slow"], "普通 LRC 不应截断仍在搜索的逐字源")
+    expectEqual(Date().timeIntervalSince(started) >= 0.5, true)
 }
