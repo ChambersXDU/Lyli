@@ -100,7 +100,7 @@ public final class EnrichCacheStore: ObservableObject {
         isLoading = summaries.isEmpty
         defer { isLoading = false }
         let loaded = EnrichCacheReader.reloadNow()
-        if loaded {
+        if loaded || !FileManager.default.fileExists(atPath: Self.cacheURL.path) {
             lastError = nil
         } else {
             lastError = "读取本地记录文件失败"
