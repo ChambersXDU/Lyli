@@ -8,10 +8,11 @@ struct AppleMusicPlaybackSnapshot: Decodable {
     let elapsedTime: Double?
     let playing: Bool?
     let playbackRate: Double?
-    var trackKey: String { Self.trackKey(artist: artist, title: title) }
+    var trackKey: String { Self.trackKey(artist: artist, title: title, album: album, duration: duration) }
 
-    static func trackKey(artist: String?, title: String?) -> String {
-        "\(artist ?? "")|\(title ?? "")"
+    static func trackKey(artist: String?, title: String?, album: String?, duration: Double?) -> String {
+        let durationKey = duration.map { String($0) } ?? ""
+        return "\(artist ?? "")\u{1F}\(title ?? "")\u{1F}\(album ?? "")\u{1F}\(durationKey)"
     }
 }
 

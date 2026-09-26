@@ -6,7 +6,18 @@ final class LyricsSearchService {
     static let shared = LyricsSearchService()
 
     private let resolver = LyricsResolver()
-    private var runningTask: Task<LyricsResolution, Never>?
+    enum SearchScope: Hashable {
+        case manual
+        case rematch
+        case automatic
+    }
+
+    private struct RunningSearch {
+        let id: UUID
+        let task: Task<LyricsResolution, Never>
+    }
+
+    private var runningTasks: [SearchScope: RunningSearch] = [:]
 
     struct ScoreTerm: Equatable, Decodable {
         let kind: String
@@ -81,7 +92,7 @@ final class LyricsSearchService {
     }
 
     struct Candidate: Identifiable, Equatable {
-        var id: String { "\(source)|\(fingerprint)" }
+        let id = UUID()
         let source: String
         let lyrics: String
         let lyricsTr: String
@@ -156,10 +167,9 @@ final class LyricsSearchService {
 
     private init() {}
 
-    func cancelRunning() {
-        let task = runningTask
-        runningTask = nil
-        task?.cancel()
+    func cancelRunning(_ scope: SearchScope) {
+        let search = runningTasks.removeValue(forKey: scope)
+        search?.task.cancel()
     }
 
     func startAutomaticSearch() {
@@ -180,9 +190,10 @@ final class LyricsSearchService {
     func search(
         artist: String, title: String, album: String, durationSecs: Double = 0,
         pickWinner: Bool = false, currentSource: String = "",
+        scope: SearchScope = .manual,
         onUpdate: @escaping @MainActor (SearchUpdate) -> Void
     ) async throws {
-        cancelRunning()
+        cancelRunning(scope)
         let query = LyricsQuery(title: title, artist: artist, album: album.isEmpty ? nil : album,
                                 duration: durationSecs > 0 ? durationSecs : nil)
         let enabledSourceIDs = FeatureSettingsStore.shared.lyricsSourceOrder
@@ -192,11 +203,14 @@ final class LyricsSearchService {
         let task = Task { [resolver] in
             await resolver.resolve(query, enabledIDs: enabledSourceIDs, prioritizeSources: prioritizeSources)
         }
-        runningTask = task
+        let searchID = UUID()
+        runningTasks[scope] = RunningSearch(id: searchID, task: task)
         await withTaskCancellationHandler(operation: {
             let resolution = await task.value
-            guard !Task.isCancelled else { return }
-            LocalPlaybackSource.shared.setNetworkDown(resolution.sourcesResponded.isEmpty)
+            guard !Task.isCancelled, !task.isCancelled else { return }
+            if scope == .automatic {
+                LocalPlaybackSource.shared.setNetworkDown(resolution.sourcesResponded.isEmpty)
+            }
             let candidates = resolution.matches.map(Candidate.init)
             let pick = makePick(resolution: resolution, candidates: candidates, duration: durationSecs)
             let update = SearchUpdate(
@@ -210,7 +224,9 @@ final class LyricsSearchService {
                 pick: pick)
             onUpdate(update)
         }, onCancel: { task.cancel() })
-        runningTask = nil
+        if runningTasks[scope]?.id == searchID {
+            runningTasks[scope] = nil
+        }
     }
 
     private func makePick(resolution: LyricsResolution, candidates: [Candidate], duration: Double) -> Pick? {
@@ -268,7 +284,8 @@ final class LyricsSearchService {
         if cached?.resolved == true || cached?.instrumental == true || !(cached?.lyrics.isEmpty ?? true) { return }
         do {
             var update: SearchUpdate?
-            try await search(artist: artist, title: title, album: album, durationSecs: duration, pickWinner: true) { value in update = value }
+            try await search(artist: artist, title: title, album: album, durationSecs: duration,
+                             pickWinner: true, scope: .automatic) { value in update = value }
             guard let update, let winner = update.pick.flatMap({ pick in update.candidates.first { $0.source == pick.winner } }) else {
                 if update?.instrumental == true {
                     await EnrichCacheStore.shared.markInstrumental(key: EnrichCacheKeys.normalizedKey(artist: artist, title: title, album: album))

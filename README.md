@@ -15,8 +15,10 @@ Download the latest release from [GitHub](https://github.com/ChambersXDU/Lyli/re
 ```sh
 cd lyli
 ./build.sh --no-restart
-swift run lyli-selftest
+./scripts/swiftpm.sh run lyli-selftest
 ```
+
+The SwiftPM wrapper uses project-local caches and avoids nested SwiftPM sandbox failures in restricted build environments. `build.sh` uses the same wrapper.
 
 Use `./package.sh` to produce the arm64 release assets.
 

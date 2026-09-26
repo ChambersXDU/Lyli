@@ -4,8 +4,10 @@ This directory contains the Swift package for the native Apple Music lyrics app.
 
 ```sh
 ./build.sh --no-restart
-swift run lyli-selftest
+./scripts/swiftpm.sh run lyli-selftest
 ```
+
+The SwiftPM wrapper keeps compiler and package caches under `.build` and avoids nested SwiftPM sandbox failures in restricted build environments. `build.sh` uses it too.
 
 `Sources/LyliCore` contains lyric parsing, matching, providers, synchronization, cache access, and playback support. `Sources/lyli` contains the macOS app. The lyric cache is stored at `~/.config/lyli/lyli-enrich-cache.json`.
 

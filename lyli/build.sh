@@ -48,7 +48,7 @@ merge_slices() {
 APP_NAME="Lyli"
 LABEL="com.chambersxdu.lyli"
 LOG_FILE="$HOME/Library/Logs/lyli-app.log"
-APP_VERSION="${LYLI_VERSION:-$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//')}"
+APP_VERSION="${LYLI_VERSION:-$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || true)}"
 [ -z "$APP_VERSION" ] && APP_VERSION="0.0.0"
 BUILD_VERSION="$(./scripts/build-version.sh "$APP_VERSION")" || {
   echo "!! 版本号形态不合法: $APP_VERSION(要 X.Y.Z 或 X.Y.Z-alpha|beta|rc.N,见 scripts/build-version.sh)" >&2
@@ -73,12 +73,9 @@ FAT_DIR="$(mktemp -d)"
 
 echo "==> building (release) [$ARCHES]"
 SWIFT_SLICES=()
-SPM_PATH_ARGS=()
-[ -n "${LYLI_SPM_CACHE_PATH:-}" ] && SPM_PATH_ARGS+=(--cache-path "$LYLI_SPM_CACHE_PATH")
-[ -n "${LYLI_SPM_SCRATCH_PATH:-}" ] && SPM_PATH_ARGS+=(--scratch-path "$LYLI_SPM_SCRATCH_PATH")
 for arch in $ARCHES; do
-  swift build -c release --arch "$arch" ${SPM_PATH_ARGS[@]+"${SPM_PATH_ARGS[@]}"}
-  BIN_PATH="$(swift build -c release --arch "$arch" ${SPM_PATH_ARGS[@]+"${SPM_PATH_ARGS[@]}"} --show-bin-path)"
+  ./scripts/swiftpm.sh build -c release --arch "$arch"
+  BIN_PATH="$(./scripts/swiftpm.sh build -c release --arch "$arch" --show-bin-path)"
   SWIFT_SLICES+=("$BIN_PATH/lyli")
 done
 merge_slices "$FAT_DIR/lyli" "${SWIFT_SLICES[@]}"

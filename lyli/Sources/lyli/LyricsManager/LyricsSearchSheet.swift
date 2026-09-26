@@ -18,7 +18,7 @@ struct LyricsSearchSheet: View {
 
     let onApply: (LyricsSearchService.Candidate) async -> Bool
 
-    @State private var applyingSource: String?
+    @State private var applyingCandidateID: UUID?
 
     @State private var appliedSource: String?
 
@@ -175,16 +175,16 @@ struct LyricsSearchSheet: View {
     @State private var networkLooksDown = false
 
     @State private var instrumental = false
-    @State private var selectedSource: String?
+    @State private var selectedCandidateID: UUID?
 
-    @State private var userPickedSource = false
+    @State private var userPickedCandidate = false
 
-    private var selectedSourceBinding: Binding<String?> {
+    private var selectedCandidateBinding: Binding<UUID?> {
         Binding(
-            get: { selectedSource },
+            get: { selectedCandidateID },
             set: { newValue in
-                selectedSource = newValue
-                userPickedSource = true
+                selectedCandidateID = newValue
+                userPickedCandidate = true
             }
         )
     }
@@ -254,7 +254,7 @@ struct LyricsSearchSheet: View {
         }
         .task(id: searchSubject) { await load() }
 
-        .onDisappear { LyricsSearchService.shared.cancelRunning() }
+        .onDisappear { LyricsSearchService.shared.cancelRunning(.manual) }
     }
 
     private var queryFieldsBar: some View {
@@ -377,13 +377,13 @@ struct LyricsSearchSheet: View {
                     .padding(.vertical, 6)
                 }
                 HSplitView {
-                    List(candidates, selection: selectedSourceBinding) { c in
+                    List(candidates, selection: selectedCandidateBinding) { c in
                         candidateRow(c)
                     }
 
                     .frame(minWidth: 250, idealWidth: 300, maxWidth: 380)
 
-                    if let c = candidates.first(where: { $0.source == selectedSource }) ?? candidates.first {
+                    if let c = candidates.first(where: { $0.id == selectedCandidateID }) ?? candidates.first {
                         previewPane(c)
                     }
                 }
@@ -408,7 +408,7 @@ struct LyricsSearchSheet: View {
 
             characteristicBadges(c, source: c.source, showsSource: false, isCurrent: isCurrentCandidate(c), duplicateOf: duplicateAnchors[c.source])
         }
-        .tag(c.source)
+        .tag(c.id)
         .padding(.vertical, 3)
     }
 
@@ -427,17 +427,17 @@ struct LyricsSearchSheet: View {
     }
 
     private func applyButtonTitle(for c: LyricsSearchService.Candidate) -> String {
-        if applyingSource == c.source { return "正在采用…" }
+        if applyingCandidateID == c.id { return "正在采用…" }
 
         return c.isPlainTextOnly ? "采纳为静态文本" : "采用此候选"
     }
 
     private func apply(_ c: LyricsSearchService.Candidate) async {
-        guard applyingSource == nil else { return }
+        guard applyingCandidateID == nil else { return }
         let subject = searchSubject
-        applyingSource = c.source
+        applyingCandidateID = c.id
         let saved = await onApply(c)
-        applyingSource = nil
+        applyingCandidateID = nil
         guard subject == searchSubject else { return }
         if saved {
             appliedSource = c.source
@@ -492,7 +492,7 @@ struct LyricsSearchSheet: View {
                     Task { await apply(c) }
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(applyingSource != nil)
+                .disabled(applyingCandidateID != nil)
             }
 
             characteristicBadges(c, source: c.source, showsSource: true, isCurrent: isCurrentCandidate(c), duplicateOf: duplicateAnchors[c.source])
@@ -637,8 +637,8 @@ struct LyricsSearchSheet: View {
         let generation = searchGeneration
         candidates = []
         loadError = nil
-        selectedSource = nil
-        userPickedSource = false
+        selectedCandidateID = nil
+        userPickedCandidate = false
         networkLooksDown = false
         instrumental = false
         sourcesDone = 0
@@ -659,11 +659,18 @@ struct LyricsSearchSheet: View {
                 searchRound = update.round
                 sourceFailureReasonCodes = update.sourceFailureReasonCodes
 
-                guard !userPickedSource else { return }
-                if let current = effectiveCurrentSource, update.candidates.contains(where: { $0.source == current }) {
-                    selectedSource = current
-                } else if selectedSource == nil {
-                    selectedSource = update.candidates.first?.source
+                guard !userPickedCandidate else { return }
+                if let current = effectiveCurrentSource {
+                    let currentCandidate = update.candidates.first(where: {
+                        $0.source == current && $0.fingerprint == effectiveCurrentFingerprint
+                    }) ?? update.candidates.first(where: { $0.source == current })
+                    if let currentCandidate {
+                        selectedCandidateID = currentCandidate.id
+                        return
+                    }
+                }
+                if selectedCandidateID == nil {
+                    selectedCandidateID = update.candidates.first?.id
                 }
             }
         } catch {

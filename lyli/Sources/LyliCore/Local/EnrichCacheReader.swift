@@ -99,8 +99,14 @@ public enum EnrichCacheReader {
         let key = EnrichCacheKeys.normalizedKey(artist: artist, title: title, album: album)
         if all[key] != nil { return key }
         if let loose = looseIndex(in: all)[EnrichCacheKeys.looseKey(key)] { return loose }
-        guard includeArtistTitle else { return nil }
-        return artistTitleIndex(in: all)[artistTitleKey(artist: artist, title: title)]
+        guard includeArtistTitle,
+              let fallback = artistTitleIndex(in: all)[artistTitleKey(artist: artist, title: title)],
+              let fallbackAlbum = splitKey(fallback)?.album else { return nil }
+        let requestedAlbum = EnrichCacheKeys.cleanTag(album)
+        let storedAlbum = EnrichCacheKeys.cleanTag(fallbackAlbum)
+        return requestedAlbum.isEmpty || storedAlbum.isEmpty
+            || EnrichCacheKeys.looseKey(requestedAlbum) == EnrichCacheKeys.looseKey(storedAlbum)
+            ? fallback : nil
     }
 
     private static func looseIndex(in all: [String: [String: Any]]) -> [String: String] {

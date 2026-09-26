@@ -1263,7 +1263,7 @@ struct LyricsManagerView: View {
             if rematchRunningKey != nil {
                 rematchGeneration += 1
                 rematchRunningKey = nil
-                LyricsSearchService.shared.cancelRunning()
+                LyricsSearchService.shared.cancelRunning(.rematch)
             }
             rematchResult = nil
         }
@@ -1566,7 +1566,8 @@ struct LyricsManagerView: View {
         do {
             try await LyricsSearchService.shared.search(
                 artist: summary.artist, title: summary.title, album: summary.album,
-                durationSecs: duration, pickWinner: true, currentSource: summary.lyricsSource
+                durationSecs: duration, pickWinner: true, currentSource: summary.lyricsSource,
+                scope: .rematch
             ) { update in
                 guard generation == rematchGeneration else { return }
                 last = update
