@@ -1,4 +1,5 @@
 import Foundation
+#if DEBUG
 @testable import LyliCore
 
 func runQQMusicDESTests() {
@@ -30,3 +31,8 @@ private extension Data {
         }
     }
 }
+#else
+func runQQMusicDESTests() {
+    print("SKIP - internal QRC checks require a Debug build")
+}
+#endif
