@@ -386,7 +386,7 @@ public final class LocalPlaybackSource: ObservableObject {
     private struct LyricsReloadSnapshot: Equatable {
         let trackKey: String
         let lyrics, lyricsTr, lyricsYRC: String
-        let instrumental, resolved, searchIncomplete: Bool
+        let instrumental, resolved, searchIncomplete, searchCancelled: Bool
         let variant: ChineseVariant
         let plainLyrics: String
     }
@@ -402,7 +402,8 @@ public final class LocalPlaybackSource: ObservableObject {
             trackKey: snapshot.trackKey,
             lyrics: raw, lyricsTr: found?.lyricsTr ?? "", lyricsYRC: found?.lyricsYRC ?? "",
             instrumental: found?.instrumental ?? false, resolved: found?.resolved ?? false,
-            searchIncomplete: found?.searchIncomplete ?? false, variant: chineseVariant,
+            searchIncomplete: found?.searchIncomplete ?? false,
+            searchCancelled: found?.searchCancelled ?? false, variant: chineseVariant,
             plainLyrics: found?.plainLyrics ?? "")
         guard reload != lastReloadSnapshot else { return }
         lastReloadSnapshot = reload
@@ -420,7 +421,8 @@ public final class LocalPlaybackSource: ObservableObject {
         lyricsGapMarkers = syncEngine.gapMarkers()
         hasLyricsContent = syncEngine.hasContent
         isCurrentTrackInstrumental = reload.instrumental
-        currentTrackHasNoLyrics = reload.resolved && !hasLyricsContent && !reload.instrumental && !reload.searchIncomplete
+        currentTrackHasNoLyrics = !hasLyricsContent && !reload.instrumental
+            && (reload.searchCancelled || (reload.resolved && !reload.searchIncomplete))
         currentTrackPlainLyrics = hasLyricsContent ? "" : reload.plainLyrics
     }
 

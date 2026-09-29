@@ -81,9 +81,23 @@ public final class EnrichCacheStore: ObservableObject {
         return formatter.string(fromByteCount: bytes)
     }
 
-    private static let cacheURL = LyliPaths.configFile("lyli-enrich-cache.json")
+    private let cacheURL: URL
+    private let lyricsDirectory: () -> URL
+    private let offsetsSnapshot: () -> [String: Int]
+    private let refreshPlayback: () -> Void
+    private var lyricsDir: URL { lyricsDirectory() }
+    private var entryRevisions: [String: Int] = [:]
 
-    private static var lyricsDir: URL { FeatureSettingsStore.shared.effectiveLyricsDir }
+    func revision(forKey key: String) -> Int { entryRevisions[key] ?? 0 }
+
+    func searchWasCancelled(forKey key: String) -> Bool {
+        raw[key]?["lyrics_search_cancelled"] as? Bool ?? false
+    }
+
+    private func updateEntry(_ entry: [String: Any]?, forKey key: String) {
+        raw[key] = entry
+        entryRevisions[key, default: 0] &+= 1
+    }
 
     private var raw: [String: [String: Any]] {
         get { EnrichCacheReader.entries }
@@ -92,23 +106,30 @@ public final class EnrichCacheStore: ObservableObject {
     private var pendingExportKeys: Set<String> = []
     private var pendingFileChanges: [URL: ReversibleFileChanges.Change] = [:]
 
-    private init() {}
+    init(cacheURL: URL? = nil, lyricsDirectory: URL? = nil,
+         offsetsSnapshot: (() -> [String: Int])? = nil,
+         refreshPlayback: (() -> Void)? = nil) {
+        self.cacheURL = cacheURL ?? LyliPaths.configFile("lyli-enrich-cache.json")
+        self.lyricsDirectory = { lyricsDirectory ?? FeatureSettingsStore.shared.effectiveLyricsDir }
+        self.offsetsSnapshot = offsetsSnapshot ?? { LyricsOffsetStore.shared.offsetsSnapshot }
+        self.refreshPlayback = refreshPlayback ?? { PlaybackCoordinator.shared.refreshLyricsForCurrentTrack() }
+    }
 
     public func reload(onlyIfChanged: Bool = false) async {
         if onlyIfChanged, !summaries.isEmpty { return }
         refreshSizeBytes()
         isLoading = summaries.isEmpty
         defer { isLoading = false }
-        let loaded = EnrichCacheReader.reloadNow()
-        if loaded || !FileManager.default.fileExists(atPath: Self.cacheURL.path) {
+        let loaded = EnrichCacheReader.reloadNow(from: cacheURL)
+        if loaded || !FileManager.default.fileExists(atPath: cacheURL.path) {
             lastError = nil
         } else {
             lastError = "读取本地记录文件失败"
         }
         applySummaries(Self.buildSummaries(
             from: raw,
-            offsetsSnapshot: LyricsOffsetStore.shared.offsetsSnapshot,
-            lyricsDir: Self.lyricsDir))
+            offsetsSnapshot: offsetsSnapshot(),
+            lyricsDir: lyricsDir))
     }
 
     private nonisolated static func fileSizeBytes(_ url: URL) -> Int64 {
@@ -148,8 +169,8 @@ public final class EnrichCacheStore: ObservableObject {
     }
 
     public func rebuildSummaries() {
-        applySummaries(Self.buildSummaries(from: raw, offsetsSnapshot: LyricsOffsetStore.shared.offsetsSnapshot,
-                                           lyricsDir: Self.lyricsDir))
+        applySummaries(Self.buildSummaries(from: raw, offsetsSnapshot: offsetsSnapshot(),
+                                           lyricsDir: lyricsDir))
     }
 
     private nonisolated static func lyricsFileModificationDates(in dir: URL) -> [String: Date] {
@@ -290,6 +311,9 @@ public final class EnrichCacheStore: ObservableObject {
                          sourcesSeen: [String]? = nil, sourcesResponded: [String]? = nil,
                          decision: [String: Any]? = nil) async -> Bool {
         var entry = raw[key] ?? [:]
+        if yrc == nil, lyrics != (entry["lyrics"] as? String ?? "") {
+            entry.removeValue(forKey: "lyrics_yrc")
+        }
 
         let previousTr = raw[key]?["lyrics_tr"] as? String ?? ""
         if tr != previousTr {
@@ -301,6 +325,12 @@ public final class EnrichCacheStore: ObservableObject {
 
         entry["lyrics"] = lyrics
         entry["lyrics_tr"] = tr
+        entry["ts"] = Date().timeIntervalSince1970
+        entry["lyrics_search_completed"] = true
+        entry.removeValue(forKey: "lyrics_search_cancelled")
+        if !lyrics.isEmpty {
+            entry.removeValue(forKey: "instrumental")
+        }
         if markManual {
             entry["manual_lyrics"] = true
         } else {
@@ -350,7 +380,7 @@ public final class EnrichCacheStore: ObservableObject {
         } else {
             entry["manual_pick_sha"] = pickSHA
         }
-        raw[key] = entry
+        updateEntry(entry, forKey: key)
         pendingExportKeys.insert(key)
 
         rebuildSummaries()
@@ -404,7 +434,7 @@ public final class EnrichCacheStore: ObservableObject {
             } else {
                 entry.removeValue(forKey: "manual_lyrics")
             }
-            raw[key] = entry
+            updateEntry(entry, forKey: key)
             pendingExportKeys.insert(key)
         }
         rebuildSummaries()
@@ -416,12 +446,16 @@ public final class EnrichCacheStore: ObservableObject {
     public func savePlainTextEdit(key: String, plainLyrics: String, source: String) async -> Bool {
         var entry = raw[key] ?? [:]
         entry["plain_lyrics"] = plainLyrics
+        entry["ts"] = Date().timeIntervalSince1970
+        entry["lyrics_search_completed"] = true
+        entry.removeValue(forKey: "lyrics_search_cancelled")
+        if !plainLyrics.isEmpty { entry.removeValue(forKey: "instrumental") }
         if source.isEmpty {
             entry.removeValue(forKey: "plain_lyrics_source")
         } else {
             entry["plain_lyrics_source"] = source
         }
-        raw[key] = entry
+        updateEntry(entry, forKey: key)
         rebuildSummaries()
         guard await persist() else { return false }
         return true
@@ -431,16 +465,52 @@ public final class EnrichCacheStore: ObservableObject {
         await setInstrumental(key: key, true)
     }
 
-    public func setInstrumental(key: String, _ value: Bool) async {
+    @discardableResult
+    func recordSearchCompletion(key: String, plainLyrics: String = "", plainSource: String = "",
+                                instrumental: Bool, duration: Double,
+                                sourcesSeen: [String], sourcesResponded: [String],
+                                sourcesFailed: [String], decision: [String: Any]?) async -> Bool {
+        var entry = raw[key] ?? [:]
+        entry["ts"] = sourcesResponded.isEmpty ? 0 : Date().timeIntervalSince1970
+        entry["lyrics_search_completed"] = !sourcesResponded.isEmpty
+        entry["lyrics_sources_seen"] = sourcesSeen
+        entry["lyrics_sources_responded"] = sourcesResponded
+        entry["lyrics_sources_failed"] = sourcesFailed
+        entry.removeValue(forKey: "lyrics_search_cancelled")
+        entry["instrumental"] = instrumental
+        if duration > 0 { entry["resolved_duration_secs"] = duration }
+        if !plainLyrics.isEmpty {
+            entry["plain_lyrics"] = plainLyrics
+            entry["plain_lyrics_source"] = plainSource
+        }
+        if let decision { entry["lyrics_decision"] = decision }
+        updateEntry(entry, forKey: key)
+        rebuildSummaries()
+        return await persist()
+    }
+
+    @discardableResult
+    func recordSearchCancellation(key: String) async -> Bool {
+        var entry = raw[key] ?? [:]
+        entry["lyrics_search_cancelled"] = true
+        updateEntry(entry, forKey: key)
+        rebuildSummaries()
+        return await persist()
+    }
+
+    @discardableResult
+    public func setInstrumental(key: String, _ value: Bool) async -> Bool {
         var entry = raw[key] ?? [:]
         if value {
             entry["instrumental"] = true
+            entry["ts"] = Date().timeIntervalSince1970
+            entry.removeValue(forKey: "lyrics_search_cancelled")
         } else {
             entry.removeValue(forKey: "instrumental")
         }
-        raw[key] = entry
+        updateEntry(entry, forKey: key)
         rebuildSummaries()
-        guard await persist() else { return }
+        return await persist()
     }
 
     nonisolated static func knownOnSources(_ entry: [String: Any]) -> Bool {
@@ -464,7 +534,7 @@ public final class EnrichCacheStore: ObservableObject {
         var entry = raw[key] ?? [:]
         entry["lyrics_decision"] = decision
         entry["lyrics_decision_applied"] = decision
-        raw[key] = entry
+        updateEntry(entry, forKey: key)
         rebuildSummaries()
         guard await persist() else { return }
     }
@@ -481,7 +551,10 @@ public final class EnrichCacheStore: ObservableObject {
         var removed: [String: [String: Any]] = [:]
         removed.reserveCapacity(victims.count)
         for key in victims {
-            if let entry = raw.removeValue(forKey: key) { removed[key] = entry }
+            if let entry = raw[key] {
+                removed[key] = entry
+                updateEntry(nil, forKey: key)
+            }
             pendingExportKeys.remove(key)
             stageExportedLyricsDeletion(forKey: key)
         }
@@ -498,6 +571,7 @@ public final class EnrichCacheStore: ObservableObject {
 
     public func clearAll() async {
         let removed = raw
+        for key in removed.keys { entryRevisions[key, default: 0] &+= 1 }
         raw = [:]
         pendingFileChanges.removeAll()
         pendingExportKeys.removeAll()
@@ -512,9 +586,9 @@ public final class EnrichCacheStore: ObservableObject {
 
     private func restoreFailedDeletion(_ removed: [String: [String: Any]]) {
         for (key, entry) in removed where raw[key] == nil {
-            raw[key] = entry
+            updateEntry(entry, forKey: key)
             for name in EnrichCacheKeys.exportedFileNames(forKey: key) {
-                let url = Self.lyricsDir.appendingPathComponent(name)
+                let url = lyricsDir.appendingPathComponent(name)
                 if let change = pendingFileChanges[url], change.content == nil {
                     pendingFileChanges.removeValue(forKey: url)
                 }
@@ -525,7 +599,7 @@ public final class EnrichCacheStore: ObservableObject {
 
     private func stageExportedLyricsDeletion(forKey key: String) {
         for name in EnrichCacheKeys.exportedFileNames(forKey: key) {
-            let url = Self.lyricsDir.appendingPathComponent(name)
+            let url = lyricsDir.appendingPathComponent(name)
 
             pendingFileChanges[url] = .init(url: url, content: nil)
         }
@@ -535,17 +609,17 @@ public final class EnrichCacheStore: ObservableObject {
     private func persist(replacingEverything: Bool = false) async -> Bool {
         do {
             try EnrichCachePersistence.save(
-                cacheURL: Self.cacheURL,
+                cacheURL: cacheURL,
                 entries: raw,
                 fileChanges: Array(pendingFileChanges.values),
-                clearLyricsDirectory: replacingEverything ? Self.lyricsDir : nil,
+                clearLyricsDirectory: replacingEverything ? lyricsDir : nil,
                 exportKeys: pendingExportKeys,
-                lyricsDirectory: Self.lyricsDir)
+                lyricsDirectory: lyricsDir)
             pendingExportKeys.removeAll()
             pendingFileChanges.removeAll()
             lastError = nil
             EnrichCacheReader.noteCacheWrite()
-            PlaybackCoordinator.shared.refreshLyricsForCurrentTrack()
+            refreshPlayback()
             return true
         } catch {
             lastError = String(format: "写入本地记录文件失败: %@", error.localizedDescription)
@@ -555,8 +629,8 @@ public final class EnrichCacheStore: ObservableObject {
     }
 
     private func refreshSizeBytes() {
-        let cacheURL = Self.cacheURL
-        let lyricsDir = Self.lyricsDir
+        let cacheURL = cacheURL
+        let lyricsDir = lyricsDir
         Task { [weak self] in
             let bytes = await Task.detached(priority: .utility) {
                 Self.directorySizeBytes(lyricsDir) + Self.fileSizeBytes(cacheURL)

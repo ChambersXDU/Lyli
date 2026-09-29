@@ -28,3 +28,6 @@ jobs:
 
       - name: 编译整个 App
         run: cd lyli && swift build
+
+      - name: Lyrics workflow regression tests
+        run: cd lyli && ./scripts/test-lyrics-workflows.sh

@@ -2,10 +2,16 @@ import Foundation
 import LyliCore
 
 @MainActor
-final class LyricsSearchService {
+final class LyricsSearchService: ObservableObject {
     static let shared = LyricsSearchService()
 
-    private let resolver = LyricsResolver()
+    private let resolver: LyricsResolver
+    private let cache: EnrichCacheStore
+    enum AutomaticSearchState { case idle, searching, completed, cancelled, failed }
+    @Published private(set) var automaticSearchKey: String?
+    @Published private(set) var automaticSearchState: AutomaticSearchState = .idle
+    private var automaticSearchID: UUID?
+    private var automaticCacheRevision = 0
     enum SearchScope: Hashable {
         case manual
         case rematch
@@ -165,7 +171,35 @@ final class LyricsSearchService {
         }
     }
 
-    private init() {}
+    enum FallbackResult { case plainText, instrumental, none, failed }
+
+    func applyFallback(_ update: SearchUpdate, forKey key: String,
+                       hasPlainTextFallback: Bool) async -> FallbackResult {
+        guard update.pick?.decidable == true else { return .none }
+        if update.instrumental {
+            return await cache.setInstrumental(key: key, true) ? .instrumental : .failed
+        }
+        if !hasPlainTextFallback, let plain = update.candidates.first(where: { $0.isPlainTextOnly }) {
+            return await cache.savePlainTextEdit(key: key, plainLyrics: plain.lyrics, source: plain.source)
+                ? .plainText : .failed
+        }
+        return .none
+    }
+
+    init(resolver: LyricsResolver = LyricsResolver(), cache: EnrichCacheStore? = nil) {
+        self.resolver = resolver
+        self.cache = cache ?? .shared
+    }
+
+    func stopAutomaticSearch(forKey key: String) async {
+        guard key == automaticSearchKey, automaticSearchState == .searching else { return }
+        automaticSearchID = nil
+        cancelRunning(.automatic)
+        automaticSearchState = .cancelled
+        if cache.revision(forKey: key) == automaticCacheRevision {
+            _ = await cache.recordSearchCancellation(key: key)
+        }
+    }
 
     func cancelRunning(_ scope: SearchScope) {
         let search = runningTasks.removeValue(forKey: scope)
@@ -234,6 +268,7 @@ final class LyricsSearchService {
         pick.sourcesSeen = resolution.sourcesSeen
         pick.sourcesResponded = resolution.sourcesResponded
         pick.resolvedDurationSecs = duration
+        pick.decidable = !resolution.sourcesResponded.isEmpty
         guard let winner = resolution.winner, let candidate = candidates.first(where: { $0.source == winner.source && $0.fingerprint == ManualPickLock.fingerprint(lyrics: winner.candidate.lyrics) }) else {
             pick.decisionJSON = decisionJSON(resolution: resolution, candidates: candidates, winner: nil)
             return pick
@@ -279,31 +314,56 @@ final class LyricsSearchService {
         return object
     }
 
-    private func searchAndSave(artist: String, title: String, album: String, duration: Double) async {
+    func searchAndSave(artist: String, title: String, album: String, duration: Double) async {
+        cancelRunning(.automatic)
+        let searchID = UUID()
+        automaticSearchID = searchID
+        let key = EnrichCacheReader.resolvedKey(artist: artist, title: title, album: album)
+            ?? EnrichCacheKeys.normalizedKey(artist: artist, title: title, album: album)
+        automaticSearchKey = key
         let cached = EnrichCacheReader.lookup(artist: artist, title: title, album: album)
-        if cached?.resolved == true || cached?.instrumental == true || !(cached?.lyrics.isEmpty ?? true) { return }
+        if (cached?.resolved == true && cached?.searchIncomplete != true)
+            || cached?.instrumental == true || !(cached?.lyrics.isEmpty ?? true)
+            || !(cached?.plainLyrics.isEmpty ?? true) {
+            automaticSearchState = .completed
+            return
+        }
+        let revision = cache.revision(forKey: key)
+        automaticCacheRevision = revision
+        automaticSearchState = .searching
         do {
             var update: SearchUpdate?
             try await search(artist: artist, title: title, album: album, durationSecs: duration,
                              pickWinner: true, scope: .automatic) { value in update = value }
-            guard let update, let winner = update.pick.flatMap({ pick in update.candidates.first { $0.source == pick.winner } }) else {
-                if update?.instrumental == true {
-                    await EnrichCacheStore.shared.markInstrumental(key: EnrichCacheKeys.normalizedKey(artist: artist, title: title, album: album))
-                }
+            guard automaticSearchID == searchID, let update, !Task.isCancelled else { return }
+            guard cache.revision(forKey: key) == revision,
+                  EnrichCacheReader.lookup(artist: artist, title: title, album: album) == cached else {
+                automaticSearchState = .completed
                 return
             }
-            let key = EnrichCacheKeys.normalizedKey(artist: artist, title: title, album: album)
-            _ = await EnrichCacheStore.shared.saveEdit(key: key, lyrics: winner.lyrics, tr: winner.lyricsTr,
-                                                        yrc: winner.lyricsYRC,
-                                                        source: winner.source, markManual: false,
-                                                        score: winner.score, scoringVersion: 18,
-                                                        resolvedDurationSecs: duration,
-                                                        sourcesSeen: update.pick?.sourcesSeen ?? [],
-                                                        sourcesResponded: update.pick?.sourcesResponded ?? [],
-                                                        decision: update.pick.flatMap { decisionObject($0.decisionJSON) })
-            await MainActor.run { LocalPlaybackSource.shared.forceReloadLyricsForCurrentTrack() }
+            let saved: Bool
+            if let winner = update.pick.flatMap({ pick in update.candidates.first { $0.source == pick.winner } }) {
+                saved = await cache.saveEdit(
+                    key: key, lyrics: winner.lyrics, tr: winner.lyricsTr, yrc: winner.lyricsYRC,
+                    source: winner.source, markManual: false,
+                    score: winner.score, scoringVersion: 18, resolvedDurationSecs: duration,
+                    sourcesSeen: update.pick?.sourcesSeen ?? [],
+                    sourcesResponded: update.pick?.sourcesResponded ?? [],
+                    decision: update.pick.flatMap { decisionObject($0.decisionJSON) })
+            } else {
+                let plain = update.candidates.first { $0.isPlainTextOnly }
+                saved = await cache.recordSearchCompletion(
+                    key: key, plainLyrics: plain?.lyrics ?? "", plainSource: plain?.source ?? "",
+                    instrumental: update.instrumental, duration: duration,
+                    sourcesSeen: update.pick?.sourcesSeen ?? [],
+                    sourcesResponded: update.pick?.sourcesResponded ?? [],
+                    sourcesFailed: update.sourceFailureReasonCodes.keys.sorted(),
+                    decision: update.pick.flatMap { decisionObject($0.decisionJSON) })
+            }
+            guard automaticSearchID == searchID else { return }
+            automaticSearchState = saved && !update.networkLooksDown ? .completed : .failed
         } catch {
-            return
+            if automaticSearchID == searchID { automaticSearchState = .failed }
         }
     }
 }

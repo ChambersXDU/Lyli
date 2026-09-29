@@ -8,6 +8,7 @@ public struct EnrichCacheLyrics: Equatable {
     public let resolved: Bool
     public let plainLyrics: String
     public let searchIncomplete: Bool
+    public let searchCancelled: Bool
 }
 
 @MainActor
@@ -58,13 +59,14 @@ public enum EnrichCacheReader {
             instrumental: entry["instrumental"] as? Bool ?? false,
             resolved: (number(entry["ts"]) ?? 0) > 0,
             plainLyrics: entry["plain_lyrics"] as? String ?? "",
-            searchIncomplete: lyrics.isEmpty
+            searchIncomplete: lyrics.isEmpty && entry["lyrics_search_completed"] as? Bool != true
                 && (!sourcesSkipped.isEmpty || !sourcesFailed.isEmpty)
-                && (number(entry["lyrics_fill_count"]) ?? 0) == 0)
+                && (number(entry["lyrics_fill_count"]) ?? 0) == 0,
+            searchCancelled: entry["lyrics_search_cancelled"] as? Bool ?? false)
     }
 
-    public static func reloadNow() -> Bool {
-        guard let data = try? Data(contentsOf: cacheURL),
+    public static func reloadNow(from url: URL? = nil) -> Bool {
+        guard let data = try? Data(contentsOf: url ?? cacheURL),
               let decoded = try? JSONSerialization.jsonObject(with: data) as? [String: [String: Any]] else {
             cacheEntries = [:]
             cacheContentVersion = nil

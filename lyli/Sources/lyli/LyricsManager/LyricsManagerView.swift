@@ -304,6 +304,7 @@ private struct LyricsManagerWindowCapture: NSViewRepresentable {
 
 struct LyricsManagerView: View {
     @ObservedObject private var store = EnrichCacheStore.shared
+    @ObservedObject private var searches = LyricsSearchService.shared
     @StateObject private var windowFrame = LyricsManagerWindowFramePersistence()
     @StateObject private var nowPlaying = LyricsManagerNowPlayingObserver()
 
@@ -961,6 +962,7 @@ struct LyricsManagerView: View {
                     refreshPlaceholder()
                     focusCurrentlyPlaying(scrollProxy: scrollProxy)
                 }
+                .onChange(of: store.summariesGeneration) { _, _ in refreshPlaceholder() }
 
                 .task { await store.reload(onlyIfChanged: true) }
             }
@@ -1120,7 +1122,7 @@ struct LyricsManagerView: View {
         let key = EnrichCacheKeys.normalizedKey(
             artist: playback.artist, title: playback.title, album: playback.album)
         guard !store.hasEntry(forKey: key) else {
-            if placeholderSummary?.key == key { placeholderSummary = nil }
+            placeholderSummary = nil
             return
         }
         guard placeholderSummary?.key != key else { return }
@@ -1198,14 +1200,27 @@ struct LyricsManagerView: View {
     }
 
     private func placeholderDetailView(_ summary: EnrichCacheStore.Summary) -> some View {
-        VStack(alignment: .leading, spacing: 16) {
+        let state = searches.automaticSearchKey == summary.key ? searches.automaticSearchState : .searching
+        return VStack(alignment: .leading, spacing: 16) {
             headerTitleBlock(summary)
             ContentUnavailableView {
-                Label("正在搜索歌词…", systemImage: "magnifyingglass")
+                Label(state == .searching ? "正在搜索歌词…" : "自动搜索未完成",
+                      systemImage: state == .searching ? "magnifyingglass" : "exclamationmark.triangle")
             } description: {
-                Text("这首歌第一次播放，正在联网搜索歌词，完成后会自动显示，不需要手动刷新。")
+                Text(state == .searching
+                     ? "这首歌第一次播放，正在联网搜索歌词，完成后会自动显示，不需要手动刷新。"
+                     : "可以重试搜索；如果本地记录未能保存，请先检查下方的错误信息。")
             } actions: {
-                Button("停止搜索") { cancelPlaceholderSearch() }
+                if state == .searching {
+                    Button("停止搜索") { cancelPlaceholderSearch() }
+                } else {
+                    Button("重试搜索") {
+                        Task {
+                            await searches.searchAndSave(artist: summary.artist, title: summary.title,
+                                                         album: summary.album, duration: summary.durationSecs)
+                        }
+                    }
+                }
             }
             Spacer(minLength: 0)
         }
@@ -1215,8 +1230,7 @@ struct LyricsManagerView: View {
 
     private func cancelPlaceholderSearch() {
         guard let key = placeholderSummary?.key else { return }
-        let url = LyliPaths.configFile("lyli-enrich-cancel-request.txt")
-        try? key.write(to: url, atomically: true, encoding: .utf8)
+        Task { await searches.stopAutomaticSearch(forKey: key) }
     }
 
     @ViewBuilder
@@ -1224,6 +1238,12 @@ struct LyricsManagerView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 header(summary)
+
+                if store.searchWasCancelled(forKey: key) {
+                    Label("已停止自动搜索，可点击重新匹配重试", systemImage: "stop.circle")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
 
                 rematchStatusRow(key: key, summary: summary)
                 infoStrip(summary)
@@ -1516,7 +1536,8 @@ struct LyricsManagerView: View {
         HStack(spacing: 10) {
             Button {
                 Task {
-                    await store.saveEdit(key: key, lyrics: editedLyrics, tr: editedTr)
+                    let saved = await store.saveEdit(key: key, lyrics: editedLyrics, tr: editedTr)
+                    guard saved else { return }
 
                     let d = store.detail(for: key)
                     refreshOffsetState(artist: summary.artist, title: summary.title, lyrics: d.lyrics, yrc: d.yrc)
@@ -1612,19 +1633,15 @@ struct LyricsManagerView: View {
             done(.kept, String(format: "这一轮「%@」没应答，没有换（避免误降级），可以再点一次", currentName))
             return
         case .keptNoCandidate:
-
-            if update.instrumental {
-
-                await store.markInstrumental(key: key)
+            switch await searches.applyFallback(update, forKey: key,
+                                                 hasPlainTextFallback: summary.hasPlainTextFallback) {
+            case .instrumental:
                 done(.empty, "有源明确说这首是纯音乐，没有可用的歌词候选")
-            } else if !summary.hasPlainTextFallback,
-                      let plain = update.candidates.first(where: { $0.isPlainTextOnly }) {
-
-                await store.savePlainTextEdit(key: key, plainLyrics: plain.lyrics, source: plain.source)
+            case .plainText:
                 done(.empty, "没有找到带时间戳的版本，已自动采纳一份纯文本兜底")
-            } else if update.networkLooksDown {
-                done(.empty, "网络似乎不通，这一轮没搜到任何候选")
-            } else {
+            case .failed:
+                done(.failed, store.lastError ?? "未能保存搜索结果，请再试一次")
+            case .none:
                 done(.empty, "这一轮没有一个能用的候选，保留现有的")
             }
             return

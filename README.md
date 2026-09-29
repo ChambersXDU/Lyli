@@ -16,6 +16,7 @@ Download the latest release from [GitHub](https://github.com/ChambersXDU/Lyli/re
 cd lyli
 ./build.sh --no-restart
 ./scripts/swiftpm.sh run lyli-selftest
+./scripts/test-lyrics-workflows.sh
 ```
 
 The SwiftPM wrapper uses project-local caches and avoids nested SwiftPM sandbox failures in restricted build environments. `build.sh` uses the same wrapper.

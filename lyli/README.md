@@ -5,6 +5,7 @@ This directory contains the Swift package for the native Apple Music lyrics app.
 ```sh
 ./build.sh --no-restart
 ./scripts/swiftpm.sh run lyli-selftest
+./scripts/test-lyrics-workflows.sh
 ```
 
 The SwiftPM wrapper keeps compiler and package caches under `.build` and avoids nested SwiftPM sandbox failures in restricted build environments. `build.sh` uses it too.
