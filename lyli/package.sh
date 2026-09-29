@@ -18,7 +18,7 @@ DMG_BACKGROUND="$STAGE/dmg-background.tiff"
 APP="$STAGE/Lyli.app"
 
 echo "==> building arm64 release"
-./build.sh --dest "$APP" > "$STAGE/build.log" 2>&1 || {
+./build.sh --configuration release --dest "$APP" > "$STAGE/build.log" 2>&1 || {
   echo "!! build.sh failed; log tail:" >&2
   tail -20 "$STAGE/build.log" >&2
   exit 1

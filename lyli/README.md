@@ -3,12 +3,14 @@
 This directory contains the Swift package for the native Apple Music lyrics app.
 
 ```sh
-./build.sh --no-restart
+./build.sh --debug --no-restart
 ./scripts/swiftpm.sh run lyli-selftest
 ./scripts/test-lyrics-workflows.sh
 ```
 
-The SwiftPM wrapper keeps compiler and package caches under `.build` and avoids nested SwiftPM sandbox failures in restricted build environments. `build.sh` uses it too.
+Use `./build.sh --debug` for local development. It builds, installs and starts the app using incremental Debug compilation; `--no-restart` skips restarting and `--dest /tmp/Lyli.app` assembles a signed bundle without installing it. Debug and Release keep separate artifacts under `.build`, so keep that directory between builds.
+
+`./build.sh` defaults to optimized Release builds. `./build.sh --configuration release` makes that selection explicit, and `package.sh` always uses Release. App installation builds only the `lyli` product; selftests are compiled by their own commands. The SwiftPM wrapper keeps compiler and package caches under `.build` and avoids nested SwiftPM sandbox failures in restricted build environments. See [build performance measurements](docs/build-performance.md) for the assessment and reproducible profiling commands.
 
 `Sources/LyliCore` contains lyric parsing, matching, providers, synchronization, cache access, and playback support. `Sources/lyli` contains the macOS app. The lyric cache is stored at `~/.config/lyli/lyli-enrich-cache.json`.
 

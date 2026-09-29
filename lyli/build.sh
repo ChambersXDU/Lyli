@@ -6,8 +6,21 @@ cd "$(dirname "$0")"
 NO_RESTART=0
 UNIVERSAL=0
 DEST=""
+CONFIGURATION="release"
+usage() {
+  echo "usage: ./build.sh [--debug | --configuration debug|release] [--universal] [--no-restart] [--dest <path>]"
+}
 while [ "$#" -gt 0 ]; do
   case "$1" in
+    --debug) CONFIGURATION="debug" ;;
+    --configuration)
+      shift
+      CONFIGURATION="${1:-}"
+      case "$CONFIGURATION" in
+        debug|release) ;;
+        *) echo "!! --configuration 需要 debug 或 release" >&2; exit 2 ;;
+      esac
+      ;;
     --no-restart) NO_RESTART=1 ;;
     --universal) UNIVERSAL=1 ;;
     --dest)
@@ -15,7 +28,8 @@ while [ "$#" -gt 0 ]; do
       DEST="${1:-}"
       [ -n "$DEST" ] || { echo "!! --dest 需要一个路径" >&2; exit 2; }
       ;;
-    *) echo "!! 未知参数:$1(可用:--universal / --no-restart / --dest <路径>)" >&2; exit 2 ;;
+    --help|-h) usage; exit 0 ;;
+    *) echo "!! 未知参数:$1" >&2; usage >&2; exit 2 ;;
   esac
   shift
 done
@@ -55,6 +69,14 @@ BUILD_VERSION="$(./scripts/build-version.sh "$APP_VERSION")" || {
   exit 1
 }
 FINAL_APP_DIR="${DEST:-/Applications/${APP_NAME}.app}"
+SWIFT_SLICES=()
+echo "==> building ($CONFIGURATION) [$ARCHES]"
+for arch in $ARCHES; do
+  ./scripts/swiftpm.sh build -c "$CONFIGURATION" --product lyli --arch "$arch"
+  BIN_PATH="$(./scripts/swiftpm.sh build -c "$CONFIGURATION" --arch "$arch" --show-bin-path)"
+  SWIFT_SLICES+=("$BIN_PATH/lyli")
+done
+
 if [ -n "$DEST" ]; then
   APP_DIR="$FINAL_APP_DIR"
   STAGE=""
@@ -69,20 +91,10 @@ else
   APP_DIR="$STAGE"
 fi
 BIN="$APP_DIR/Contents/MacOS/lyli"
-FAT_DIR="$(mktemp -d)"
-
-echo "==> building (release) [$ARCHES]"
-SWIFT_SLICES=()
-for arch in $ARCHES; do
-  ./scripts/swiftpm.sh build -c release --arch "$arch"
-  BIN_PATH="$(./scripts/swiftpm.sh build -c release --arch "$arch" --show-bin-path)"
-  SWIFT_SLICES+=("$BIN_PATH/lyli")
-done
-merge_slices "$FAT_DIR/lyli" "${SWIFT_SLICES[@]}"
 
 echo "==> assembling .app bundle"
 mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources"
-cp "$FAT_DIR/lyli" "$BIN"
+merge_slices "$BIN" "${SWIFT_SLICES[@]}"
 cp AppIcon.icns "$APP_DIR/Contents/Resources/AppIcon.icns"
 
 printf 'APPL????' > "$APP_DIR/Contents/PkgInfo"

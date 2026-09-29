@@ -14,12 +14,14 @@ Download the latest release from [GitHub](https://github.com/ChambersXDU/Lyli/re
 
 ```sh
 cd lyli
-./build.sh --no-restart
+./build.sh --debug --no-restart
 ./scripts/swiftpm.sh run lyli-selftest
 ./scripts/test-lyrics-workflows.sh
 ```
 
-The SwiftPM wrapper uses project-local caches and avoids nested SwiftPM sandbox failures in restricted build environments. `build.sh` uses the same wrapper.
+Use `./build.sh --debug` for local development: it builds, installs and starts the app with Swift's incremental Debug compilation. Add `--no-restart` to install without restarting, or `--dest /tmp/Lyli.app` to assemble a signed app without installing it. Debug and Release keep separate build artifacts, so repeated development builds can reuse their cache.
+
+`./build.sh` still defaults to optimized Release builds. Use that or `./build.sh --configuration release` to verify release behavior. The SwiftPM wrapper uses project-local caches and avoids nested SwiftPM sandbox failures in restricted build environments. `build.sh` builds only the app; the test commands above build their own runners. See [build performance measurements](lyli/docs/build-performance.md) for the measured bottleneck and comparison.
 
 Use `./package.sh` to produce the arm64 release assets.
 
