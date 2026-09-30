@@ -27,6 +27,7 @@ public final class LocalPlaybackSource: ObservableObject {
     @Published public private(set) var allLines: [MenuBarLyricLine] = []
     @Published public private(set) var lyricsGapMarkers: [LyricsGapMarker] = []
     @Published public private(set) var currentGapIndex: Int?
+    @Published public private(set) var currentAccompaniment: LyricsGapMarker?
     @Published public private(set) var currentLineFillSettled = true
     @Published public private(set) var hasLyricsContent = false
     @Published public private(set) var isCurrentTrackInstrumental = false
@@ -312,18 +313,24 @@ public final class LocalPlaybackSource: ObservableObject {
             guard previous?.positionMs != reportedMs else { return }
             let extrapolatedMs = current.extrapolatedPositionMs(now: now)
             let delta = abs(reportedMs - extrapolatedMs)
-            let movedBackwards = previous.map { reportedMs < $0.positionMs - 20 } ?? false
-            let jumpedForward = previous.map {
-                Double(reportedMs - $0.positionMs)
-                    - max(0, now.timeIntervalSince($0.changedAt)) * 1_000 * current.rate > 250
+            let crossesLine = syncEngine.tickQuery(atMs: reportedMs, trackEndMs: currentDurationMs).index
+                != syncEngine.tickQuery(atMs: extrapolatedMs, trackEndMs: currentDurationMs).index
+            let movedBackwards = previous.map {
+                reportedMs < $0.positionMs - (crossesLine ? 20 : 250)
             } ?? false
-            let displayAhead = reportedMs > extrapolatedMs && syncEngine.tickQuery(atMs: reportedMs, trackEndMs: currentDurationMs)
-                != syncEngine.tickQuery(atMs: extrapolatedMs, trackEndMs: currentDurationMs)
+            let jumpedForward = previous.map {
+                let elapsedMs = max(0, now.timeIntervalSince($0.changedAt)) * 1_000
+                let samplingAllowance = max(250, min(1_000, elapsedMs * 0.5))
+                return Double(reportedMs - $0.positionMs) - elapsedMs * current.rate > samplingAllowance
+            } ?? false
+            let displayAhead = reportedMs > extrapolatedMs && crossesLine
             guard delta > 1_000 || movedBackwards || jumpedForward || displayAhead else { return }
             logger.debug("player position corrected: deltaMs=\(delta)")
-            anchor = ProgressAnchor(durationMs: current.durationMs, progressMs: reportedMs,
+            let isSeek = movedBackwards || jumpedForward || displayAhead
+            anchor = ProgressAnchor(durationMs: current.durationMs, progressMs: isSeek ? reportedMs : extrapolatedMs,
                                     rate: current.rate, progressTs: nil, baseAgeMs: 0,
-                                    fetchedAt: now, fresh: true)
+                                    fetchedAt: now, fresh: true,
+                                    correctionMs: isSeek ? 0 : reportedMs - extrapolatedMs)
             fastTick()
             return
         }
@@ -347,10 +354,9 @@ public final class LocalPlaybackSource: ObservableObject {
         }
         guard let anchor, anchor.rate.isFinite, anchor.rate > 0 else { return }
         let now = Date()
-        let position = anchor.extrapolatedPositionMs(now: now)
         guard let next = syncEngine.nextUpdatePositionMs(after: evaluatedPosition),
               next <= anchor.durationMs else { return }
-        let delay = Double(next - position) / (1_000 * anchor.instantaneousRate(now: now))
+        let delay = anchor.secondsUntil(positionMs: next, now: now)
         let timer = Timer(timeInterval: max(0.001, delay), repeats: false) { [weak self] _ in
             MainActor.assumeIsolated { self?.fastTick() }
         }
@@ -362,6 +368,7 @@ public final class LocalPlaybackSource: ObservableObject {
 
     private func clearLineDisplay() {
         currentLine = nil; nextLineText = nil; nextLineSide = nil
+        currentAccompaniment = nil
         currentLineIndex = nil; scrollLineIndex = nil; compactLine = nil
         compactShowsPlaceholder = false; compactDwellMs = nil; compactLeadInMs = nil
         currentGapIndex = nil; currentLineFillSettled = true; settledThresholdIndex = nil
@@ -388,6 +395,7 @@ public final class LocalPlaybackSource: ObservableObject {
         if currentLineIndex != result.index { currentLineIndex = result.index }
         if scrollLineIndex != result.scrollIndex { scrollLineIndex = result.scrollIndex }
         if currentGapIndex != result.gapIndex { currentGapIndex = result.gapIndex }
+        if currentAccompaniment != result.accompaniment { currentAccompaniment = result.accompaniment }
         updateLineFillSettled(line: result.line, index: result.index, atRawMs: position)
     }
 

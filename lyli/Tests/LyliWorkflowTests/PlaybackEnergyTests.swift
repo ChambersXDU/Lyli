@@ -1,7 +1,9 @@
 import Combine
 import CoreServices
 import Foundation
+import QuartzCore
 @testable import LyliCore
+@testable import lyli
 
 private final class ProbePosition: @unchecked Sendable {
     private let lock = NSLock()
@@ -412,5 +414,161 @@ final class PlaybackEnergyTests {
             expectEqual(AppleMusicPositionQuery.fetch(processID: 123, timeout: timeout, send: send), nil)
         }
         expectEqual(sends, 0)
+    }
+
+    func testPlainClearDoesNotCutOffSustainedWord() {
+        let engine = LyricsSyncEngine()
+        _ = engine.load(lyrics: "[01:53.02]verse\n[02:00.15]\n[02:12.77]next",
+            lyricsTr: "", lyricsYRC: "[113020,9950](113020,5560,0)verse (118580,4390,0)tail\n[132840,5130](132840,5130,0)next")
+        expectEqual(engine.currentLine(at: 121_000)?.plainText, "verse tail")
+        expectEqual(engine.currentLine(at: 119_000)?.words?.last?.durationMs, 4_390)
+    }
+
+    func testOrdinaryDriftDoesNotJumpClockBackwards() {
+        let source = LocalPlaybackSource(seekPlayer: { _ in }, positionQuery: { nil })
+        source.apply(AppleMusicPlaybackSnapshot(title: "PlaybackEnergyFixture", artist: "Fixture",
+            album: "", duration: 60, elapsedTime: 10, playing: true, playbackRate: 1))
+        source.setNeedsRealtimeLyricsUpdates(true)
+        defer { source.stop() }
+        let initial = source.anchor!
+        let now = initial.fetchedAt.addingTimeInterval(3)
+        source.applyPositionProbe(11.7, now: now)
+        expectEqual(source.anchor?.extrapolatedPositionMs(now: now), 13_000)
+        expectEqual(source.anchor?.extrapolatedPositionMs(now: now.addingTimeInterval(0.5)), 13_400)
+    }
+
+    func testShortAccompanimentAndIntroRemainDistinct() {
+        let engine = LyricsSyncEngine()
+        _ = engine.load(lyrics: "[00:10.00]first\n[00:12.00]\n[00:13.00]next", lyricsTr: "",
+            lyricsYRC: "[10000,2000](10000,2000,0)first\n[13000,2000](13000,2000,0)next")
+        expectEqual(engine.tickQuery(atMs: 5_000, trackEndMs: 20_000).accompaniment, nil)
+        expectEqual(engine.tickQuery(atMs: 11_999, trackEndMs: 20_000).accompaniment, nil)
+        let gap = engine.tickQuery(atMs: 12_000, trackEndMs: 20_000).accompaniment
+        expectEqual(gap, nil)
+        expectEqual(engine.tickQuery(atMs: 12_000, trackEndMs: 20_000).compactLine?.plainText, "first")
+        expectEqual(engine.tickQuery(atMs: 12_999, trackEndMs: 20_000).compactLine?.plainText, "first")
+        expectEqual(engine.tickQuery(atMs: 12_999, trackEndMs: 20_000).accompaniment, gap)
+        expectEqual(engine.tickQuery(atMs: 13_000, trackEndMs: 20_000).accompaniment, nil)
+        expectEqual(engine.tickQuery(atMs: 15_000, trackEndMs: 20_000).accompaniment?.endMs, 20_000)
+        expectEqual(engine.tickQuery(atMs: 12_000, trackEndMs: 20_000).gapIndex, nil)
+    }
+
+    func testPlainBlankUsesAccompanimentRatherThanTitle() {
+        let engine = LyricsSyncEngine()
+        _ = engine.load(lyrics: "[00:01.00]first\n[00:04.00]\n[00:04.50]\n[00:05.00]next", lyricsTr: "", lyricsYRC: "")
+        let first = engine.tickQuery(atMs: 4_000).accompaniment
+        expectEqual(first, nil)
+        expectEqual(engine.tickQuery(atMs: 4_000).compactLine?.plainText, "first")
+        expectEqual(engine.tickQuery(atMs: 4_600).compactLine?.plainText, "first")
+        expectEqual(engine.tickQuery(atMs: 4_600).accompaniment, first)
+        expectEqual(MenuBarSlotPolicy.displayText(lyricText: engine.tickQuery(atMs: 4_000).compactLine?.plainText ?? "", title: "Song", isPlaying: true,
+            isAdBreak: false, showsTitleWhenNoLyrics: true, placeholderGlyph: "♪",
+            hasStartedLyrics: true, isAccompaniment: first != nil)?.text, "first")
+        expectEqual(MenuBarSlotPolicy.displayText(lyricText: "", title: "Song", isPlaying: true,
+            isAdBreak: false, showsTitleWhenNoLyrics: true, placeholderGlyph: "♪")?.text, "♪ Song")
+        expectEqual(MenuBarSlotPolicy.displayText(lyricText: "next", title: "Song", isPlaying: true,
+            isAdBreak: false, showsTitleWhenNoLyrics: true, placeholderGlyph: "♪", hasStartedLyrics: true)?.text, "next")
+        expectEqual(MenuBarSlotPolicy.displayText(lyricText: "", title: "Song", isPlaying: false,
+            isAdBreak: false, showsTitleWhenNoLyrics: true, placeholderGlyph: "♪", isAccompaniment: true)?.text, nil)
+    }
+
+    func testAccompanimentDotsFillContinuouslyAndSeek() {
+        let engine = LyricsSyncEngine()
+        _ = engine.load(lyrics: "[00:01.00]first\n[00:04.00]\n[00:08.00]next", lyricsTr: "", lyricsYRC: "")
+        let gap = engine.tickQuery(atMs: 4_000).accompaniment!
+        let path = MenuBarSlotPolicy.accompanimentFillPath(in: gap, wordEndXs: [10, 20, 30])
+        var previous: CGFloat = 0
+        for ms in 4_000...8_000 {
+            let x = MenuBarMarquee.karaokeFillX(atMs: ms, path: path)
+            expectEqual(x >= previous, true)
+            previous = x
+        }
+        expectEqual(MenuBarMarquee.karaokeFillX(atMs: 4_000, path: path), 0)
+        expectEqual(MenuBarMarquee.karaokeFillX(atMs: 8_000, path: path), 30)
+        expectEqual(MenuBarMarquee.karaokeFillKeyframes(path: path, nowMs: 6_000, rate: 1)?.duration, 2)
+        expectEqual(engine.tickQuery(atMs: 3_000).accompaniment, nil)
+        expectEqual(engine.tickQuery(atMs: 4_500).accompaniment, gap)
+        expectEqual(engine.tickQuery(atMs: 8_000).accompaniment, nil)
+    }
+
+    func testBoundaryDelayIncludesCorrectionEnd() {
+        let now = Date()
+        for correction in [-1_000, 1_000] {
+            let anchor = ProgressAnchor(durationMs: 60_000, progressMs: 10_000, rate: 1,
+                progressTs: nil, baseAgeMs: 0, fetchedAt: now, fresh: true, correctionMs: correction)
+            for target in [11_000, 14_000, 20_000] {
+                let delay = anchor.secondsUntil(positionMs: target, now: now)
+                let atBoundary = anchor.extrapolatedPositionMs(now: now.addingTimeInterval(delay))
+                expectEqual(abs(atBoundary - target) <= 1, true)
+            }
+            var previous = 10_000
+            for tick in 0...100 {
+                let position = anchor.extrapolatedPositionMs(now: now.addingTimeInterval(Double(tick) / 10))
+                expectEqual(position >= previous, true)
+                previous = position
+            }
+        }
+    }
+
+    func testMenuBarAnimationUsesContinuousCorrectedClock() {
+        let view = MenuBarScrollingLabel()
+        let path = [MenuBarMarquee.KaraokeFillPoint(ms: 0, x: 0),
+                    MenuBarMarquee.KaraokeFillPoint(ms: 6_000, x: 60)]
+        view.present(text: "abcdef", windowWidth: 100, pacing: nil, fillPath: path)
+        func firstWidth(_ layer: CALayer?) -> Double? {
+            guard let layer else { return nil }
+            if let animation = layer.animation(forKey: "lyli.karaoke-fill") as? CAKeyframeAnimation {
+                return (animation.values?.first as? NSNumber)?.doubleValue
+            }
+            return layer.sublayers?.compactMap { firstWidth($0) }.first
+        }
+        view.updateKaraokeClock(positionMs: 3_000, rate: 1, playing: true, force: true)
+        expectEqual(abs((firstWidth(view.layer) ?? -100) - 30) < 1, true)
+        view.updateKaraokeClock(positionMs: 3_000, rate: 0.8, playing: true)
+        expectEqual(abs((firstWidth(view.layer) ?? -100) - 30) < 1, true)
+        view.updateKaraokeClock(positionMs: 4_000, rate: 1, playing: true, force: true)
+        expectEqual(abs((firstWidth(view.layer) ?? -100) - 40) < 1, true)
+        view.updateKaraokeClock(positionMs: 1_000, rate: 1, playing: true, force: true)
+        expectEqual(abs((firstWidth(view.layer) ?? -100) - 10) < 1, true)
+        view.clear()
+
+        let follow = [MenuBarMarquee.KaraokeFillPoint(ms: 0, x: 0),
+                      MenuBarMarquee.KaraokeFillPoint(ms: 6_000, x: 120)]
+        let pacing = MenuBarMarquee.pacing(maxOffset: 100, averageCharWidth: 10, dwellSeconds: 10)
+        view.present(text: "long completed lyric remains in place", windowWidth: 50, pacing: pacing,
+                     fillPath: path, followPath: follow)
+        view.updateKaraokeClock(positionMs: 6_000, rate: 1, playing: true, force: true)
+        let contentLayer = view.layer?.sublayers?.first?.sublayers?.first
+        let before = contentLayer?.position.x
+        expectEqual((before ?? 0) < 0, true)
+        view.present(text: "long completed lyric remains in place", windowWidth: 50, pacing: pacing,
+                     fillPath: path, fullyPlayed: true, followPath: follow)
+        expectEqual(contentLayer?.position.x, before)
+        view.clear()
+    }
+
+    func testShortPausesHoldFinishedLineAndDotsAreSmaller() {
+        for duration in [500, 1_000, 2_000, 2_999, 3_000, 5_000] {
+            let engine = LyricsSyncEngine()
+            let next = 4_000 + duration
+            _ = engine.load(lyrics: "", lyricsTr: "",
+                lyricsYRC: "[1000,3000](1000,3000,0)finished\n[\(next),2000](\(next),2000,0)next")
+            let pause = engine.tickQuery(atMs: 4_000)
+            if duration < 3_000 {
+                expectEqual(pause.accompaniment, nil)
+                expectEqual(pause.compactLine?.plainText, "finished")
+                expectEqual(engine.tickQuery(atMs: next - 1).compactLine?.plainText, "finished")
+            } else {
+                expectEqual(pause.accompaniment?.startMs, 4_000)
+                expectEqual(pause.accompaniment?.endMs, next)
+            }
+            expectEqual(engine.tickQuery(atMs: next).compactLine?.plainText, "next")
+            expectEqual(engine.tickQuery(atMs: next).accompaniment, nil)
+        }
+        let base = MenuBarMarqueeRenderer.font.pointSize
+        let dots = MenuBarMarqueeRenderer.mainFont(for: MenuBarSlotPolicy.accompanimentText, twoRows: false)
+        expectEqual(abs(dots.pointSize / base - 0.7) < 0.001, true)
+        expectEqual(MenuBarMarqueeRenderer.font(for: MenuBarSlotPolicy.accompanimentText).pointSize, dots.pointSize)
+        expectEqual(MenuBarMarqueeRenderer.mainFont(for: "finished", twoRows: false).pointSize, base)
     }
 }

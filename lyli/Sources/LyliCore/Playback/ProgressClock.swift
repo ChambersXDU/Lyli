@@ -31,6 +31,20 @@ public struct ProgressAnchor {
         return rate * (correctionMs < 0 ? 0.8 : 1.2)
     }
 
+    public func secondsUntil(positionMs target: Int, now: Date = Date()) -> TimeInterval {
+        let position = extrapolatedPositionMs(now: now)
+        guard rate > 0, target > position else { return 0 }
+        if let end = correctionEndDate, now < end {
+            let remaining = end.timeIntervalSince(now)
+            let correctedRate = instantaneousRate(now: now)
+            let distance = Double(target - position)
+            let correctedDistance = remaining * 1_000 * correctedRate
+            if distance <= correctedDistance { return distance / (1_000 * correctedRate) }
+            return remaining + (distance - correctedDistance) / (1_000 * rate)
+        }
+        return Double(target - position) / (1_000 * rate)
+    }
+
     public func extrapolatedPositionMs(now: Date = Date()) -> Int {
         let ageMs: Double
         if let base = baseAgeMs {

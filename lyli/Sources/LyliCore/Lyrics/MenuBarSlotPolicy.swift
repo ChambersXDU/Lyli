@@ -2,6 +2,18 @@ import CoreGraphics
 import Foundation
 
 public enum MenuBarSlotPolicy {
+    public static let accompanimentText = "● ● ●"
+
+    public static func accompanimentFillPath(in gap: LyricsGapMarker,
+                                              wordEndXs: [CGFloat]) -> [MenuBarMarquee.KaraokeFillPoint] {
+        let words = (0..<3).map { index in
+            let start = gap.startMs + (gap.endMs - gap.startMs) * index / 3
+            let end = gap.startMs + (gap.endMs - gap.startMs) * (index + 1) / 3
+            return SyncedLyricWord(text: index < 2 ? "● " : "●", startMs: start,
+                                   durationMs: max(1, end - start))
+        }
+        return MenuBarMarquee.karaokeFillPath(words: words, wordEndXs: wordEndXs)
+    }
 
     public static let minimumShrinkPoints: CGFloat = 6
 
@@ -29,9 +41,13 @@ public enum MenuBarSlotPolicy {
 
     public static func displayText(
         lyricText: String, title: String, isPlaying: Bool, isAdBreak: Bool,
-        showsTitleWhenNoLyrics: Bool, placeholderGlyph: String
+        showsTitleWhenNoLyrics: Bool, placeholderGlyph: String,
+        hasStartedLyrics: Bool = false, isAccompaniment: Bool = false
     ) -> (text: String, isFallback: Bool)? {
         guard isPlaying else { return nil }
+        if isAccompaniment || (hasStartedLyrics && lyricText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) {
+            return (accompanimentText, false)
+        }
         if !lyricText.isEmpty { return (lyricText, false) }
         guard showsTitleWhenNoLyrics, !isAdBreak else { return nil }
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)

@@ -636,6 +636,10 @@ public final class LyricsSyncEngine {
             wordSides = kept.map { $0.0.1 }
             let clearTimes = Set(filteredBase.filter { $0.text.isEmpty }.map(\.timeMs))
             for time in clearTimes where !wordLines.contains(where: { $0.timeMs == time }) {
+                // A coarser LRC clear must not truncate a word that is still being sung.
+                guard !wordLines.contains(where: { line in
+                    line.timeMs <= time && line.words.contains { $0.startMs + $0.durationMs > time }
+                }) else { continue }
                 wordLines.append(LyricLineWords(timeMs: time, words: []))
                 wordSides.append(nil)
             }
@@ -859,6 +863,7 @@ public final class LyricsSyncEngine {
 
         public let nextSide: LyricDuet.Side?
         public let gapIndex: Int?
+        public let accompaniment: LyricsGapMarker?
     }
 
     public func tickQuery(atMs rawPosMs: Int, trackEndMs: Int? = nil) -> TickResolution {
@@ -871,10 +876,15 @@ public final class LyricsSyncEngine {
             gap = nil
         }
 
-        let compact = CompactLyricLead.resolve(
-            activeIdx: idx, posMs: posMs,
-            lineEndMs: gapLineEndMs(at: idx),
-            nextStartMs: gapLineStartMs(at: idx + 1))
+        let accompaniment = accompanimentWindow(after: idx, atMs: posMs, trackEndMs: trackEndMs)
+        let isShortPause = accompaniment.map { $0.endMs - $0.startMs < CompactLyricLead.minimumAccompanimentMs } ?? false
+        let compact: CompactLyricLead.Outcome
+        if let accompaniment, isShortPause {
+            compact = .line(accompaniment.index)
+        } else {
+            compact = CompactLyricLead.resolve(activeIdx: idx, posMs: posMs,
+                lineEndMs: gapLineEndMs(at: idx), nextStartMs: gapLineStartMs(at: idx + 1))
+        }
         let compactLine: SyncedLyricLine?
         let compactPlaceholder: Bool
         let compactDwellMs: Int?
@@ -923,7 +933,29 @@ public final class LyricsSyncEngine {
             compactLeadInMs: compactLeadInMs,
             nextText: next.text,
             nextSide: next.side,
-            gapIndex: gap)
+            gapIndex: gap,
+            accompaniment: isShortPause ? nil : accompaniment)
+    }
+
+    private func accompanimentWindow(after index: Int, atMs position: Int,
+                                     trackEndMs: Int?) -> LyricsGapMarker? {
+        guard index >= 0 else { return nil }
+        var previous = index
+        while previous >= 0, lineAt(previous) == nil { previous -= 1 }
+        guard previous >= 0 else { return nil }
+        var next = index + 1
+        while next < gapLineCount, lineAt(next) == nil { next += 1 }
+        guard let end = gapLineStartMs(at: next) ?? trackEndMs else { return nil }
+        let start: Int?
+        if let vocalEnd = gapLineEndMs(at: previous) {
+            start = vocalEnd
+        } else if previous < index {
+            start = gapLineStartMs(at: previous + 1)
+        } else {
+            start = gapWindow(after: index)?.start
+        }
+        guard let start, end > start, position >= start, position < end else { return nil }
+        return LyricsGapMarker(index: previous, startMs: start, endMs: end)
     }
 
     func nextUpdatePositionMs(after rawPosMs: Int) -> Int? {

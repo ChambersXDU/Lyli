@@ -3,6 +3,7 @@ import Foundation
 public enum CompactLyricLead {
 
     public static let revealMs = 5000
+    public static let minimumAccompanimentMs = 3000
 
     public enum Outcome: Equatable {
 

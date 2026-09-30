@@ -51,6 +51,7 @@ final class PlaybackCoordinator: ObservableObject {
 
     @Published private(set) var lyricsGapMarkers: [LyricsGapMarker] = []
     @Published private(set) var currentGapIndex: Int?
+    @Published private(set) var currentAccompaniment: LyricsGapMarker?
 
     @Published private(set) var currentLineFillSettled: Bool = true
 
@@ -369,6 +370,7 @@ final class PlaybackCoordinator: ObservableObject {
         s.$allLines.assign(to: &$allLines)
         s.$lyricsGapMarkers.assign(to: &$lyricsGapMarkers)
         s.$currentGapIndex.assign(to: &$currentGapIndex)
+        s.$currentAccompaniment.assign(to: &$currentAccompaniment)
         s.$currentLineFillSettled.assign(to: &$currentLineFillSettled)
 
         s.$currentLyricsOffsetMs.assign(to: &$currentLyricsOffsetMs)

@@ -62,6 +62,14 @@ private struct MissingValue: Error { let location: String }
             ("native-position-request-and-reply", { playback.testNativePositionRequestAndFractionalReply() }),
             ("native-position-failure-keeps-anchor", { playback.testNativePositionFailuresDoNotBecomeZero() }),
             ("missing-music-does-not-send", { playback.testMissingMusicOrInvalidTimeoutDoesNotSend() }),
+            ("plain-clear-keeps-sustained-word", { playback.testPlainClearDoesNotCutOffSustainedWord() }),
+            ("ordinary-drift-keeps-clock-continuous", { playback.testOrdinaryDriftDoesNotJumpClockBackwards() }),
+            ("short-accompaniment-and-intro", { playback.testShortAccompanimentAndIntroRemainDistinct() }),
+            ("plain-blank-shows-accompaniment", { playback.testPlainBlankUsesAccompanimentRatherThanTitle() }),
+            ("accompaniment-dots-follow-progress", { playback.testAccompanimentDotsFillContinuouslyAndSeek() }),
+            ("boundary-delay-includes-correction-end", { playback.testBoundaryDelayIncludesCorrectionEnd() }),
+            ("menu-bar-animation-keeps-clock-continuous", { playback.testMenuBarAnimationUsesContinuousCorrectedClock() }),
+            ("short-pauses-hold-line-and-smaller-dots", { playback.testShortPausesHoldFinishedLineAndDotsAreSmaller() }),
         ]
         for (name, test) in tests {
             let failuresBefore = workflowFailures

@@ -35,6 +35,9 @@ enum MenuBarMarqueeRenderer {
     }
 
     static func mainFont(for text: String, twoRows: Bool) -> NSFont {
+        if text == MenuBarSlotPolicy.accompanimentText {
+            return NSFont.systemFont(ofSize: font.pointSize * 0.7, weight: .regular)
+        }
         guard twoRows else { return font(for: text) }
         return text == placeholderGlyph
             ? NSFont.menuBarFont(ofSize: MenuBarLyricRows.mainPointSize) : doubleRowMainFont
@@ -48,6 +51,9 @@ enum MenuBarMarqueeRenderer {
 
     static func font(for text: String) -> NSFont {
         let lineFont = font
+        if text == MenuBarSlotPolicy.accompanimentText {
+            return NSFont.systemFont(ofSize: lineFont.pointSize * 0.7, weight: .regular)
+        }
         return text == placeholderGlyph ? NSFont.menuBarFont(ofSize: lineFont.pointSize) : lineFont
     }
 

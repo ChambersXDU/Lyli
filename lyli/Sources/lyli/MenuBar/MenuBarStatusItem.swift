@@ -93,6 +93,12 @@ final class MenuBarStatusItem: NSObject {
             .sink { [weak self] _ in self?.scheduleRefresh() }.store(in: &cancellables)
         coordinator.$nextLineText.dropFirst().removeDuplicates().receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.scheduleRefresh() }.store(in: &cancellables)
+        coordinator.$currentAccompaniment.removeDuplicates().receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.scheduleRefresh() }.store(in: &cancellables)
+        coordinator.$compactShowsPlaceholder.removeDuplicates().receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.scheduleRefresh() }.store(in: &cancellables)
+        coordinator.$currentLineIndex.removeDuplicates().receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.scheduleRefresh() }.store(in: &cancellables)
 
         settings.$menuBarLyricsTextColorHex.dropFirst().receive(on: RunLoop.main)
             .sink { [weak self] _ in
@@ -178,8 +184,14 @@ final class MenuBarStatusItem: NSObject {
     }
 
     private func karaokeFillPath(for text: String) -> [MenuBarMarquee.KaraokeFillPoint]? {
+        if text == MenuBarSlotPolicy.accompanimentText,
+           let gap = PlaybackCoordinator.shared.currentAccompaniment {
+            let prefixes = ["● ", "● ● ", MenuBarSlotPolicy.accompanimentText]
+            return MenuBarSlotPolicy.accompanimentFillPath(in: gap,
+                wordEndXs: prefixes.map { MenuBarMarqueeRenderer.width(of: $0, font: rowState.mainFont) })
+        }
         guard AppSettings.shared.menuBarLyricsKaraoke else { return nil }
-        guard let line = PlaybackCoordinator.shared.currentLine,
+        guard let line = timedLine(for: text),
               let words = line.words, !words.isEmpty,
               line.plainText == text else { return nil }
         let path = MenuBarMarquee.karaokeFillPath(
@@ -188,12 +200,18 @@ final class MenuBarStatusItem: NSObject {
     }
 
     private func followReadingPath(for text: String) -> [MenuBarMarquee.KaraokeFillPoint]? {
-        guard let line = PlaybackCoordinator.shared.currentLine,
+        guard let line = timedLine(for: text),
               let words = line.words, !words.isEmpty,
               line.plainText == text else { return nil }
         let path = MenuBarMarquee.followReadingPath(
             words: words, wordEndXs: MenuBarMarqueeRenderer.wordEndXs(for: words, font: rowState.mainFont))
         return path.isEmpty ? nil : path
+    }
+
+    private func timedLine(for text: String) -> SyncedLyricLine? {
+        let coordinator = PlaybackCoordinator.shared
+        return [coordinator.currentLine, coordinator.compactLine]
+            .compactMap { $0 }.first { $0.plainText == text }
     }
 
     private static let statusItemAutosaveBaseName = "lyli-status-item"
@@ -482,32 +500,43 @@ final class MenuBarStatusItem: NSObject {
         let coordinator = PlaybackCoordinator.shared
 
         let secondaryKind = settings.menuBarSecondaryLine
-        let line = secondaryKind.showsSecondaryRow ? coordinator.currentLine : coordinator.compactLine
+        let gap = coordinator.currentAccompaniment
+        let line = gap != nil ? nil
+            : (secondaryKind.showsSecondaryRow ? (coordinator.currentLine ?? coordinator.compactLine) : coordinator.compactLine)
         let lyricText = line?.plainText
             ?? (coordinator.compactShowsPlaceholder ? MenuBarMarqueeRenderer.placeholderGlyph : "")
+        let position = coordinator.anchor?.extrapolatedPositionMs() ?? coordinator.pausedPositionMs ?? 0
+        let hasStartedLyrics = coordinator.allLines.first.map {
+            position + coordinator.currentLyricsOffsetMs >= $0.timeMs
+        } ?? false
 
         let display = MenuBarSlotPolicy.displayText(
             lyricText: lyricText, title: coordinator.title,
             isPlaying: coordinator.isPlayingNow, isAdBreak: coordinator.isCurrentTrackAdBreak,
             showsTitleWhenNoLyrics: settings.menuBarShowsTitleWhenNoLyrics,
-            placeholderGlyph: MenuBarMarqueeRenderer.placeholderGlyph)
+            placeholderGlyph: MenuBarMarqueeRenderer.placeholderGlyph,
+            hasStartedLyrics: hasStartedLyrics, isAccompaniment: gap != nil)
         let text = display?.text ?? ""
         titleFallbackActive = display?.isFallback ?? false
 
-        let twoRows = secondaryKind.showsSecondaryRow && !titleFallbackActive
-        let fullyPlayed = !titleFallbackActive && line != nil && (line?.words?.isEmpty ?? true)
+        let twoRows = secondaryKind.showsSecondaryRow && !titleFallbackActive && gap == nil
+        let wordFillFinished = line?.words.map { words in
+            let end = words.map { $0.startMs + max(1, $0.durationMs) }.max() ?? Int.max
+            return !words.isEmpty && position + coordinator.currentLyricsOffsetMs >= end
+        } ?? false
+        let fullyPlayed = !titleFallbackActive && line != nil && ((line?.words?.isEmpty ?? true) || wordFillFinished)
 
-        let dwell: Double? = titleFallbackActive ? nil
-            : (twoRows ? coordinator.currentLineDwellSeconds : coordinator.compactDwellSeconds)
+        let dwell: Double? = gap.map { Double($0.endMs - $0.startMs) / 1000 } ?? (titleFallbackActive ? nil
+            : (twoRows ? coordinator.currentLineDwellSeconds : coordinator.compactDwellSeconds))
 
-        let leadIn = twoRows ? 0 : coordinator.compactLeadInSeconds
+        let leadIn = twoRows || gap != nil ? 0 : coordinator.compactLeadInSeconds
         rowState = RowState(
             kind: twoRows ? secondaryKind : .off,
             secondaryText: twoRows
                 ? secondaryKind.secondaryText(currentLine: line, nextLineText: coordinator.nextLineText) : nil,
             mainFont: MenuBarMarqueeRenderer.mainFont(for: text, twoRows: twoRows))
         let lyricsActive = display != nil
-        let placeholderNow = titleFallbackActive || text == MenuBarMarqueeRenderer.placeholderGlyph
+        let placeholderNow = titleFallbackActive || gap != nil || text == MenuBarMarqueeRenderer.placeholderGlyph
 
         guard settings.showLyricsInMenuBar, lyricsActive else {
             let idleImage = coordinator.isPlayingNow
