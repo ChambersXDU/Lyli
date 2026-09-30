@@ -842,7 +842,7 @@ public final class LyricsSyncEngine {
         return line
     }
 
-    public struct TickResolution {
+    public struct TickResolution: Equatable {
         public let index: Int?
 
         public let scrollIndex: Int?
@@ -924,6 +924,25 @@ public final class LyricsSyncEngine {
             nextText: next.text,
             nextSide: next.side,
             gapIndex: gap)
+    }
+
+    func nextUpdatePositionMs(after rawPosMs: Int) -> Int? {
+        let position = rawPosMs + effectiveOffsetMs
+        let index = activeIndexCorrected(position)
+        let nextStart = gapLineStartMs(at: index + 1)
+        var boundaries: [Int] = []
+        if let nextStart { boundaries.append(nextStart) }
+        if index >= 0 {
+            if let end = gapLineEndMs(at: index) { boundaries.append(end) }
+            if let nextStart { boundaries.append(nextStart - CompactLyricLead.revealMs) }
+            if let words = lineAt(index)?.words {
+                boundaries.append(KaraokeFill.lineFillSettledMs(words: words))
+            }
+        }
+        if let gap = gapWindow(after: index) {
+            boundaries.append(contentsOf: [gap.start, gap.end])
+        }
+        return boundaries.filter { $0 > position }.min().map { $0 - effectiveOffsetMs }
     }
 
     private func scrollLeadIndex(activeIdx idx: Int, posMs: Int) -> Int? {

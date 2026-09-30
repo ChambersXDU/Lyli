@@ -20,6 +20,7 @@ private struct MissingValue: Error { let location: String }
 @main struct WorkflowSelftest {
     @MainActor static func main() async {
         let suite = LyricsWorkflowTests()
+        let playback = PlaybackEnergyTests()
         let tests: [(String, () async throws -> Void)] = [
             ("manual-pick-survives-automatic-search", suite.testAutomaticResultDoesNotOverwriteManualPick),
             ("edited-lyrics-replace-old-word-timing", suite.testEditingLyricsInvalidatesOldWordTimingAndDisplaysNewText),
@@ -41,6 +42,26 @@ private struct MissingValue: Error { let location: String }
             ("replacement-keeps-new-word-timing", suite.testExplicitReplacementKeepsNewWordTiming),
             ("failed-save-is-reported", suite.testFailedSaveIsReportedAsFailure),
             ("cached-track-switch-discards-old-search", suite.testSwitchingToCachedSongDiscardsPreviousAutomaticResult),
+            ("unchanged-ticks-do-not-publish", { playback.testUnchangedTicksDoNotPublish() }),
+            ("line-boundary-publishes-immediately", { playback.testLineBoundaryPublishesImmediately() }),
+            ("seek-updates-without-waiting", { playback.testSeekUpdatesWithoutWaitingForTimer() }),
+            ("playing-seek-updates-anchor-and-line", { playback.testPlayingSeekUpdatesAnchorAndLineImmediately() }),
+            ("offset-keeps-boundary-timing", { playback.testOffsetCorrectionKeepsBoundaryTiming() }),
+            ("word-fill-settles-with-same-line", { playback.testWordFillSettlesWithoutChangingLine() }),
+            ("clear-and-reload-update-immediately", { playback.testClearingAndReloadingLyricsUpdatesImmediately() }),
+            ("gap-and-upcoming-line-update", { playback.testGapAndUpcomingLineUpdateWithoutActiveLineChange() }),
+            ("scheduled-updates-match-every-millisecond", { playback.testScheduledUpdatesMatchEveryMillisecond() }),
+            ("scheduler-replans-and-stops", { playback.testSchedulerReplansSeekAndStopsWhenUnneeded() }),
+            ("scheduled-timer-switches-line", { playback.testScheduledTimerActuallySwitchesLine() }),
+            ("position-probe-corrects-small-seek", { playback.testPositionProbeCorrectsSmallSeekAcrossLineBoundary() }),
+            ("probe-timer-detects-external-seek", playback.testProbeTimerDetectsExternalSeekWithoutNotification),
+            ("stopped-source-discards-in-flight-probe", playback.testStoppedSourceDiscardsInFlightProbe),
+            ("position-probe-follows-music-activity", { playback.testPositionProbeCadenceFollowsMusicActivity() }),
+            ("cached-music-samples-preserve-clock", { playback.testCachedMusicSamplesDoNotRepeatedlyResetClock() }),
+            ("same-line-forward-seek-corrects-clock", { playback.testForwardSeekWithinSameLineCorrectsClock() }),
+            ("native-position-request-and-reply", { playback.testNativePositionRequestAndFractionalReply() }),
+            ("native-position-failure-keeps-anchor", { playback.testNativePositionFailuresDoNotBecomeZero() }),
+            ("missing-music-does-not-send", { playback.testMissingMusicOrInvalidTimeoutDoesNotSend() }),
         ]
         for (name, test) in tests {
             let failuresBefore = workflowFailures

@@ -44,18 +44,6 @@ public enum MusicPlaybackController {
     })()
     """#
 
-    private static let playerPositionScript = #"""
-    (() => {
-        const music = Application("Music");
-        try {
-            if (!music.running()) return "";
-            return String(music.playerPosition());
-        } catch (error) {
-            return "";
-        }
-    })()
-    """#
-
     static func fetchSnapshot() -> AppleMusicPlaybackSnapshot? {
         guard let result = ProcessRunner.run(
             "/usr/bin/osascript", ["-l", "JavaScript", "-e", snapshotScript],
@@ -64,10 +52,7 @@ public enum MusicPlaybackController {
     }
 
     public static func fetchPlayerPosition() -> Double? {
-        guard let result = ProcessRunner.run(
-            "/usr/bin/osascript", ["-l", "JavaScript", "-e", playerPositionScript],
-            timeout: appleScriptTimeout), result.succeeded else { return nil }
-        return Double(result.stdoutText.trimmingCharacters(in: .whitespacesAndNewlines))
+        AppleMusicPositionQuery.fetch(timeout: appleScriptTimeout)
     }
 
     @MainActor

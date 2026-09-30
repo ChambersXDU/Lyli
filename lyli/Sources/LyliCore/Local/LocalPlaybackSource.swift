@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Combine
 import os
@@ -7,7 +8,8 @@ private let logger = Logger(subsystem: "com.chambersxdu.lyli", category: "local"
 @MainActor
 public final class LocalPlaybackSource: ObservableObject {
     public static let shared = LocalPlaybackSource()
-    private static let positionProbeInterval: TimeInterval = 3
+    private static let interactivePositionProbeInterval: TimeInterval = 0.1
+    private static let backgroundPositionProbeInterval: TimeInterval = 3
 
     @Published public private(set) var title = ""
     @Published public private(set) var artist = ""
@@ -49,24 +51,41 @@ public final class LocalPlaybackSource: ObservableObject {
     @Published public private(set) var anchor: ProgressAnchor?
     @Published public private(set) var cacheContentVersion: Date?
 
-    private let syncEngine = LyricsSyncEngine()
+    private let syncEngine: LyricsSyncEngine
+    private let seekPlayer: @MainActor (Double) -> Void
+    private let positionQuery: @Sendable () -> Double?
     private var lastSnapshot: AppleMusicPlaybackSnapshot?
     private var lastKey = ""
     private var currentOffsetKey = ""
     private var currentPinKey = ""
     private var lastCacheVersion: Date?
     private var lastReloadSnapshot: LyricsReloadSnapshot?
-    private var fastTimer: Timer?
+    private var lyricsUpdateTimer: Timer?
     private var positionProbeTimer: Timer?
     private var positionProbeInFlight = false
+    private var positionProbeGeneration = 0
     private var ignorePositionProbeUntil: Date?
+    private var lastPositionProbeSample: (positionMs: Int, changedAt: Date)?
     private var playerInfoObserver: NSObjectProtocol?
+    private var workspaceActivationObserver: NSObjectProtocol?
+    private var musicIsFrontmost = false
     private var screenLocked = false
     private var needsRealtimeLyricsUpdates = false
     private var menuBarPopoverIsOpen = false
     private var pollGeneration = 0
     private var settledThresholdIndex: Int?
     private var settledThresholdMs = 0
+
+    init(syncEngine: LyricsSyncEngine = LyricsSyncEngine(),
+         seekPlayer: @escaping @MainActor (Double) -> Void = MusicPlaybackController.seek(toSeconds:),
+         positionQuery: @escaping @Sendable () -> Double? = { MusicPlaybackController.fetchPlayerPosition() }) {
+        self.syncEngine = syncEngine
+        self.seekPlayer = seekPlayer
+        self.positionQuery = positionQuery
+    }
+
+    var nextLyricsUpdateDate: Date? { lyricsUpdateTimer?.fireDate }
+    var scheduledPositionProbeInterval: TimeInterval? { positionProbeTimer?.timeInterval }
 
     public var lastResolvedBundleID: String? {
         lastSnapshot == nil ? nil : MusicPlaybackController.appleMusicBundleIdentifier
@@ -90,7 +109,7 @@ public final class LocalPlaybackSource: ObservableObject {
         needsRealtimeLyricsUpdates || menuBarPopoverIsOpen
     }
 
-    private nonisolated static func shouldRunFastTimer(
+    private nonisolated static func shouldScheduleLyricsUpdate(
         isPlaying: Bool, hasContent: Bool, screenLocked: Bool, needsRealtimeLyricsUpdates: Bool
     ) -> Bool {
         isPlaying && hasContent && !screenLocked && needsRealtimeLyricsUpdates
@@ -104,35 +123,59 @@ public final class LocalPlaybackSource: ObservableObject {
 
     public func start() {
         guard playerInfoObserver == nil else { return }
+        musicIsFrontmost = NSWorkspace.shared.frontmostApplication?.bundleIdentifier == MusicPlaybackController.appleMusicBundleIdentifier
         playerInfoObserver = DistributedNotificationCenter.default().addObserver(
             forName: NSNotification.Name("com.apple.Music.playerInfo"), object: nil, queue: .main
         ) { [weak self] _ in
             MainActor.assumeIsolated { self?.poll() }
         }
+        workspaceActivationObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main
+        ) { [weak self] notification in
+            MainActor.assumeIsolated {
+                guard let self, self.workspaceActivationObserver != nil else { return }
+                let application = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
+                self.setMusicFrontmost(application?.bundleIdentifier == MusicPlaybackController.appleMusicBundleIdentifier)
+            }
+        }
         poll()
     }
 
     public func stop() {
-        fastTimer?.invalidate(); fastTimer = nil
+        pollGeneration += 1
+        positionProbeGeneration += 1
+        positionProbeInFlight = false
+        lastPositionProbeSample = nil
+        stopLyricsUpdateTimer()
         positionProbeTimer?.invalidate(); positionProbeTimer = nil
         if let observer = playerInfoObserver {
             DistributedNotificationCenter.default().removeObserver(observer)
         }
         playerInfoObserver = nil
+        if let workspaceActivationObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(workspaceActivationObserver)
+        }
+        workspaceActivationObserver = nil
+    }
+
+    func setMusicFrontmost(_ frontmost: Bool) {
+        guard musicIsFrontmost != frontmost else { return }
+        musicIsFrontmost = frontmost
+        if hasRealtimeDemand { ensurePositionProbeRunning() }
     }
 
     public func setScreenLocked(_ locked: Bool) {
         screenLocked = locked
         if locked {
-            fastTimer?.invalidate(); fastTimer = nil
+            stopLyricsUpdateTimer()
             positionProbeTimer?.invalidate(); positionProbeTimer = nil
         } else {
             updateRealtimeTimers()
-            if anchor != nil { fastTick() }
         }
     }
 
     private func poll() {
+        guard playerInfoObserver != nil else { return }
         pollGeneration += 1
         let generation = pollGeneration
         Task {
@@ -146,7 +189,7 @@ public final class LocalPlaybackSource: ObservableObject {
         }
     }
 
-    private func apply(_ snapshot: AppleMusicPlaybackSnapshot) {
+    func apply(_ snapshot: AppleMusicPlaybackSnapshot) {
         let trackChanged = snapshot.trackKey != lastKey
         if trackChanged { networkDown = false }
         lastSnapshot = snapshot
@@ -174,13 +217,13 @@ public final class LocalPlaybackSource: ObservableObject {
                 durationMs: duration, progressMs: progress, rate: max(0, snapshot.playbackRate ?? 1),
                 progressTs: nil, baseAgeMs: 0, fetchedAt: now, fresh: true)
             pausedPositionMs = nil
-            ensureFastTimerRunning()
         } else {
             let paused = max(0, Int((snapshot.elapsedTime ?? 0) * 1000))
             pausedPositionMs = paused
             anchor = nil
-            stopFastTimer()
+            stopLyricsUpdateTimer()
         }
+        lastPositionProbeSample = (anchor?.progressMs ?? pausedPositionMs).map { (positionMs: $0, changedAt: now) }
         updateRealtimeTimers()
         applyOffsets()
         fastTick()
@@ -204,9 +247,9 @@ public final class LocalPlaybackSource: ObservableObject {
             positionProbeTimer?.invalidate(); positionProbeTimer = nil
         }
         if hasRealtimeDemand {
-            ensureFastTimerRunning()
+            fastTick()
         } else {
-            stopFastTimer()
+            stopLyricsUpdateTimer()
         }
     }
 
@@ -215,12 +258,15 @@ public final class LocalPlaybackSource: ObservableObject {
             positionProbeTimer?.invalidate(); positionProbeTimer = nil
             return
         }
-        guard positionProbeTimer == nil else { return }
-        let timer = Timer(timeInterval: Self.positionProbeInterval, repeats: true) { [weak self] _ in
+        let interval = musicIsFrontmost ? Self.interactivePositionProbeInterval : Self.backgroundPositionProbeInterval
+        guard positionProbeTimer?.timeInterval != interval else { return }
+        positionProbeTimer?.invalidate()
+        let timer = Timer(timeInterval: interval, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.probePlayerPosition() }
         }
         RunLoop.main.add(timer, forMode: .common)
         positionProbeTimer = timer
+        logger.debug("player position cadence changed: interval=\(interval)")
         probePlayerPosition()
     }
 
@@ -229,11 +275,15 @@ public final class LocalPlaybackSource: ObservableObject {
               lastSnapshot != nil, (!title.isEmpty || !artist.isEmpty),
               !positionProbeInFlight else { return }
         positionProbeInFlight = true
+        let generation = positionProbeGeneration
         let trackKey = lastKey
+        let query = positionQuery
         Task {
             let reported = await Task.detached(priority: .utility) {
-                MusicPlaybackController.fetchPlayerPosition()
+                query()
             }.value
+            guard generation == self.positionProbeGeneration else { return }
+            logger.debug("player position probe completed: hasPosition=\(reported != nil)")
             guard self.lastKey == trackKey else {
                 self.positionProbeInFlight = false
                 return
@@ -244,49 +294,71 @@ public final class LocalPlaybackSource: ObservableObject {
         }
     }
 
-    private func applyPositionProbe(_ reportedSeconds: Double) {
+    func applyPositionProbe(_ reportedSeconds: Double, now: Date = Date()) {
         guard hasRealtimeDemand, !screenLocked else { return }
         if let until = ignorePositionProbeUntil {
-            guard Date() >= until else { return }
+            guard now >= until else { return }
             ignorePositionProbeUntil = nil
         }
         let reportedMs = max(0, min(currentDurationMs ?? Int.max,
                                     Int((reportedSeconds * 1000).rounded())))
+        let previous = lastPositionProbeSample
+        if previous?.positionMs != reportedMs {
+            lastPositionProbeSample = (positionMs: reportedMs, changedAt: now)
+        }
         if isPlayingNow, let current = anchor {
-            let extrapolatedMs = current.extrapolatedPositionMs()
-            guard abs(reportedMs - extrapolatedMs) > 1_000 else { return }
+            // Music may return the same cached position for many consecutive reads.
+            // Keep the running clock rather than repeatedly anchoring to that stale sample.
+            guard previous?.positionMs != reportedMs else { return }
+            let extrapolatedMs = current.extrapolatedPositionMs(now: now)
+            let delta = abs(reportedMs - extrapolatedMs)
+            let movedBackwards = previous.map { reportedMs < $0.positionMs - 20 } ?? false
+            let jumpedForward = previous.map {
+                Double(reportedMs - $0.positionMs)
+                    - max(0, now.timeIntervalSince($0.changedAt)) * 1_000 * current.rate > 250
+            } ?? false
+            let displayAhead = reportedMs > extrapolatedMs && syncEngine.tickQuery(atMs: reportedMs, trackEndMs: currentDurationMs)
+                != syncEngine.tickQuery(atMs: extrapolatedMs, trackEndMs: currentDurationMs)
+            guard delta > 1_000 || movedBackwards || jumpedForward || displayAhead else { return }
+            logger.debug("player position corrected: deltaMs=\(delta)")
             anchor = ProgressAnchor(durationMs: current.durationMs, progressMs: reportedMs,
                                     rate: current.rate, progressTs: nil, baseAgeMs: 0,
-                                    fetchedAt: Date(), fresh: true)
+                                    fetchedAt: now, fresh: true)
             fastTick()
             return
         }
 
         let paused = pausedPositionMs ?? -1
-        guard paused < 0 || abs(reportedMs - paused) > 400 else { return }
+        guard paused != reportedMs else { return }
+        logger.debug("player position corrected: deltaMs=\(abs(reportedMs - paused))")
         pausedPositionMs = reportedMs
         fastTick()
     }
 
-    private func ensureFastTimerRunning() {
-        guard Self.shouldRunFastTimer(
+    private func scheduleNextLyricsUpdate(after evaluatedPosition: Int) {
+        stopLyricsUpdateTimer()
+        guard Self.shouldScheduleLyricsUpdate(
             isPlaying: isPlayingNow,
             hasContent: syncEngine.hasContent,
             screenLocked: screenLocked,
             needsRealtimeLyricsUpdates: hasRealtimeDemand
         ) else {
-            stopFastTimer()
             return
         }
-        guard fastTimer == nil else { return }
-        let timer = Timer(timeInterval: 1 / 20, repeats: true) { [weak self] _ in
+        guard let anchor, anchor.rate.isFinite, anchor.rate > 0 else { return }
+        let now = Date()
+        let position = anchor.extrapolatedPositionMs(now: now)
+        guard let next = syncEngine.nextUpdatePositionMs(after: evaluatedPosition),
+              next <= anchor.durationMs else { return }
+        let delay = Double(next - position) / (1_000 * anchor.instantaneousRate(now: now))
+        let timer = Timer(timeInterval: max(0.001, delay), repeats: false) { [weak self] _ in
             MainActor.assumeIsolated { self?.fastTick() }
         }
         RunLoop.main.add(timer, forMode: .common)
-        fastTimer = timer
+        lyricsUpdateTimer = timer
     }
 
-    private func stopFastTimer() { fastTimer?.invalidate(); fastTimer = nil }
+    private func stopLyricsUpdateTimer() { lyricsUpdateTimer?.invalidate(); lyricsUpdateTimer = nil }
 
     private func clearLineDisplay() {
         currentLine = nil; nextLineText = nil; nextLineSide = nil
@@ -297,20 +369,25 @@ public final class LocalPlaybackSource: ObservableObject {
 
     private func fastTick() {
         guard let position = anchor?.extrapolatedPositionMs() ?? pausedPositionMs else {
-            clearLineDisplay(); return
+            clearLineDisplay(); stopLyricsUpdateTimer(); return
         }
+        updateLyrics(atMs: position)
+        scheduleNextLyricsUpdate(after: position)
+    }
+
+    func updateLyrics(atMs position: Int) {
         guard syncEngine.hasContent else { clearLineDisplay(); return }
         let result = syncEngine.tickQuery(atMs: position, trackEndMs: currentDurationMs)
-        currentLine = result.line
-        compactLine = result.compactLine
-        compactShowsPlaceholder = result.compactPlaceholder
-        compactDwellMs = result.compactDwellMs
-        compactLeadInMs = result.compactLeadInMs
-        nextLineText = result.nextText
-        nextLineSide = result.nextSide
-        currentLineIndex = result.index
-        scrollLineIndex = result.scrollIndex
-        currentGapIndex = result.gapIndex
+        if currentLine != result.line { currentLine = result.line }
+        if compactLine != result.compactLine { compactLine = result.compactLine }
+        if compactShowsPlaceholder != result.compactPlaceholder { compactShowsPlaceholder = result.compactPlaceholder }
+        if compactDwellMs != result.compactDwellMs { compactDwellMs = result.compactDwellMs }
+        if compactLeadInMs != result.compactLeadInMs { compactLeadInMs = result.compactLeadInMs }
+        if nextLineText != result.nextText { nextLineText = result.nextText }
+        if nextLineSide != result.nextSide { nextLineSide = result.nextSide }
+        if currentLineIndex != result.index { currentLineIndex = result.index }
+        if scrollLineIndex != result.scrollIndex { scrollLineIndex = result.scrollIndex }
+        if currentGapIndex != result.gapIndex { currentGapIndex = result.gapIndex }
         updateLineFillSettled(line: result.line, index: result.index, atRawMs: position)
     }
 
@@ -326,20 +403,19 @@ public final class LocalPlaybackSource: ObservableObject {
             settledThresholdIndex = nil
             settled = true
         }
-        currentLineFillSettled = settled
+        if currentLineFillSettled != settled { currentLineFillSettled = settled }
     }
 
     public func forceReloadLyricsForCurrentTrack() {
         lastCacheVersion = EnrichCacheReader.contentVersion
         reloadCurrentLyrics()
-        ensureFastTimerRunning()
         fastTick()
     }
 
     public func seek(toMs targetMs: Int) {
         let target = max(0, min(targetMs, currentDurationMs ?? targetMs))
         ignorePositionProbeUntil = Date().addingTimeInterval(1)
-        MusicPlaybackController.seek(toSeconds: Double(target) / 1000)
+        seekPlayer(Double(target) / 1000)
         if let current = anchor, isPlayingNow {
             anchor = ProgressAnchor(durationMs: current.durationMs, progressMs: target, rate: current.rate,
                                     progressTs: nil, baseAgeMs: 0, fetchedAt: Date(), fresh: true)
@@ -381,6 +457,7 @@ public final class LocalPlaybackSource: ObservableObject {
         syncEngine.offsetMs = effective
         currentLyricsOffsetMs = effective + syncEngine.lrcOffsetMs
         trackLyricsOffsetMs = global
+        fastTick()
     }
 
     private struct LyricsReloadSnapshot: Equatable {
@@ -413,6 +490,7 @@ public final class LocalPlaybackSource: ObservableObject {
             lyricsTr: chineseVariant.converted(found?.lyricsTr ?? ""),
             lyricsYRC: chineseVariant.converted(JapaneseKanjiRepair.repair(reload.lyricsYRC, japaneseSong: japaneseSong)),
             trackTitle: snapshot.title ?? "", trackArtist: snapshot.artist ?? "")
+        settledThresholdIndex = nil
         currentOffsetKey = LyricsOffsetStore.trackKey(artist: snapshot.artist ?? "", title: snapshot.title ?? "",
                                                        lyrics: raw, lyricsYRC: reload.lyricsYRC)
         currentPinKey = EnrichCacheKeys.normalizedKey(artist: snapshot.artist ?? "", title: snapshot.title ?? "", album: snapshot.album ?? "")
