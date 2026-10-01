@@ -20,8 +20,6 @@ final class MenuBarStatusItem: NSObject {
 
     private let panelController = MenuBarPanelController()
 
-    private let positionHintController = MenuBarPositionHintController()
-
     private override init() { super.init() }
 
     func start() {
@@ -127,13 +125,6 @@ final class MenuBarStatusItem: NSObject {
 
         refresh()
 
-        if !AppSettings.shared.hasShownMenuBarPositionHint {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
-                guard let self, let button = self.statusItem?.button else { return }
-                AppSettings.shared.hasShownMenuBarPositionHint = true
-                self.positionHintController.show(relativeTo: button)
-            }
-        }
     }
 
     private var correctionEndRefresh: DispatchWorkItem?

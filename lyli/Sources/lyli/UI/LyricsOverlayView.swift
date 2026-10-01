@@ -122,7 +122,6 @@ protocol OverlayChromeSource: ObservableObject {
 
     var isDragArmed: Bool { get }
 
-    var showDragHint: Bool { get }
 
     var transientHint: String? { get }
 
@@ -213,7 +212,6 @@ struct LyricsOverlayView<Chrome: OverlayChromeSource>: View {
         .onPreferenceChange(ControlRectsPreferenceKey.self) { onControlRectsChange($0) }
         .onPreferenceChange(LyricsTextRectPreferenceKey.self) { onLyricsTextRectChange($0) }
         .animation(.easeOut(duration: 0.16), value: controlsVisible)
-        .animation(.easeOut(duration: 0.3), value: overlayController.showDragHint)
         .animation(.easeOut(duration: 0.2), value: overlayController.transientHint)
         .animation(.easeOut(duration: 0.2), value: overlayController.placementLockNotice)
 
@@ -467,14 +465,6 @@ struct LyricsOverlayView<Chrome: OverlayChromeSource>: View {
 
             if let hint = overlayController.transientHint {
                 Text(hint)
-                    .font(.caption)
-                    .foregroundStyle(playback.displayForegroundColor.opacity(0.8))
-                    .lyricsTextStroke(playback.textStrokeEnabled, color: playback.textStrokeColor)
-                    .transition(.opacity)
-            } else if overlayController.showDragHint {
-                Text(AppSettings.shared.overlayDragNeedsLongPress
-                        ? "长按即可拖动位置"
-                        : "按住歌词即可拖动位置")
                     .font(.caption)
                     .foregroundStyle(playback.displayForegroundColor.opacity(0.8))
                     .lyricsTextStroke(playback.textStrokeEnabled, color: playback.textStrokeColor)

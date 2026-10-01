@@ -8,7 +8,6 @@ final class OverlayPreviewChrome: ObservableObject, OverlayChromeSource {
     let isHoveringControlPill = false
     let hoveredControl: OverlayControlID? = nil
     let isDragArmed = false
-    let showDragHint = false
     let transientHint: String? = nil
     let placementLockNotice: String? = nil
     let placementLockShakeTick = 0
@@ -32,11 +31,11 @@ struct OverlayDesktopPreview: View {
     private static var previewLine: OverlayPreviewLine {
         OverlayPreviewLine(
             line: SyncedLyricLine(
-                translation: "这里是译文示例",
-                mainText: "这里是一句歌词示例",
+                translation: "译文示例",
+                mainText: "歌词示例",
                 words: nil,
                 side: nil),
-            nextLineText: "这里是下一句歌词示例")
+            nextLineText: "下一句歌词")
     }
 
     var body: some View {

@@ -278,9 +278,7 @@ struct OverlayCustomThemeRows: View {
             }
             if isNaming {
                 CardDivider()
-                OverlayInlineConfirmRow(
-                    message: "会把当前的文字颜色、背景颜色、描边颜色存成一个可以随时再套用的主题"
-                ) {
+                OverlayInlineConfirmRow {
                     TextField("主题名称", text: $newThemeName)
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 130)
@@ -297,7 +295,7 @@ struct OverlayCustomThemeRows: View {
 
                     OverlayInlineConfirmRow(
                         title: theme.name,
-                        message: String(format: "「%@」删除后无法恢复", theme.name)
+                        message: "删除后无法恢复"
                     ) {
 
                         Button("删除", role: .destructive) {
@@ -395,4 +393,3 @@ enum OverlayStyleSummary {
         return "\(lines) · \(alignment)"
     }
 }
-

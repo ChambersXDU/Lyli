@@ -158,7 +158,6 @@ struct SettingsView: View {
             }
 
             .navigationTitle("设置")
-            .navigationSubtitle(selectedCategoryTitle)
         }
 
         .frame(minWidth: 720, idealWidth: 820, minHeight: 540, idealHeight: 630)
@@ -202,12 +201,6 @@ struct SettingsView: View {
         .tag(SettingsSidebarItem.tab(tab))
     }
 
-    private var selectedCategoryTitle: String {
-        switch selection {
-        case .tab(let tab): return tab.title
-        case nil: return "设置"
-        }
-    }
 }
 
 private struct LyricsSettingsTab: View {
@@ -295,12 +288,6 @@ private struct LyricsSettingsTab: View {
         }
     }
 
-    private func matchingModeLabel(_ mode: LyricsSourceMode) -> String {
-        mode == .smart
-            ? String(format: "%@（推荐）", mode.displayName)
-            : mode.displayName
-    }
-
     private var matchingCard: some View {
         SettingsCard {
 
@@ -313,7 +300,7 @@ private struct LyricsSettingsTab: View {
                     set: { features.lyricsSourceMode = $0; Task { await features.save() } }
                 )) {
                     ForEach(LyricsSourceMode.allCases) { mode in
-                        Text(matchingModeLabel(mode)).tag(mode)
+                        Text(mode.displayName).tag(mode)
                     }
                 }
                 .pickerStyle(.radioGroup)
@@ -349,7 +336,7 @@ private struct LyricsSettingsTab: View {
                         if manualPickLockBusy {
                             ProgressView().controlSize(.small)
                         }
-                        Text(manualPickLockNotice ?? "正在检查已经手动选定过的歌…")
+                        Text(manualPickLockNotice ?? "正在检查手选歌词…")
                     }
                 }
             }
@@ -357,11 +344,11 @@ private struct LyricsSettingsTab: View {
 
         .animation(.easeInOut(duration: 0.18), value: manualPickLockBusy)
         .animation(.easeInOut(duration: 0.18), value: manualPickLockNotice)
-        .alert("要把之前锁定的歌一并解锁吗？", isPresented: $showManualPickUnlockConfirm) {
+        .alert(String(format: "解锁 %@ 首手选歌词？", "\(pendingManualUnlockCount)"), isPresented: $showManualPickUnlockConfirm) {
 
             Button("保持锁定", role: .cancel) {
                 showManualPickLockNotice(String(
-                    format: "%@ 首保持锁定；从现在起手动选定的歌不再自动锁定",
+                    format: "%@ 首保持锁定",
                     "\(pendingManualUnlockCount)"))
             }
             Button("一并解锁") {
@@ -373,9 +360,7 @@ private struct LyricsSettingsTab: View {
                 }
             }
         } message: {
-            Text(String(
-                format: "有 %@ 首歌是因为这个开关被锁定的。解锁后它们会重新接受自动重搜和打分改进；你手动编辑过正文的歌不受影响，始终保持锁定",
-                "\(pendingManualUnlockCount)"))
+            Text("解锁后允许自动换源")
         }
 
         .coordinateSpace(name: Self.priorityListSpace)
@@ -397,7 +382,6 @@ private struct LyricsSettingsTab: View {
                 manualPickLockBusy = false
 
                 guard stats.targets > 0 else {
-                    showManualPickLockNotice("从现在起，手动选定的歌不再自动锁定")
                     return
                 }
                 pendingManualUnlockCount = stats.targets
@@ -409,18 +393,18 @@ private struct LyricsSettingsTab: View {
             manualPickLockBusy = false
             if changed > 0 {
                 showManualPickLockNotice(String(
-                    format: "已锁定 %@ 首之前手动选定的歌；从现在起选定的会直接锁定",
+                    format: "已锁定 %@ 首",
                     "\(changed)"))
             } else if stats.picked == 0 {
 
-                showManualPickLockNotice("还没有手动选定过歌词；从现在起你选定的都会直接锁定")
+                showManualPickLockNotice("无手选歌词")
             } else if stats.stillOriginal == 0 {
                 showManualPickLockNotice(String(
-                    format: "之前手动选定的 %@ 首，歌词后来都被自动更新过，已经不是你当初选的那一份，所以没有锁定",
+                    format: "%@ 首已换源，未锁定",
                     "\(stats.picked)"))
             } else {
                 showManualPickLockNotice(String(
-                    format: "之前手动选定的 %@ 首已经都是锁定状态", "\(stats.stillOriginal)"))
+                    format: "%@ 首已锁定", "\(stats.stillOriginal)"))
             }
         }
     }
@@ -733,7 +717,7 @@ private struct LyricsSettingsTab: View {
 
             if !features.lyricsDir.isEmpty {
                 CardDivider()
-                SettingsSubRow(title: "已改用自定义位置") {
+                SettingsSubRow {
                     Button("恢复默认位置") {
                         features.lyricsDir = ""
                         Task { await features.save() }

@@ -17,7 +17,7 @@ struct MenuBarPreviewBar: View {
 
     private var fullText: String {
         if let text = line?.plainText, !text.isEmpty { return text }
-        return "这里是一句歌词示例"
+        return "歌词示例"
     }
 
     private var secondaryKind: LyricSecondaryLine { settings.menuBarSecondaryLine }

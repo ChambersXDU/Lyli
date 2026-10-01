@@ -57,7 +57,6 @@ final class AppSettings: ObservableObject {
         static let overlayLyricsKaraoke = "np:overlayLyricsKaraoke"
         static let lyricsChineseVariant = "np:lyricsChineseVariant"
         static let hasSeenChineseLyrics = "np:hasSeenChineseLyrics"
-        static let hasShownMenuBarPositionHint = "np:hasShownMenuBarPositionHint"
         static let showTranslation = "np:showTranslation"
         static let launchAtLoginEnabled = "np:launchAtLoginEnabled"
 
@@ -138,10 +137,6 @@ final class AppSettings: ObservableObject {
     }
     @Published var hasSeenChineseLyrics: Bool {
         didSet { defaults.set(hasSeenChineseLyrics, forKey: Keys.hasSeenChineseLyrics) }
-    }
-
-    @Published var hasShownMenuBarPositionHint: Bool {
-        didSet { defaults.set(hasShownMenuBarPositionHint, forKey: Keys.hasShownMenuBarPositionHint) }
     }
 
     static let userReadsChinese: Bool = Locale.preferredLanguages.contains {
@@ -372,7 +367,6 @@ final class AppSettings: ObservableObject {
         lyricsChineseVariant = defaults.string(forKey: Keys.lyricsChineseVariant)
             .flatMap(ChineseVariant.init(rawValue:)) ?? .off
         hasSeenChineseLyrics = defaults.bool(forKey: Keys.hasSeenChineseLyrics)
-        hasShownMenuBarPositionHint = defaults.bool(forKey: Keys.hasShownMenuBarPositionHint)
         showTranslation = (defaults.object(forKey: Keys.showTranslation) as? Bool) ?? Self.userReadsChinese
 
         launchAtLoginEnabled = (defaults.object(forKey: Keys.launchAtLoginEnabled) as? Bool) ?? true

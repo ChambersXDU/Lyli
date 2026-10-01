@@ -8,7 +8,6 @@ private let overlayPositionKey = "np:overlayPositionTop"
 
 private let overlayPositionLegacyOriginKey = "np:overlayPositionOrigin"
 
-private let hasShownDragHintKey = "np:hasShownOverlayDragHint"
 
 private let overlayDefaultHeight: CGFloat = 120
 
@@ -47,8 +46,6 @@ final class LyricsOverlayWindowController: NSWindowController, ObservableObject,
 
     @Published private(set) var isDragArmed: Bool = false
 
-    @Published private(set) var showDragHint: Bool = false
-
     @Published private(set) var transientHint: String?
 
     @Published private(set) var placementLockNotice: String?
@@ -68,7 +65,6 @@ final class LyricsOverlayWindowController: NSWindowController, ObservableObject,
     private var globalMouseMonitor: Any?
     private var localMouseMonitor: Any?
     private var longPressTimer: Timer?
-    private var dragHintDismissTimer: Timer?
     private var transientHintDismissTimer: Timer?
 
     private var pressStartLocation: NSPoint?
@@ -165,7 +161,6 @@ final class LyricsOverlayWindowController: NSWindowController, ObservableObject,
         moveDebounceTimer?.invalidate()
         placementLockNoticeTimer?.invalidate()
         longPressTimer?.invalidate()
-        dragHintDismissTimer?.invalidate()
         transientHintDismissTimer?.invalidate()
         if let moveObserver { NotificationCenter.default.removeObserver(moveObserver) }
         if let screenObserver { NotificationCenter.default.removeObserver(screenObserver) }
@@ -208,23 +203,9 @@ final class LyricsOverlayWindowController: NSWindowController, ObservableObject,
 
             cancelPendingPress()
             clearControlsHoverState()
-        } else {
-            maybeShowDragHintOnFirstUnlock()
         }
 
         syncMouseMonitors()
-    }
-
-    private func maybeShowDragHintOnFirstUnlock() {
-
-        guard !placementMode.isPreset else { return }
-        guard !UserDefaults.standard.bool(forKey: hasShownDragHintKey) else { return }
-        UserDefaults.standard.set(true, forKey: hasShownDragHintKey)
-        dragHintDismissTimer?.invalidate()
-        showDragHint = true
-        dragHintDismissTimer = Timer.scheduledTimer(withTimeInterval: 4, repeats: false) { [weak self] _ in
-            MainActor.assumeIsolated { self?.showDragHint = false }
-        }
     }
 
     func flashTransientHint(_ text: String) {
@@ -594,7 +575,7 @@ final class LyricsOverlayWindowController: NSWindowController, ObservableObject,
 
     private func rejectDragForPreset() {
         let label = OverlayPlacementSegmentedControl.label(for: placementMode)
-        placementLockNotice = String(format: "位置已固定为「%@」，在 ⚙ 菜单里可改", label)
+        placementLockNotice = String(format: "位置已固定为「%@」", label)
         placementLockShakeTick += 1
         placementLockNoticeTimer?.invalidate()
         placementLockNoticeTimer = Timer.scheduledTimer(withTimeInterval: 2.4, repeats: false) { [weak self] _ in

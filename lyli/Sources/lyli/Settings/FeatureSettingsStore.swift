@@ -156,11 +156,11 @@ public final class FeatureSettingsStore: ObservableObject {
             try persistFile()
         } catch JSONConfigDocument.Failure.refusedCorruptFile {
 
-            lastError = "功能设置文件已损坏，未覆盖原文件"
+            lastError = "设置损坏，无法保存"
             logger.notice("save refused: features.json on disk is corrupt")
             return false
         } catch {
-            lastError = String(format: "写入功能开关文件失败: %@", error.localizedDescription)
+            lastError = String(format: "设置保存失败：%@", error.localizedDescription)
             logger.error("write failed: \(String(describing: error), privacy: .public)")
             return false
         }

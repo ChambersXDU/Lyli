@@ -622,7 +622,7 @@ public final class EnrichCacheStore: ObservableObject {
             refreshPlayback()
             return true
         } catch {
-            lastError = String(format: "写入本地记录文件失败: %@", error.localizedDescription)
+            lastError = String(format: "记录保存失败：%@", error.localizedDescription)
             logger.error("write failed: \(error.localizedDescription, privacy: .public)")
             return false
         }

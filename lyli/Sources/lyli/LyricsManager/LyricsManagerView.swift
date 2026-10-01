@@ -656,8 +656,8 @@ struct LyricsManagerView: View {
         Toggle("仅人工修正", isOn: $manualOnly)
         Toggle("仅无歌词", isOn: $missingLyricsOnly)
         Toggle("仅纯音乐", isOn: $instrumentalOnly)
-        Toggle("仅证据薄", isOn: $thinEvidenceOnly)
-            .help("当初只有 1~3 个歌词源应答就定下了这份歌词。想换一份就逐条点「重新自动匹配」")
+        Toggle("仅应答源少", isOn: $thinEvidenceOnly)
+            .help("1～3 个源应答")
     }
 
     private var selectionAndFilterActions: some View {
@@ -916,7 +916,7 @@ struct LyricsManagerView: View {
                                     Label("清空全部缓存", systemImage: "trash")
                                 }
                             } header: {
-                                Text(String(format: "共 %d 条，占用 %@",
+                                Text(String(format: "%d 条 · %@",
                                             store.summaries.count, cacheSizeText))
                             }
                             Section {
@@ -927,7 +927,7 @@ struct LyricsManagerView: View {
                                 }
                                 .disabled(offsets.trackOffsetCount == 0)
                             } header: {
-                                Text(String(format: "已校准 %d 首歌的歌词时间轴",
+                                Text(String(format: "已校准 %d 首",
                                             offsets.trackOffsetCount))
                             }
 
@@ -941,7 +941,7 @@ struct LyricsManagerView: View {
                 .toolbar(removing: .sidebarToggle)
                 .navigationSplitViewColumnWidth(min: 480, ideal: 630, max: 900)
                 .confirmationDialog(
-                    "确定要清空全部歌词缓存吗?",
+                    "清空全部缓存？",
                     isPresented: $showClearAllConfirm,
                     titleVisibility: .visible
                 ) {
@@ -954,7 +954,7 @@ struct LyricsManagerView: View {
                     Button("取消", role: .cancel) {}
                 } message: {
 
-                    Text(String(format: "这会删除当前全部 %d 条本地记录，包括手动编辑和联网搜索采纳过的内容。下次播放会重新搜索歌词。", store.summaries.count))
+                    Text(String(format: "删除 %d 条记录及手动编辑，无法恢复。", store.summaries.count))
                 }
 
                 .onChange(of: nowPlaying.trackSignature) { _, _ in
@@ -987,7 +987,7 @@ struct LyricsManagerView: View {
         .background(LyricsManagerWindowCapture(controller: windowFrame).frame(width: 0, height: 0))
 
         .confirmationDialog(
-            "确定要清空全部歌词时间轴校正吗?",
+            "清空时间轴校正？",
             isPresented: $showClearOffsetsConfirm,
             titleVisibility: .visible
         ) {
@@ -997,7 +997,7 @@ struct LyricsManagerView: View {
             }
             Button("取消", role: .cancel) {}
         } message: {
-            Text(String(format: "这会清掉你为 %d 首歌手动调出来的歌词时间轴校正值,无法撤销。歌词内容本身不受影响;设置里的全局偏移和按播放器补偿也不会被清掉。清掉之后,这些歌会重新交给后台自动更新歌词源", offsets.trackOffsetCount))
+            Text(String(format: "%d 首校正将删除，允许自动换源。无法撤销。", offsets.trackOffsetCount))
         }
 
         .onAppear { AuxiliaryWindowActivation.windowDidAppear() }
@@ -1025,21 +1025,21 @@ struct LyricsManagerView: View {
     private var batchDeleteTitle: String {
         if pendingDeleteKeys.count == 1,
            let summary = store.summaries.first(where: { $0.key == pendingDeleteKeys[0] }) {
-            return String(format: "确定要删除「%@ - %@」的本地记录吗?", summary.artist, summary.title)
+            return String(format: "删除「%@ - %@」？", summary.artist, summary.title)
         }
-        return String(format: "确定要删除选中的 %@ 条本地记录吗?", "\(pendingDeleteKeys.count)")
+        return String(format: "删除 %@ 条记录？", "\(pendingDeleteKeys.count)")
     }
 
     private var batchDeleteMessage: String {
         if pendingDeleteKeys.count == 1 {
-            return "已导出到本地的歌词文件也会一并删除,下次播放这首歌会重新走一遍匹配解析,不保证一定能找到一样的歌词"
+            return "本地歌词文件也将删除，无法恢复。"
         }
         let pending = Set(pendingDeleteKeys)
         let manual = store.summaries.filter { pending.contains($0.key) && $0.isManual }.count
         if manual > 0 {
-            return String(format: "其中 %@ 条是你手动修正过的,删掉之后找不回来。已导出到本地的歌词文件也会一并删除,且无法撤销。下次播放这些歌会重新走一遍匹配解析,不保证能找到一样的歌词", "\(manual)")
+            return String(format: "含 %@ 条手动修正。本地歌词文件也将删除，无法恢复。", "\(manual)")
         }
-        return "已导出到本地的歌词文件也会一并删除,且无法撤销。下次播放这些歌会重新走一遍匹配解析,不保证能找到一样的歌词"
+        return "本地歌词文件也将删除，无法恢复。"
     }
 
     private func performPendingDelete() {
@@ -1086,19 +1086,13 @@ struct LyricsManagerView: View {
                              text: String(format: "无源应答 %@ 首", "\(noResponder)"), tint: .secondary)
                 }
                 if indexed > 0 {
-                    InfoChip(icon: "music.note", text: String(format: "源里有歌、无词 %@ 首", "\(indexed)"), tint: .secondary)
+                    InfoChip(icon: "music.note", text: String(format: "已收录，无歌词 %@ 首", "\(indexed)"), tint: .secondary)
                 }
             }
-            if manual > 0 {
-                Text("人工修正过的歌词删掉之后找不回来")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
             Button(role: .destructive) {
                 requestDelete(selectedKeys)
             } label: {
-                Label(String(format: "删除选中的 %@ 条", "\(picked.count)"), systemImage: "trash")
+                Label("删除", systemImage: "trash")
             }
             .buttonStyle(.borderedProminent)
             .padding(.top, 4)
@@ -1206,10 +1200,6 @@ struct LyricsManagerView: View {
             ContentUnavailableView {
                 Label(state == .searching ? "正在搜索歌词…" : "自动搜索未完成",
                       systemImage: state == .searching ? "magnifyingglass" : "exclamationmark.triangle")
-            } description: {
-                Text(state == .searching
-                     ? "这首歌第一次播放，正在联网搜索歌词，完成后会自动显示，不需要手动刷新。"
-                     : "可以重试搜索；如果本地记录未能保存，请先检查下方的错误信息。")
             } actions: {
                 if state == .searching {
                     Button("停止搜索") { cancelPlaceholderSearch() }
@@ -1240,7 +1230,7 @@ struct LyricsManagerView: View {
                 header(summary)
 
                 if store.searchWasCancelled(forKey: key) {
-                    Label("已停止自动搜索，可点击重新匹配重试", systemImage: "stop.circle")
+                    Label("自动搜索已停止", systemImage: "stop.circle")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -1249,11 +1239,7 @@ struct LyricsManagerView: View {
                 infoStrip(summary)
                 offsetSection(summary)
 
-                if summary.hasWordTiming {
-                    wordTimingHint
-                }
-
-                editorSection(title: "歌词(LRC)", icon: "text.alignleft", text: $editedLyricsBody, minHeight: 220, monospaced: true, disabled: summary.hasWordTiming, showCopyButton: true)
+                editorSection(title: summary.hasWordTiming ? "整行歌词（只读）" : "整行歌词", icon: "text.alignleft", text: $editedLyricsBody, minHeight: 220, monospaced: true, disabled: summary.hasWordTiming, showCopyButton: true)
 
                     .onChange(of: editedLyrics, initial: true) { _, raw in
                         if raw == lyricsBodyEdit.reassembled(body: editedLyricsBody) { return }
@@ -1357,12 +1343,11 @@ struct LyricsManagerView: View {
                       GridItem(.fixed(ActionTile.size.width), spacing: 8)],
             spacing: 8
         ) {
-            ActionTile(icon: "wand.and.stars", title: "重新自动匹配",
-                       help: "重新联网跑一遍匹配，直接采用算法选出的那一份，不用自己挑；跟设置里的「匹配算法」一致",
+            ActionTile(icon: "wand.and.stars", title: "自动匹配",
                        disabled: rematchRunningKey != nil) {
                 Task { await runRematch(key: summary.key, summary: summary) }
             }
-            ActionTile(icon: "magnifyingglass", title: "联网搜索候选歌词",
+            ActionTile(icon: "magnifyingglass", title: "搜索歌词",
                        disabled: rematchRunningKey != nil) {
                 showSearchSheet = true
             }
@@ -1370,12 +1355,12 @@ struct LyricsManagerView: View {
             if !summary.hasLyrics {
                 if summary.isInstrumental {
                     ActionTile(icon: "waveform.slash", title: "取消纯音乐标记",
-                               help: "撤回「纯音乐」结论，这首歌重新回到自动补搜歌词的队列") {
+                               help: "恢复自动搜索歌词") {
                         Task { await store.setInstrumental(key: summary.key, false) }
                     }
                 } else {
                     ActionTile(icon: "waveform", title: "标为纯音乐",
-                               help: "这首本来就没有歌词（口白、过场、纯乐器）：标上之后不再显示为「无歌词」，也不再自动重搜") {
+                               help: "停止自动搜索歌词") {
                         Task { await store.setInstrumental(key: summary.key, true) }
                     }
                 }
@@ -1389,7 +1374,7 @@ struct LyricsManagerView: View {
     }
 
     private func infoStrip(_ summary: EnrichCacheStore.Summary) -> some View {
-        HStack(spacing: 8) {
+        WrapLayout(horizontalSpacing: 8, verticalSpacing: 6, rowAlignment: .leading) {
             InfoChip(
                 icon: "arrow.down.circle",
                 text: sourceDisplayName(summary.lyricsSource),
@@ -1413,7 +1398,8 @@ struct LyricsManagerView: View {
                          tint: .indigo)
             }
             if pins.isPinned(summary.key) {
-                InfoChip(icon: "timer", text: "已校准", tint: .teal)
+                InfoChip(icon: "lock.fill", text: "已校准", tint: .teal)
+                    .help("重置偏移后解锁")
             }
             if summary.hasTranslation
                 && summary.lyricsTrSource == LyricsTranslationSource.machineSentinel {
@@ -1426,28 +1412,49 @@ struct LyricsManagerView: View {
                     InfoChip(icon: "text.quote", text: "仅纯文本", tint: .orange)
                 } else if summary.lastRoundHadNoResponder {
                     InfoChip(icon: "antenna.radiowaves.left.and.right.slash",
-                             text: "这一轮没有源应答", tint: .secondary)
+                             text: "无源应答", tint: .secondary)
                 } else if summary.knownOnSources {
-                    InfoChip(icon: "music.note", text: "源里有歌、无词", tint: .secondary)
+                    InfoChip(icon: "music.note", text: "已收录，无歌词", tint: .secondary)
                 } else {
                     InfoChip(icon: "text.badge.xmark", text: "无歌词", tint: .red)
                 }
             }
-            Spacer()
         }
     }
 
     private func offsetSection(_ summary: EnrichCacheStore.Summary) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 12) {
+                offsetLabel
+                offsetControls(summary)
+                Spacer(minLength: 0)
+            }
+            VStack(alignment: .leading, spacing: 8) {
+                offsetLabel
+                offsetControls(summary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(12)
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.5), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Color.primary.opacity(0.06)))
+    }
+
+    private var offsetLabel: some View {
+        Label("时间偏移", systemImage: "timer")
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .fixedSize()
+    }
+
+    private func offsetControls(_ summary: EnrichCacheStore.Summary) -> some View {
         HStack(spacing: 8) {
-            Label("歌词时间轴偏移", systemImage: "timer")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.secondary)
             TextField("0.0", text: $editedOffsetSeconds)
                 .textFieldStyle(.roundedBorder)
                 .frame(width: 64)
                 .multilineTextAlignment(.trailing)
                 .onSubmit { applyOffsetEdit(summary) }
+                .help("正数提前，负数延后")
             Text("秒")
                 .font(.callout)
                 .foregroundStyle(.secondary)
@@ -1455,37 +1462,8 @@ struct LyricsManagerView: View {
             if LyricsOffsetStore.shared.offset(forKey: currentOffsetKey(summary)) != 0 {
                 Button("重置") { resetOffsetEdit(summary) }
             }
-            Spacer()
-            Text("正数=提前显示,负数=延后显示")
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
         }
-
-        if pins.isPinned(summary.key) {
-            Text("已校准的歌不再自动更换歌词源:后台一换歌词内容,这个校正值就会失效。把偏移改回 0 即解除")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-        }
-        }
-
-        .padding(12)
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.5), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Color.primary.opacity(0.06)))
-    }
-
-    private var wordTimingHint: some View {
-        Label(
-
-            "播放用的是逐字时间轴，改「歌词(LRC)」不会影响当前逐字歌词。要手改主歌词，先用「联网搜索候选歌词」换一份不带逐字的；译文不受影响。",
-            systemImage: "info.circle"
-        )
-        .font(.caption)
-        .foregroundStyle(.secondary)
-        .padding(10)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.blue.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
-
-        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.blue.opacity(0.18)))
+        .fixedSize()
     }
 
     private func editorSection(title: String, icon: String, text: Binding<String>, minHeight: CGFloat, monospaced: Bool, disabled: Bool = false, latinIcon: Bool = false, showCopyButton: Bool = false) -> some View {
@@ -1562,8 +1540,8 @@ struct LyricsManagerView: View {
             HStack(spacing: 6) {
                 ProgressView().controlSize(.small)
                 Text(rematchTotal > 0
-                     ? String(format: "正在重新匹配…（%1$@/%2$@）", "\(rematchDone)", "\(rematchTotal)")
-                     : "正在重新匹配…")
+                     ? String(format: "匹配中…（%1$@/%2$@）", "\(rematchDone)", "\(rematchTotal)")
+                     : "匹配中…")
             }
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -1612,10 +1590,9 @@ struct LyricsManagerView: View {
             rematchResult = RematchOutcome(key: key, kind: kind, text: text)
         }
         guard let update, let pick = update.pick else {
-            done(.failed, "这一轮没拿到结论，可以再点一次")
+            done(.failed, "匹配失败")
             return
         }
-        let currentName = sourceDisplayName(summary.lyricsSource)
         let winner = update.candidates.first(where: { $0.source == pick.winner })
         let detail = store.detail(for: key)
 
@@ -1630,38 +1607,36 @@ struct LyricsManagerView: View {
         )
         switch outcome {
         case .keptNotDecidable:
-            done(.kept, String(format: "这一轮「%@」没应答，没有换（避免误降级），可以再点一次", currentName))
+            done(.kept, "来源未应答，未更换")
             return
         case .keptNoCandidate:
             switch await searches.applyFallback(update, forKey: key,
                                                  hasPlainTextFallback: summary.hasPlainTextFallback) {
             case .instrumental:
-                done(.empty, "有源明确说这首是纯音乐，没有可用的歌词候选")
+                done(.empty, "纯音乐")
             case .plainText:
-                done(.empty, "没有找到带时间戳的版本，已自动采纳一份纯文本兜底")
+                done(.empty, "已采用静态歌词")
             case .failed:
-                done(.failed, store.lastError ?? "未能保存搜索结果，请再试一次")
+                done(.failed, store.lastError ?? "搜索结果保存失败")
             case .none:
-                done(.empty, "这一轮没有一个能用的候选，保留现有的")
+                done(.empty, "无候选，未更换")
             }
             return
         case .keptWouldLoseWordTiming:
-            done(.kept, String(format: "这一轮没搜到逐字歌词，保留现有的「%@」（逐字）——换过去会丢掉逐字时间轴", currentName))
+            done(.kept, "无逐字歌词，未更换")
             return
         case .unchanged:
 
             await store.recordUnchangedRematchDecision(key: key, decisionJSON: pick.decisionJSON)
-            done(.unchanged, String(format: "已重新匹配：仍然是「%1$@」（%2$@ 分），没有更好的",
-                                    sourceDisplayName(pick.winner), "\(pick.winnerScore)"))
+            done(.unchanged, "歌词未变")
             return
         case .adopt:
             break
         }
         guard let winner else {
-            done(.failed, "这一轮没拿到结论，可以再点一次")
+            done(.failed, "匹配失败")
             return
         }
-        let winnerName = sourceDisplayName(winner.source)
 
         var decision: [String: Any]?
         if let data = pick.decisionJSON.data(using: .utf8),
@@ -1695,16 +1670,15 @@ struct LyricsManagerView: View {
             let timingChanged = winner.lyricsYRC != detail.yrc
             let template: String
             if textChanged && timingChanged {
-                template = "已重新匹配：还是「%1$@」，但正文和逐字时间轴都跟原来那份不一样，已换成这一轮抓到的（%2$@ 分）"
+                template = "正文、时间轴已更新"
             } else if timingChanged {
-                template = "已重新匹配：还是「%1$@」，但逐字时间轴跟原来那份不一样，已换成这一轮抓到的（%2$@ 分）"
+                template = "逐字时间轴已更新"
             } else {
-                template = "已重新匹配：还是「%1$@」，但正文跟原来那份不一样，已换成这一轮抓到的（%2$@ 分）"
+                template = "正文已更新"
             }
-            done(.changed, String(format: template, winnerName, "\(pick.winnerScore)"))
+            done(.changed, template)
         } else {
-            done(.changed, String(format: "已换成「%1$@」（%2$@ 分），原来是「%3$@」",
-                                  winnerName, "\(pick.winnerScore)", currentName))
+            done(.changed, "歌词来源已更换")
         }
     }
 
@@ -1875,7 +1849,7 @@ private struct LyricsManagerRow: View {
                               tint: summary.lyricsTrSource == LyricsTranslationSource.machineSentinel ? .purple : .green,
                               on: summary.hasTranslation,
                               help: summary.lyricsTrSource == LyricsTranslationSource.machineSentinel
-                                  ? "译文(机器翻译)" : "译文(歌词源自带)")
+                                  ? "机器译文" : "原配译文")
                     }
                 }
                 if summary.isSearching {
@@ -1890,10 +1864,9 @@ private struct LyricsManagerRow: View {
                     } else if summary.lastRoundHadNoResponder {
 
                         Text("无源应答").font(.caption2).foregroundStyle(.secondary)
-                            .help("最近一轮解析时一个歌词源都没有应答（多半是那一刻网络不通），不是「这首歌没有词」。会自动重搜，也可以用工具栏「重试无歌词」立刻重来")
                     } else if summary.knownOnSources {
 
-                        Text("源里有歌、无词").font(.caption2).foregroundStyle(.secondary)
+                        Text("已收录，无歌词").font(.caption2).foregroundStyle(.secondary)
                     } else {
                         Text("无歌词").font(.caption2).foregroundStyle(.red)
                     }
@@ -1927,8 +1900,7 @@ private struct LyricsManagerRow: View {
                             .padding(.horizontal, 5).padding(.vertical, 1)
                             .foregroundStyle(.orange)
                             .background(Color.orange.opacity(0.12), in: Capsule())
-                            .help(String(format: "这份歌词定下来时，%1$d 个歌词源里只有 %2$d 个给出了候选（老条目当年的源数可能少于 %1$d）",
-                                                total, summary.sourcesRespondedCount))
+                            .help("应答源 / 全部源")
                     }
                 }
                 .frame(width: widths.source, alignment: .leading)
