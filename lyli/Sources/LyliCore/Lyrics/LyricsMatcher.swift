@@ -28,6 +28,8 @@ public struct LyricsMatch: Sendable, Equatable {
 }
 
 public enum LyricsMatcher {
+    public static let scoringVersion = 19
+
     private static let featWords = ["feat", "ft", "featuring", "with"]
     private static let versionWords = [
         "live", "remix", "mix", "demo", "acoustic", "instrumental", "inst", "remaster", "remastered",
@@ -41,11 +43,14 @@ public enum LyricsMatcher {
         guard !unique.isEmpty else { return [] }
 
         let firstPass = unique.map { score($0, for: query, peers: unique) }
-        let bestTitle = firstPass.filter { !$0.isRejected }.map { titleScore($0.candidate.title, query.title) }.max() ?? 0
+        let usable = firstPass.filter { !$0.isRejected && !$0.candidate.instrumental }
+        let bestTitle = usable.map { titleScore($0.candidate.title, query.title) }.max() ?? 0
+        let bestVersion = usable.filter { titleScore($0.candidate.title, query.title) + 30 >= bestTitle }
+            .map { versionMismatch($0.candidate, query) }.max() ?? 0
         let adjusted = firstPass.map { match -> LyricsMatch in
-            guard match.candidate.hasWordTiming,
-                  titleScore(match.candidate.title, query.title) + 30 < bestTitle,
-                  match.terms.first?.kind != "rejectPlainTextOnly"
+            guard !match.isRejected, match.candidate.hasWordTiming,
+                  titleScore(match.candidate.title, query.title) + 30 < bestTitle
+                    || versionMismatch(match.candidate, query) < bestVersion
             else { return match }
             var terms = match.terms
             terms.append(.init(kind: "wordTimingOverride", points: -400))
@@ -66,34 +71,42 @@ public enum LyricsMatcher {
             if $0.score != $1.score { return $0.score > $1.score }
             let left = sourceRanks[$0.source] ?? Int.max
             let right = sourceRanks[$1.source] ?? Int.max
-            return left == right ? $0.source < $1.source : left < right
+            if left != right { return left < right }
+            if $0.source != $1.source { return $0.source < $1.source }
+            return stableFields($0.candidate).lexicographicallyPrecedes(stableFields($1.candidate))
         }
     }
 
     public static func isValidTimedLyrics(_ text: String) -> Bool {
         let lines = LRCParser.parse(text)
         guard !lines.isEmpty else { return false }
-        let useful = lines.filter { !$0.text.isEmpty && !isCreditLine($0.text) }
+        let useful = lines.filter { isUsefulText($0.text) }
         return !useful.isEmpty && useful.count >= 2 && useful.last!.timeMs > useful.first!.timeMs
     }
 
+    public static func isValidWordTiming(_ text: String) -> Bool {
+        let useful = YRCParser.parse(text).filter { isUsefulText($0.words.map(\.text).joined()) }
+        guard useful.count >= 2, let first = useful.first, let last = useful.last,
+              last.timeMs > first.timeMs else { return false }
+        return useful.allSatisfy { line in
+            let words = line.words
+            return words.allSatisfy { $0.durationMs >= 0 }
+                && zip(words, words.dropFirst()).allSatisfy { $0.0.startMs <= $0.1.startMs }
+        }
+    }
+
     public static func endTime(_ candidate: LyricsCandidate) -> TimeInterval? {
-        if let yrc = candidate.wordTiming, let last = YRCParser.parse(yrc).last {
+        if let yrc = candidate.wordTiming,
+           let last = YRCParser.parse(yrc).last(where: { isUsefulText($0.words.map(\.text).joined()) }) {
             let end = last.words.map { $0.startMs + max(0, $0.durationMs) }.max() ?? last.timeMs
             return Double(end) / 1000
         }
-        guard let last = LRCParser.parse(candidate.lyrics).last else { return nil }
-        return Double(last.timeMs) / 1000
+        guard let last = LRCParser.parse(candidate.lyrics).last(where: { isUsefulText($0.text) }) else { return nil }
+        return Double(last.timeMs + LRCParser.parseOffsetMs(candidate.lyrics)) / 1000
     }
 
     public static func normalizedTitle(_ title: String) -> String {
-        var value = normalizeText(title)
-        while let range = trailingBracketRange(value) {
-            let inside = String(value[value.index(after: range.lowerBound)..<value.index(before: range.upperBound)])
-            if versionWords.contains(where: { inside.localizedCaseInsensitiveContains($0) }) { break }
-            value = String(value[..<range.lowerBound]).trimmingCharacters(in: .whitespaces)
-        }
-        return value
+        normalizeText(title)
     }
 
     public static func normalizedArtist(_ artist: String) -> String {
@@ -135,48 +148,57 @@ public enum LyricsMatcher {
         if album > 0 { terms.append(.init(kind: "album", points: album)) }
 
         let end = endTime(candidate)
-        if let end, let duration = query.duration, duration > 0 {
-            let relative = abs(end - duration) / duration
-            if end > duration + 5 {
+        if let duration = query.duration, duration > 0, duration.isFinite {
+            if let reported = candidate.duration, reported > 0, reported.isFinite {
+                let relative = abs(reported - duration) / duration
+                if relative > 0.12 {
+                    terms.append(.init(kind: "sourceDurationOff", points: -250))
+                } else {
+                    let points = abs(reported - duration) <= max(2, duration * 0.01)
+                        ? 300 : max(0, 300 - Int(relative * 1500))
+                    terms.append(.init(kind: "duration", points: points))
+                }
+            } else if let end, end <= duration + 5 {
+                let relative = abs(end - duration) / duration
+                terms.append(.init(kind: "lyricEnd", points: max(0, 100 - Int(relative * 200))))
+            }
+            if let end, end > duration + 5 {
                 terms.append(.init(kind: "durationOff", points: -300))
                 terms.append(.init(kind: "durationOvershoot", points: -500))
-            } else {
-                let points = end < duration && relative > 0.25
-                    ? 0 : max(0, 300 - Int(relative * 500))
-                terms.append(.init(kind: "duration", points: points))
             }
-        } else if end != nil {
-            terms.append(.init(kind: "duration", points: 40))
         }
-        if let reported = candidate.duration, let duration = query.duration, duration > 0,
-           abs(reported - duration) / duration > 0.12 {
-            terms.append(.init(kind: "sourceDurationOff", points: -250))
-        }
-        let lineCount = LRCParser.parse(candidate.lyrics).filter { !$0.text.isEmpty }.count
+        let lineCount = LRCParser.parse(candidate.lyrics).filter { isUsefulText($0.text) }.count
         terms.append(.init(kind: "lines", points: min(200, lineCount)))
         if candidate.hasWordTiming { terms.append(.init(kind: "wordTiming", points: 400)) }
         if candidate.hasTranslation { terms.append(.init(kind: "translation", points: 35)) }
 
-        let peers = peers.filter { other in
-            other.source != candidate.source && lyricsSimilarity(candidate.lyrics, other.lyrics) >= 0.72
-        }.map(\.source).sorted()
+        let peers = Set(peers.filter { other in
+            other.source != candidate.source && !other.instrumental
+                && titleScore(other.title, query.title) > 0
+                && artistScore(other.artist, query.artist) > 0
+                && versionMismatch(other, query) >= 0
+                && lyricsSimilarity(candidate.lyrics, other.lyrics) >= 0.72
+        }.map(\.source)).sorted()
         if !peers.isEmpty {
             terms.append(.init(kind: "consensus", points: peers.count > 1 ? 250 : 150))
         }
 
-        let versionPenalty = versionMismatch(candidate.title, query.title)
+        let versionPenalty = versionMismatch(candidate, query)
         if versionPenalty < 0 { terms.append(.init(kind: "versionTags", points: versionPenalty)) }
         let score = terms.reduce(0) { $0 + $1.points }
         return LyricsMatch(candidate: candidate, score: score, terms: terms, consensusPeers: peers)
     }
 
     private static func deduplicate(_ candidates: [LyricsCandidate]) -> [LyricsCandidate] {
-        var seen = Set<String>()
+        var seen = Set<LyricsCandidate>()
         return candidates.filter { candidate in
-            let key = "\(candidate.source)|\(ManualPickLock.fingerprint(lyrics: candidate.lyrics))|\(normalizeText(candidate.title))"
-            guard seen.insert(key).inserted else { return false }
-            return true
+            seen.insert(candidate).inserted
         }
+    }
+
+    private static func stableFields(_ candidate: LyricsCandidate) -> [String] {
+        [candidate.title, candidate.artist, candidate.album ?? "", candidate.lyrics,
+         candidate.wordTiming ?? "", candidate.translation ?? "", candidate.duration.map { String($0) } ?? ""]
     }
 
     private static func titleScore(_ candidate: String, _ query: String) -> Int {
@@ -184,7 +206,11 @@ public enum LyricsMatcher {
         guard !a.isEmpty, !b.isEmpty else { return 0 }
         if a == b { return 120 }
         if normalizeText(candidate) == normalizeText(query) { return 100 }
-        if titleCore(a) == titleCore(b) { return 70 }
+        let core = titleCore(a)
+        if !core.isEmpty && core == titleCore(b) {
+            return recordingVersions(title: candidate, album: nil) == recordingVersions(title: query, album: nil)
+                ? 110 : 70
+        }
         if a.replacingOccurrences(of: " ", with: "") == b.replacingOccurrences(of: " ", with: "") { return 80 }
         if a.contains(b) || b.contains(a) { return 40 }
         return 0
@@ -205,12 +231,60 @@ public enum LyricsMatcher {
         return a == b ? 100 : ((a.contains(b) || b.contains(a)) ? 40 : 0)
     }
 
-    private static func versionMismatch(_ candidate: String, _ query: String) -> Int {
-        let c = normalizedTitle(candidate).split(separator: " ").filter { isVersionToken(String($0)) }
-        let q = normalizedTitle(query).split(separator: " ").filter { isVersionToken(String($0)) }
-        guard !c.isEmpty else { return 0 }
-        guard !q.isEmpty else { return -300 }
-        return Set(c).isDisjoint(with: q) ? -300 : 0
+    private static func versionMismatch(_ candidate: LyricsCandidate, _ query: LyricsQuery) -> Int {
+        let c = recordingVersions(title: candidate.title, album: candidate.album)
+        let q = recordingVersions(title: query.title, album: query.album)
+        if c == q { return 0 }
+        if c.isEmpty { return -120 }
+        return -300
+    }
+
+    private static func recordingVersions(title: String, album: String?) -> Set<String> {
+        let aliases: [(String, [String])] = [
+            ("live", ["live", "现场", "演唱会"]),
+            ("remix", ["remix", "混音版"]),
+            ("demo", ["demo", "小样"]),
+            ("acoustic", ["acoustic", "unplugged", "不插电"]),
+            ("instrumental", ["instrumental", "inst", "纯音乐"]),
+            ("karaoke", ["karaoke", "伴奏"]),
+            ("edit", ["edit", "剪辑版"]),
+            ("extended", ["extended", "加长版"]),
+            ("cover", ["cover", "翻唱"]),
+            ("rerecorded", ["re recorded", "rerecorded", "重录"]),
+            ("dub", ["dub"]),
+        ]
+        let titleText = normalizeText(title)
+        let albumText = normalizeText(album ?? "")
+        let nsTitle = title as NSString
+        let bracketed = versionBracketRegex.matches(in: title, range: NSRange(location: 0, length: nsTitle.length))
+            .map { normalizeText(nsTitle.substring(with: $0.range(at: 1))) }
+        var out = Set<String>()
+        for (kind, words) in aliases {
+            let titleHasVersion = words.contains { word in
+                if bracketed.contains(where: { containsVersion(word, in: $0) }) { return true }
+                if word.unicodeScalars.contains(where: { $0.value > 127 }) { return titleText.contains(word) }
+                if titleText.hasSuffix(" " + word) { return true }
+                let padded = " " + titleText + " "
+                let suffixCues = ["at", "in", "from", "on", "version", "edit", "mix", "acoustic", "unplugged", "live"]
+                return suffixCues.contains { padded.contains(" " + word + " " + $0 + " ") }
+            }
+            if titleHasVersion { out.insert(kind) }
+            let albumHasVersion = words.contains { containsVersion($0, in: albumText) }
+            guard albumHasVersion else { continue }
+            if kind != "live" || albumText == "live"
+                || ["live at", "live in", "live from", "live on", "现场", "演唱会"].contains(where: { albumText.contains($0) })
+                || (album ?? "").range(of: #"[\(\[]\s*live\b"#, options: [.regularExpression, .caseInsensitive]) != nil {
+                out.insert(kind)
+            }
+        }
+        return out
+    }
+
+    private static let versionBracketRegex = try! NSRegularExpression(pattern: #"[\(（\[]([^\)）\]]*)[\)）\]]"#)
+
+    private static func containsVersion(_ word: String, in text: String) -> Bool {
+        if word.unicodeScalars.contains(where: { $0.value > 127 }) { return text.contains(word) }
+        return (" " + text + " ").contains(" " + word + " ")
     }
 
     private static func titleCore(_ value: String) -> String {
@@ -218,7 +292,12 @@ public enum LyricsMatcher {
         guard let firstTag = tokens.firstIndex(where: { isVersionToken($0) || featWords.contains($0) }) else {
             return value
         }
-        return tokens[..<firstTag].joined(separator: " ")
+        var core = Array(tokens[..<firstTag])
+        if tokens[firstTag].hasPrefix("remaster"), let last = core.last,
+           last.count == 4, let year = Int(last), (1900...2099).contains(year) {
+            core.removeLast()
+        }
+        return core.joined(separator: " ")
     }
 
     private static func isVersionToken(_ value: String) -> Bool {
@@ -230,10 +309,18 @@ public enum LyricsMatcher {
     }
 
     private static func lyricsSimilarity(_ lhs: String, _ rhs: String) -> Double {
-        let a = Set(ManualPickLock.canonicalLyrics(lhs).lowercased().split { $0 == " " || $0 == "\n" })
-        let b = Set(ManualPickLock.canonicalLyrics(rhs).lowercased().split { $0 == " " || $0 == "\n" })
+        let a = lyricShingles(lhs)
+        let b = lyricShingles(rhs)
         guard !a.isEmpty, !b.isEmpty else { return 0 }
         return Double(a.intersection(b).count) / Double(a.union(b).count)
+    }
+
+    private static func lyricShingles(_ lyrics: String) -> Set<String> {
+        let body = ManualPickLock.canonicalLyrics(lyrics).split(separator: "\n")
+            .map(String.init).filter(isUsefulText).joined(separator: " ")
+        let characters = Array(normalizeText(body))
+        guard characters.count >= 3 else { return body.isEmpty ? [] : [normalizeText(body)] }
+        return Set((0...(characters.count - 3)).map { String(characters[$0..<($0 + 3)]) })
     }
 
     private static func artistParts(_ value: String) -> [String] {
@@ -255,11 +342,8 @@ public enum LyricsMatcher {
             .split(separator: " ").joined(separator: " ")
     }
 
-    private static func trailingBracketRange(_ value: String) -> Range<String.Index>? {
-        guard let close = value.last, "）)]】}".contains(close) else { return nil }
-        let open: Character = close == "）" ? "（" : (close == "]" ? "[" : (close == "】" ? "【" : (close == "}" ? "{" : "(")))
-        guard let index = value.lastIndex(of: open), index < value.index(before: value.endIndex) else { return nil }
-        return index..<value.endIndex
+    private static func isUsefulText(_ text: String) -> Bool {
+        !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isCreditLine(text)
     }
 
     private static func isCreditLine(_ text: String) -> Bool {

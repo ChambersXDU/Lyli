@@ -4,6 +4,8 @@ Native macOS menu-bar and desktop lyrics for Apple Music. It follows playback wi
 
 The app queries five lyric providers (LRCLIB, Kuwo, NetEase, Kugou, and QQ Music), scores their candidates, and stores lyrics in `~/.config/lyli/lyli-enrich-cache.json`. Cached lyrics work offline.
 
+See [lyric matching](lyli/docs/lyric-matching.md) for the ranking signals, recording-version handling and validation limits.
+
 Apple Music control and playback position use macOS Automation permission. The app focuses on automatic lyric matching, desktop lyrics, menu-bar lyrics, timing correction and simple manual lyric selection.
 
 ## Install

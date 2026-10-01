@@ -6,6 +6,7 @@ runLyricsParsingTests()
 
 print("lyrics-resolver")
 runLyricsResolverTests()
+runLyricsMatcherRegressionTests()
 
 print("cache-lookup")
 runCacheLookupTests()

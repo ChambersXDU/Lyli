@@ -14,7 +14,7 @@ public struct LyricsQuery: Sendable, Equatable {
     }
 }
 
-public struct LyricsCandidate: Sendable, Equatable {
+public struct LyricsCandidate: Sendable, Equatable, Hashable {
     public let source: String
     public let lyrics: String
     public let translation: String?
@@ -41,7 +41,7 @@ public struct LyricsCandidate: Sendable, Equatable {
         self.source = source
         self.lyrics = lyrics
         self.translation = translation
-        self.wordTiming = wordTiming
+        self.wordTiming = wordTiming.flatMap { LyricsMatcher.isValidWordTiming($0) ? $0 : nil }
         self.duration = duration
         self.title = title
         self.artist = artist

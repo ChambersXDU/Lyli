@@ -31,7 +31,8 @@ final class LyricsSearchService: ObservableObject {
 
         var label: String {
             switch kind {
-            case "duration": return "时长吻合"
+            case "duration": return "曲长吻合"
+            case "lyricEnd": return "歌词结束位置"
             case "corroborated": return "结束点获印证"
             case "wordTiming": return "逐字时间轴"
             case "nativeSource": return "与当前播放器同源"
@@ -39,7 +40,7 @@ final class LyricsSearchService: ObservableObject {
             case "versionTags": return "版本不符"
             case "durationOff": return "时长不符"
             case "sourceDurationOff": return "源自报曲长不符"
-            case "wordTimingOverride": return "标题吻合度更高的候选存在，撤销逐字加分"
+            case "wordTimingOverride": return "有更吻合的歌名或版本，撤销逐字加分"
             case "liveAlbumConflict": return "是另一场演出的现场版"
             case "durationOvershoot": return "歌词超出曲长"
             case "album": return "专辑吻合"
@@ -60,19 +61,20 @@ final class LyricsSearchService: ObservableObject {
 
         var detail: String {
             switch kind {
-            case "duration": return "最后一句的时间跟曲长越接近分越高"
-            case "wordTiming": return "带逐字（卡拉 OK）时间轴"
-            case "lines": return "歌词行数"
+            case "duration": return "源报告的歌曲时长与当前歌曲接近；歌词后的器乐尾奏不影响这一项"
+            case "lyricEnd": return "源未提供曲长时，以最后一句有效歌词的位置作补充参考"
+            case "wordTiming": return "带有可解析的逐字（卡拉 OK）时间轴"
+            case "lines": return "有效歌词行数，不含空行与署名"
             case "album": return "源返回的专辑与本地资料一致"
             case "titleMatch": return "标题标准化后匹配"
             case "artistMatch": return "歌手标准化后匹配"
-            case "consensus": return "歌词正文与其他源高度一致"
+            case "consensus": return "歌词正文与其他来源相似，每个来源只计一次；不代表时间轴已经验证"
             case "translation": return "带有可用译文"
-            case "versionTags": return "Live、Remix、Demo 等版本标记不一致"
+            case "versionTags": return "歌名或专辑中的现场、伴奏等录音版本信息不同或缺失；Remaster 不单独扣分"
             case "sourceDurationOff": return "源声明的曲长与本地差异较大"
             case "durationOff": return "歌词结束时间与曲长差异较大"
             case "durationOvershoot": return "歌词结束时间超过歌曲结束"
-            case "wordTimingOverride": return "标题更吻合的候选优先"
+            case "wordTimingOverride": return "歌名或录音版本更吻合的候选优先"
             case "rejectPlainTextOnly": return "可以作为静态文字阅读，但不能跟随播放高亮"
             default: return ""
             }
@@ -112,6 +114,7 @@ final class LyricsSearchService: ObservableObject {
         let isPlainTextOnly: Bool
         let lineCount: Int
         let fingerprint: String
+        let consensusPeers: [String]
 
         var hasTranslation: Bool { !lyricsTr.isEmpty }
 
@@ -124,7 +127,7 @@ final class LyricsSearchService: ObservableObject {
     struct Pick: Decodable {
         var winner: String = ""
         var winnerScore: Int = 0
-        var scoringVersion: Int = 18
+        var scoringVersion: Int = LyricsMatcher.scoringVersion
         var decidable = false
         var sourcesSeen: [String] = []
         var sourcesResponded: [String] = []
@@ -143,7 +146,7 @@ final class LyricsSearchService: ObservableObject {
             let c = try decoder.container(keyedBy: CodingKeys.self)
             winner = try c.decodeIfPresent(String.self, forKey: .winner) ?? ""
             winnerScore = try c.decodeIfPresent(Int.self, forKey: .winnerScore) ?? 0
-            scoringVersion = try c.decodeIfPresent(Int.self, forKey: .scoringVersion) ?? 18
+            scoringVersion = try c.decodeIfPresent(Int.self, forKey: .scoringVersion) ?? LyricsMatcher.scoringVersion
             decidable = try c.decodeIfPresent(Bool.self, forKey: .decidable) ?? false
             sourcesSeen = try c.decodeIfPresent([String].self, forKey: .sourcesSeen) ?? []
             sourcesResponded = try c.decodeIfPresent([String].self, forKey: .sourcesResponded) ?? []
@@ -286,10 +289,10 @@ final class LyricsSearchService: ObservableObject {
              "score_terms": candidate.scoreTerms.map { ["kind": $0.kind, "points": $0.points] },
              "title": candidate.title, "artist": candidate.artist, "album": candidate.album,
              "has_word_timing": candidate.hasWordTiming,
-             "consensus_peers": resolution.matches.first(where: { $0.source == candidate.source && $0.candidate.lyrics == candidate.lyrics })?.consensusPeers ?? []] as [String: Any]
+             "consensus_peers": candidate.consensusPeers] as [String: Any]
         }
         let object: [String: Any] = [
-            "path": "native-swift", "decided_at": Int(Date().timeIntervalSince1970), "scoring_version": 18,
+            "path": "native-swift", "decided_at": Int(Date().timeIntervalSince1970), "scoring_version": LyricsMatcher.scoringVersion,
             "winner": winner?.source ?? NSNull(), "applied": false, "candidates": rows,
             "sources_responded": resolution.sourcesResponded,
         ]
@@ -346,7 +349,7 @@ final class LyricsSearchService: ObservableObject {
                 saved = await cache.saveEdit(
                     key: key, lyrics: winner.lyrics, tr: winner.lyricsTr, yrc: winner.lyricsYRC,
                     source: winner.source, markManual: false,
-                    score: winner.score, scoringVersion: 18, resolvedDurationSecs: duration,
+                    score: winner.score, scoringVersion: LyricsMatcher.scoringVersion, resolvedDurationSecs: duration,
                     sourcesSeen: update.pick?.sourcesSeen ?? [],
                     sourcesResponded: update.pick?.sourcesResponded ?? [],
                     decision: update.pick.flatMap { decisionObject($0.decisionJSON) })
@@ -378,6 +381,7 @@ private extension LyricsSearchService.Candidate {
                   album: match.candidate.album ?? "",
                   isPlainTextOnly: match.candidate.plainTextOnly,
                   lineCount: Self.countLines(of: match.candidate.lyrics),
-                  fingerprint: ManualPickLock.fingerprint(lyrics: match.candidate.lyrics))
+                  fingerprint: ManualPickLock.fingerprint(lyrics: match.candidate.lyrics),
+                  consensusPeers: match.consensusPeers)
     }
 }

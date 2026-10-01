@@ -95,6 +95,33 @@ final class LyricsWorkflowTests {
         await service.searchAndSave(artist: "Artist", title: "Song", album: "Album", duration: 180)
     }
 
+    func testInvalidWordTimingFallsBackToLyricsAndRecordsCurrentScoringVersion() async {
+        let candidate = LyricsCandidate(source: "lrclib", lyrics: originalLyrics,
+                                        wordTiming: "[broken]", duration: 180,
+                                        title: "Song", artist: "Artist", album: "Album")
+        await searchAutomatically(service(StubProvider(candidates: [candidate])))
+        expectEqual(cache.detail(for: key).lyrics, originalLyrics)
+        expectEqual(cache.detail(for: key).yrc, "")
+        expectEqual(EnrichCacheReader.entries[key]?["lyrics_scoring_version"] as? Int,
+                    LyricsMatcher.scoringVersion)
+        let decision = EnrichCacheReader.entries[key]?["lyrics_decision"] as? [String: Any]
+        expectEqual(decision?["scoring_version"] as? Int, LyricsMatcher.scoringVersion)
+    }
+
+    func testSameSourceTimingVariantsRemainAvailableAndBestOneIsSaved() async {
+        let wrongTiming = originalLyrics.replacingOccurrences(of: "00:01", with: "00:02")
+        let wrongVersion = LyricsCandidate(source: "lrclib", lyrics: wrongTiming, duration: 180,
+                                           title: "Song", artist: "Artist", album: "Compilation")
+        let originalVersion = LyricsCandidate(source: "lrclib", lyrics: originalLyrics, duration: 180,
+                                              title: "Song", artist: "Artist", album: "Album")
+        let service = service(StubProvider(candidates: [wrongVersion, originalVersion]))
+        var result: LyricsSearchService.SearchUpdate?
+        try? await service.search(artist: "Artist", title: "Song", album: "Album", durationSecs: 180) { result = $0 }
+        expectEqual(result?.candidates.count, 2)
+        await searchAutomatically(service)
+        expectEqual(cache.detail(for: key).lyrics, originalLyrics)
+    }
+
     func testAutomaticResultDoesNotOverwriteManualPick() async {
         let gate = SearchGate()
         let service = service(StubProvider(candidates: [timedCandidate()], gate: gate))

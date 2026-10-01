@@ -22,6 +22,8 @@ private struct MissingValue: Error { let location: String }
         let suite = LyricsWorkflowTests()
         let playback = PlaybackEnergyTests()
         let tests: [(String, () async throws -> Void)] = [
+            ("invalid-word-timing-falls-back-and-records-scoring-version", suite.testInvalidWordTimingFallsBackToLyricsAndRecordsCurrentScoringVersion),
+            ("same-source-variants-save-best-match", suite.testSameSourceTimingVariantsRemainAvailableAndBestOneIsSaved),
             ("manual-pick-survives-automatic-search", suite.testAutomaticResultDoesNotOverwriteManualPick),
             ("edited-lyrics-replace-old-word-timing", suite.testEditingLyricsInvalidatesOldWordTimingAndDisplaysNewText),
             ("translation-edit-keeps-word-timing", suite.testTranslationOnlyEditPreservesWordTiming),
