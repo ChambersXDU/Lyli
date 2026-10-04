@@ -512,6 +512,7 @@ final class PlaybackEnergyTests {
 
     func testMenuBarAnimationUsesContinuousCorrectedClock() {
         let view = MenuBarScrollingLabel()
+        view.setReducedMotion(false)
         let path = [MenuBarMarquee.KaraokeFillPoint(ms: 0, x: 0),
                     MenuBarMarquee.KaraokeFillPoint(ms: 6_000, x: 60)]
         view.present(text: "abcdef", windowWidth: 100, pacing: nil, fillPath: path)
