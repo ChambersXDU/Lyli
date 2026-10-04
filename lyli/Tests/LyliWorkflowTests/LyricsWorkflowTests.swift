@@ -118,8 +118,64 @@ final class LyricsWorkflowTests {
         var result: LyricsSearchService.SearchUpdate?
         try? await service.search(artist: "Artist", title: "Song", album: "Album", durationSecs: 180) { result = $0 }
         expectEqual(result?.candidates.count, 2)
+        expectEqual(result?.winner?.lyrics, originalLyrics)
+        expectEqual(result?.winner?.id, result?.candidates.first?.id)
         await searchAutomatically(service)
         expectEqual(cache.detail(for: key).lyrics, originalLyrics)
+    }
+
+    func testAutomaticSearchSavesTimedWinnerAfterSameSourceInstrumental() async throws {
+        let lateLyrics = "[00:01.00]verse\n[05:00.00]chorus"
+        let timed = LyricsCandidate(source: "lrclib", lyrics: lateLyrics, duration: 360,
+                                    title: "Song", artist: "Artist", album: "Album")
+        let instrumental = LyricsCandidate(source: "lrclib", lyrics: "", duration: 180,
+                                           title: "Song", artist: "Artist", album: "Album",
+                                           instrumental: true)
+        let service = service(StubProvider(candidates: [timed, instrumental]))
+        var result: LyricsSearchService.SearchUpdate?
+        try await service.search(artist: "Artist", title: "Song", album: "Album", durationSecs: 180) { result = $0 }
+        let update = try require(result)
+        let winner = try require(update.winner)
+        let pick = try require(update.pick)
+        expectEqual(update.candidates.first?.lyrics, "")
+        expectEqual(pick.winner, "lrclib")
+        expectEqual(winner.lyrics, lateLyrics)
+        expectEqual(winner.id, update.candidates.last?.id)
+        expectEqual(winner.score, pick.winnerScore)
+        await searchAutomatically(service)
+        expectEqual(cache.detail(for: key).lyrics, lateLyrics)
+        expectEqual(EnrichCacheReader.entries[key]?["lyrics_score"] as? Int, pick.winnerScore)
+        expectEqual(service.automaticSearchState, .completed)
+    }
+
+    func testSourcePriorityDoesNotSaveInstrumentalInsteadOfTimedWinner() async throws {
+        let settings = FeatureSettingsStore.shared
+        let originalMode = settings.lyricsSourceMode
+        let originalOrder = settings.lyricsSourceOrder
+        defer {
+            settings.lyricsSourceMode = originalMode
+            settings.lyricsSourceOrder = originalOrder
+        }
+        settings.lyricsSourceMode = .priority
+        settings.lyricsSourceOrder = [.lrclib, .kuwo, .netease, .kugou, .qq]
+        FeatureSettingsStore.shared.lyricsSources = [.lrclib, .kuwo]
+        let instrumental = LyricsCandidate(source: "lrclib", lyrics: "", duration: 180,
+                                           title: "Song", artist: "Artist", instrumental: true)
+        let timed = LyricsCandidate(source: "kuwo", lyrics: originalLyrics, duration: 180,
+                                    title: "Song", artist: "Artist", album: "Album")
+        let service = LyricsSearchService(resolver: LyricsResolver(providers: [
+            StubProvider(candidates: [instrumental]), StubProvider(id: "kuwo", candidates: [timed]),
+        ]), cache: cache)
+        var result: LyricsSearchService.SearchUpdate?
+        try await service.search(artist: "Artist", title: "Song", album: "Album", durationSecs: 180) { result = $0 }
+        let update = try require(result)
+        let winner = try require(update.winner)
+        expectEqual(update.candidates.first?.source, "lrclib")
+        expectEqual(winner.source, "kuwo")
+        expectEqual(winner.id, update.candidates.last?.id)
+        await searchAutomatically(service)
+        expectEqual(cache.detail(for: key).lyrics, originalLyrics)
+        expectEqual(cache.summaries.first?.lyricsSource, "kuwo")
     }
 
     func testAutomaticResultDoesNotOverwriteManualPick() async {
@@ -183,6 +239,7 @@ final class LyricsWorkflowTests {
         try await service.search(artist: "Artist", title: "Song", album: "Album", scope: .rematch) { result = $0 }
         let update = try require(result)
         let pick = try require(update.pick)
+        expectEqual(update.winner, nil)
         expectEqual(update.networkLooksDown, false)
         expectEqual(pick.decidable, true)
         expectEqual(rematchOutcome(pick), .keptNoCandidate)
@@ -199,6 +256,7 @@ final class LyricsWorkflowTests {
         try await service.search(artist: "Artist", title: "Song", album: "Album", scope: .rematch) { result = $0 }
         let update = try require(result)
         expectEqual(update.instrumental, true)
+        expectEqual(update.winner, nil)
         expectEqual(rematchOutcome(try require(update.pick)), .keptNoCandidate)
         let applied = await service.applyFallback(update, forKey: key, hasPlainTextFallback: false)
         expectEqual(applied, .instrumental)

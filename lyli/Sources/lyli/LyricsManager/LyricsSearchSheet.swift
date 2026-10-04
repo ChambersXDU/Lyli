@@ -652,7 +652,7 @@ struct LyricsSearchSheet: View {
                     }
                 }
                 if selectedCandidateID == nil {
-                    selectedCandidateID = update.candidates.first?.id
+                    selectedCandidateID = update.winner?.id ?? update.candidates.first?.id
                 }
             }
         } catch {

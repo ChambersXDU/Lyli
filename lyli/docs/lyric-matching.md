@@ -14,6 +14,8 @@ Recording-version comparison recognizes performance differences such as live, ac
 
 Only fully identical candidates are deduplicated. Different albums, timestamps, translations or word tracks remain available for comparison. Equal scores within a source use a deterministic tie-break so response order does not decide the winner.
 
+The search result carries the specific winning candidate through automatic saving, re-matching and default search-window selection. A provider name identifies a source, not one candidate: a source can return several recordings or an instrumental marker before a timed lyric. Saved lyrics, translation, word timing and score must all come from the selected candidate. Searches with only plain text or instrumental results continue through their existing fallback handling. This application change does not alter scoring version 19.
+
 ## Validation and limits
 
 The matching selftest covers repeated-provider votes, independent votes, reordered words, English and Chinese punctuation, invalid/partial/decreasing word timing, long outros, blank and credit endpoints, unknown durations, distinct same-source variants, deterministic ties, karaoke/live/acoustic conflicts, remaster labels and source-priority selection. Workflow tests verify fallback persistence, scoring-version metadata and saving the better same-source variant alongside the existing search, editing and playback regressions.

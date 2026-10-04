@@ -1593,7 +1593,7 @@ struct LyricsManagerView: View {
             done(.failed, "匹配失败")
             return
         }
-        let winner = update.candidates.first(where: { $0.source == pick.winner })
+        let winner = update.winner
         let detail = store.detail(for: key)
 
         let outcome = LyricsRematchDecision.decide(

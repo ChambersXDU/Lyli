@@ -27,6 +27,8 @@ Use `./build.sh --debug` for local development: it builds, installs and starts t
 
 Use `./package.sh` to produce the arm64 release assets.
 
+See the [iteration plan](lyli/docs/iteration-plan.md) for completed fixes and the next concrete matching and playback investigations.
+
 ## License
 
 GPL-3.0. Lyrics and metadata remain the property of their respective rights holders; the app caches lyrics locally for personal display.

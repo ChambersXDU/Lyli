@@ -90,6 +90,7 @@ final class LyricsSearchService: ObservableObject {
 
     struct SearchUpdate {
         let candidates: [Candidate]
+        let winner: Candidate?
         let networkLooksDown: Bool
         let sourcesDone: Int
         let sourcesTotal: Int
@@ -181,9 +182,13 @@ final class LyricsSearchService: ObservableObject {
                 LocalPlaybackSource.shared.setNetworkDown(resolution.sourcesResponded.isEmpty)
             }
             let candidates = resolution.matches.map(Candidate.init)
-            let pick = makePick(resolution: resolution, candidates: candidates, duration: durationSecs)
+            let winner = resolution.winner.flatMap { resolution.matches.firstIndex(of: $0) }
+                .map { candidates[$0] }
+            let pick = makePick(resolution: resolution, candidates: candidates, winner: winner,
+                                duration: durationSecs)
             let update = SearchUpdate(
                 candidates: candidates,
+                winner: winner,
                 networkLooksDown: resolution.sourcesResponded.isEmpty,
                 sourcesDone: resolution.sourcesSeen.count,
                 sourcesTotal: resolution.sourcesSeen.count,
@@ -198,20 +203,21 @@ final class LyricsSearchService: ObservableObject {
         }
     }
 
-    private func makePick(resolution: LyricsResolution, candidates: [Candidate], duration: Double) -> Pick? {
+    private func makePick(resolution: LyricsResolution, candidates: [Candidate], winner: Candidate?,
+                          duration: Double) -> Pick? {
         var pick = Pick()
         pick.sourcesSeen = resolution.sourcesSeen
         pick.sourcesResponded = resolution.sourcesResponded
         pick.resolvedDurationSecs = duration
         pick.decidable = !resolution.sourcesResponded.isEmpty
-        guard let winner = resolution.winner, let candidate = candidates.first(where: { $0.source == winner.source && $0.fingerprint == ManualPickLock.fingerprint(lyrics: winner.candidate.lyrics) }) else {
+        guard let winner else {
             pick.decisionJSON = decisionJSON(resolution: resolution, candidates: candidates, winner: nil)
             return pick
         }
-        pick.winner = candidate.source
-        pick.winnerScore = candidate.score
+        pick.winner = winner.source
+        pick.winnerScore = winner.score
         pick.decidable = true
-        pick.decisionJSON = decisionJSON(resolution: resolution, candidates: candidates, winner: candidate)
+        pick.decisionJSON = decisionJSON(resolution: resolution, candidates: candidates, winner: winner)
         return pick
     }
 
@@ -277,7 +283,7 @@ final class LyricsSearchService: ObservableObject {
                 return
             }
             let saved: Bool
-            if let winner = update.pick.flatMap({ pick in update.candidates.first { $0.source == pick.winner } }) {
+            if let winner = update.winner {
                 saved = await cache.saveEdit(
                     key: key, lyrics: winner.lyrics, tr: winner.lyricsTr, yrc: winner.lyricsYRC,
                     source: winner.source, markManual: false,
