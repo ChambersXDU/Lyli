@@ -18,14 +18,16 @@ Native-layer regressions verify stopping and restarting the marquee and blocking
 
 ## Playback controls
 
-Previous, play/pause and next buttons have explicit Chinese accessibility labels and tooltips. The lyric-offset reset is a standard button with a label and current value. The progress bar exposes elapsed and total time, supports accessibility increment/decrement actions and accepts left/right arrow keys while focused. Each adjustment seeks five seconds and clamps to the track boundaries.
+Previous, play/pause and next buttons have explicit Chinese accessibility labels and tooltips. The lyric-offset reset is a standard button with a label and current value. The progress bar exposes elapsed and total time and supports accessibility increment/decrement actions. Each adjustment seeks five seconds and clamps to the track boundaries.
+
+Version 1.7.3 removes the progress bar's keyboard-focus and arrow-key modifiers. Adding keyboard focus in 1.7.2 caused the popover to give the bar initial focus and draw a large blue ring. The bar keeps its original mouse interaction and does not request keyboard focus; accessibility adjustment remains available.
 
 ## Verification
 
 ```sh
 ./scripts/swiftpm.sh run lyli-selftest
 ./scripts/test-lyrics-workflows.sh
-LYLI_VERSION=1.7.2 ./build.sh --configuration release --dest /tmp/Lyli-review.app
+LYLI_VERSION=1.7.3 ./build.sh --configuration release --dest /tmp/Lyli-review.app
 ```
 
 Compilation and deterministic regressions complement an installed-app smoke check. They do not replace a full spoken VoiceOver audit or controlled energy measurements. Main-thread persistence and a broader state-model migration remain separate work.

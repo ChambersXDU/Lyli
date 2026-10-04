@@ -457,15 +457,6 @@ private struct PanelProgressSection: View {
             .accessibilityAdjustableAction { direction in
                 adjustProgress(direction, currentMs: currentMs, durationMs: durationMs)
             }
-            .focusable()
-            .onKeyPress(.leftArrow) {
-                adjustProgress(.decrement, currentMs: currentMs, durationMs: durationMs)
-                return .handled
-            }
-            .onKeyPress(.rightArrow) {
-                adjustProgress(.increment, currentMs: currentMs, durationMs: durationMs)
-                return .handled
-            }
             HStack {
                 Text(Self.mmss(currentMs))
                 Spacer()
