@@ -5,6 +5,7 @@ import LyliCore
 struct EqualizerBars: View {
     var color: Color
     var isPlaying: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var amplitude: (Date) -> Double = { _ in 1 }
 
@@ -26,7 +27,7 @@ struct EqualizerBars: View {
     }
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: Self.interval, paused: !isPlaying)) { context in
+        TimelineView(.animation(minimumInterval: Self.interval, paused: !isPlaying || reduceMotion)) { context in
 
             let t = context.date.timeIntervalSinceReferenceDate
 
@@ -50,6 +51,7 @@ struct EqualizerBars: View {
 
     private func height(bar: Int, time: Double, amplitude: Double) -> CGFloat {
         guard isPlaying else { return Self.minHeight }
+        if reduceMotion { return Self.minHeight + CGFloat(bar % 3 + 1) * 3 }
         let phase = Self.barPhase(bar)
         let f1 = 2.2 + Double(bar) * 0.34
         let f2 = 3.6 + Double(bar) * 0.26

@@ -63,6 +63,7 @@ final class MenuBarScrollingLabel: NSView {
 
     private var preparedSecondary: MenuBarMarqueeRenderer.PreparedLine?
     private var highlighted = false
+    private var reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
 
     private struct KaraokeClock {
         let baseMs: Int
@@ -139,6 +140,19 @@ final class MenuBarScrollingLabel: NSView {
         secondaryFadeMask.startPoint = CGPoint(x: 0, y: 0.5)
         secondaryFadeMask.endPoint = CGPoint(x: 1, y: 0.5)
         secondaryFadeMask.colors = [NSColor.black.cgColor, NSColor.black.cgColor, NSColor.clear.cgColor]
+        NSWorkspace.shared.notificationCenter.addObserver(
+            self, selector: #selector(accessibilityDisplayOptionsChanged),
+            name: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification, object: nil)
+    }
+
+    @objc private func accessibilityDisplayOptionsChanged(_ notification: Notification) {
+        setReducedMotion(NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)
+    }
+
+    func setReducedMotion(_ enabled: Bool) {
+        guard enabled != reduceMotion else { return }
+        reduceMotion = enabled
+        restartAnimation()
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) 不使用") }
@@ -589,7 +603,7 @@ final class MenuBarScrollingLabel: NSView {
         let maxOffset = prepared.textWidth - plan.windowWidth
 
         if applyFollowScroll() { return }
-        guard let pacing = plan.pacing,
+        guard !reduceMotion, let pacing = plan.pacing,
               let frames = MenuBarMarquee.scrollKeyframes(
                 maxOffset: maxOffset,
                 pointsPerSecond: pacing.pointsPerSecond,
@@ -624,7 +638,7 @@ final class MenuBarScrollingLabel: NSView {
 
     @discardableResult
     private func applyFollowScroll() -> Bool {
-        guard let plan, let prepared, plan.pacing != nil, let reading = plan.followPath else {
+        guard !reduceMotion, let plan, let prepared, plan.pacing != nil, let reading = plan.followPath else {
             return false
         }
         let path = MenuBarMarquee.followScrollPath(

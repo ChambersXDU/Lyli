@@ -231,11 +231,12 @@ private struct MenuBarPanelView: View {
                 lyricsOffsetStepMs: playback.lyricsOffsetStepMs)
             ZStack {
                 HStack(spacing: 28) {
-                    controlButton("backward.fill", size: 13) { MusicPlaybackController.previousTrack() }
-                    controlButton(playback.isPlayingNow ? "pause.fill" : "play.fill", size: 18) {
+                    controlButton("backward.fill", label: "上一首", size: 13) { MusicPlaybackController.previousTrack() }
+                    controlButton(playback.isPlayingNow ? "pause.fill" : "play.fill",
+                                  label: playback.isPlayingNow ? "暂停" : "播放", size: 18) {
                         PlaybackCoordinator.shared.userTogglePlayPause()
                     }
-                    controlButton("forward.fill", size: 13) { MusicPlaybackController.nextTrack() }
+                    controlButton("forward.fill", label: "下一首", size: 13) { MusicPlaybackController.nextTrack() }
                 }
 
                 HStack {
@@ -268,6 +269,7 @@ private struct MenuBarPanelView: View {
         .font(.system(size: 11.5, weight: .medium))
 
         .frame(height: 16)
+        .help(playback.compactLine?.plainText ?? "")
     }
 
     @ViewBuilder private var lyricContent: some View {
@@ -333,7 +335,7 @@ private struct MenuBarPanelView: View {
         }
     }
 
-    private func controlButton(_ symbol: String, size: CGFloat,
+    private func controlButton(_ symbol: String, label: String, size: CGFloat,
                                action: @escaping () -> Void) -> some View {
 
         ChipButton(cornerRadius: 13, action: action) {
@@ -342,6 +344,8 @@ private struct MenuBarPanelView: View {
                 .foregroundStyle(.primary)
                 .frame(width: 30, height: 26)
         }
+        .accessibilityLabel(label)
+        .help(label)
     }
 
 
@@ -380,7 +384,7 @@ private struct ChipStyle: ButtonStyle {
                     .fill(Color.primary.opacity(level))
             )
 
-            .scaleEffect(pressed ? pressScale : 1)
+            .scaleEffect(pressed && !reduceMotion ? pressScale : 1)
             .animation(reduceMotion ? nil : .spring(response: 0.18, dampingFraction: 0.65),
                        value: pressed)
             .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: hovering)
@@ -447,6 +451,21 @@ private struct PanelProgressSection: View {
                 )
             }
             .frame(height: 14)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("播放进度")
+            .accessibilityValue("\(Self.mmss(currentMs))，共 \(Self.mmss(durationMs))")
+            .accessibilityAdjustableAction { direction in
+                adjustProgress(direction, currentMs: currentMs, durationMs: durationMs)
+            }
+            .focusable()
+            .onKeyPress(.leftArrow) {
+                adjustProgress(.decrement, currentMs: currentMs, durationMs: durationMs)
+                return .handled
+            }
+            .onKeyPress(.rightArrow) {
+                adjustProgress(.increment, currentMs: currentMs, durationMs: durationMs)
+                return .handled
+            }
             HStack {
                 Text(Self.mmss(currentMs))
                 Spacer()
@@ -466,13 +485,16 @@ private struct PanelProgressSection: View {
                 _ = PlaybackCoordinator.shared.nudgeLyricsOffset(by: -lyricsOffsetStepMs)
             }
 
-            Text(offsetText)
-                .foregroundStyle(trackLyricsOffsetMs != 0 ? .secondary : .tertiary)
-                .frame(width: 64)
-
-                .modifier(TapToReset(enabled: trackLyricsOffsetMs != 0) {
-                    PlaybackCoordinator.shared.resetLyricsOffset()
-                })
+            Button(action: PlaybackCoordinator.shared.resetLyricsOffset) {
+                Text(offsetText)
+                    .foregroundStyle(trackLyricsOffsetMs != 0 ? .secondary : .tertiary)
+                    .frame(width: 64)
+            }
+            .buttonStyle(.plain)
+            .disabled(trackLyricsOffsetMs == 0)
+            .accessibilityLabel("重置歌词时间偏移")
+            .accessibilityValue(offsetText)
+            .help("重置歌词时间偏移")
             offsetButton("plus", label: nudgeLabel("提前")) {
                 _ = PlaybackCoordinator.shared.nudgeLyricsOffset(by: lyricsOffsetStepMs)
             }
@@ -501,15 +523,15 @@ private struct PanelProgressSection: View {
         .accessibilityLabel(label)
     }
 
-    private struct TapToReset: ViewModifier {
-        let enabled: Bool
-        let action: () -> Void
-
-        func body(content: Content) -> some View {
-            content
-                .contentShape(Rectangle())
-                .onTapGesture { if enabled { action() } }
+    private func adjustProgress(_ direction: AccessibilityAdjustmentDirection,
+                                currentMs: Int, durationMs: Int) {
+        let delta: Int
+        switch direction {
+        case .increment: delta = 5_000
+        case .decrement: delta = -5_000
+        @unknown default: return
         }
+        PlaybackCoordinator.shared.seek(toMs: min(max(currentMs + delta, 0), durationMs))
     }
 
     private var scrubberHeight: CGFloat {

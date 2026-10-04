@@ -21,7 +21,14 @@ private struct MissingValue: Error { let location: String }
     @MainActor static func main() async {
         let suite = LyricsWorkflowTests()
         let playback = PlaybackEnergyTests()
+        let collectionCache = LyricsCollectionCacheTests()
+        let motion = MenuBarMotionTests()
         let tests: [(String, () async throws -> Void)] = [
+            ("reduced-motion-stops-and-restarts-marquee", { try motion.testReducedMotionStopsAndRestartsNativeMarquee() }),
+            ("reduced-motion-blocks-follow-scroll", { try motion.testReducedMotionBlocksFollowScrollClockUpdates() }),
+            ("list-reuses-sorted-results", { collectionCache.testRepeatedReadsReuseSortedResults() }),
+            ("list-invalidates-for-all-inputs", { collectionCache.testAllCollectionInputsInvalidateResults() }),
+            ("list-caches-empty-results-and-filter-changes", { collectionCache.testEmptyResultsAndReturningToPreviousFilter() }),
             ("invalid-word-timing-falls-back-and-records-scoring-version", suite.testInvalidWordTimingFallsBackToLyricsAndRecordsCurrentScoringVersion),
             ("same-source-variants-save-best-match", suite.testSameSourceTimingVariantsRemainAvailableAndBestOneIsSaved),
             ("same-source-instrumental-does-not-replace-timed-winner", suite.testAutomaticSearchSavesTimedWinnerAfterSameSourceInstrumental),

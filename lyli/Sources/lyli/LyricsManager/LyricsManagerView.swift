@@ -402,21 +402,19 @@ struct LyricsManagerView: View {
         store.albumDisplayMap[toSimplified(album).lowercased()] ?? album
     }
 
-    private final class FilteredCache {
-        var token = "\u{0}"
-        var generation = -1
-        var result: [EnrichCacheStore.Summary] = []
+    private var collectionCacheKey: LyricsCollectionCacheKey {
+        LyricsCollectionCacheKey(filterToken: filterToken,
+                                 summariesGeneration: store.summariesGeneration,
+                                 pinsGeneration: manualOnly ? pins.generation : 0)
     }
-    @State private var filteredCache = FilteredCache()
+    @State private var filteredCache = LyricsCollectionCache<EnrichCacheStore.Summary>()
+    @State private var sortedCache = LyricsCollectionCache<EnrichCacheStore.Summary>()
 
     private var filtered: [EnrichCacheStore.Summary] {
+        filteredCache.result(for: collectionCacheKey) { buildFilteredSummaries() }
+    }
 
-        let generation = store.summariesGeneration
-        let token = filterToken
-        if filteredCache.token == token, filteredCache.generation == generation {
-            return filteredCache.result
-        }
-
+    private func buildFilteredSummaries() -> [EnrichCacheStore.Summary] {
         let q = committedSearchText.lowercased()
         let af = artistFilter.map { toSimplified($0).lowercased() }
         let bf = albumFilter.map { toSimplified($0).lowercased() }
@@ -451,14 +449,13 @@ struct LyricsManagerView: View {
             if thinEvidenceOnly && !s.thinEvidence { return false }
             return true
         }
-        filteredCache.token = token
-        filteredCache.generation = generation
-        filteredCache.result = result
         return result
     }
 
     private var sortedFiltered: [EnrichCacheStore.Summary] {
-        sortOption.sorted(filtered)
+        var key = collectionCacheKey
+        key.sortToken = sortOption.id
+        return sortedCache.result(for: key) { sortOption.sorted(filtered) }
     }
 
     private var singleSelectedKey: String? {

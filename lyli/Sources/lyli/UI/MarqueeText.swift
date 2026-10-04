@@ -6,6 +6,7 @@ let marqueeHoldDuration: Double = 1.1
 
 struct MarqueeText<Content: View>: View {
     let id: AnyHashable
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var restingAlignment: Alignment = .leading
 
@@ -51,6 +52,8 @@ struct MarqueeText<Content: View>: View {
         .clipped()
 
         .mask(fadeMask)
+        .onAppear { restart() }
+        .onChange(of: reduceMotion) { restart() }
         .onDisappear { scrollTask?.cancel() }
     }
 
@@ -100,7 +103,7 @@ struct MarqueeText<Content: View>: View {
             offset = 0
             generation &+= 1
         }
-        guard isOverflowing else { return }
+        guard isOverflowing, !reduceMotion else { return }
         scrollTask = Task { @MainActor in
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: UInt64(marqueeHoldDuration * 1_000_000_000))

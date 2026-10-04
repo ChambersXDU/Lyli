@@ -16,7 +16,10 @@ public final class LyricsPinStore: ObservableObject {
 
     private static let url = defaultURL
 
-    @Published public private(set) var pins: [String: Int]
+    @Published public private(set) var pins: [String: Int] {
+        didSet { generation &+= 1 }
+    }
+    public private(set) var generation = 0
 
     private init() {
         pins = Self.load()
