@@ -669,7 +669,7 @@ struct LyricsOverlayView<Chrome: OverlayChromeSource>: View {
             contentRectSink: wrapContentSink
         ) {
             ForEach(words.indices, id: \.self) { i in
-                wordText(words[i], atMs: currentMs, palette: palette)
+                wordText(words[i], atMs: currentMs, palette: palette, wordCount: words.count)
             }
         }
     }
@@ -680,7 +680,7 @@ struct LyricsOverlayView<Chrome: OverlayChromeSource>: View {
     }
 
     private func wordText(
-        _ w: SyncedLyricWord, atMs currentMs: Int?, palette: WordKaraokeGradient.Palette?
+        _ w: SyncedLyricWord, atMs currentMs: Int?, palette: WordKaraokeGradient.Palette?, wordCount: Int
     ) -> some View {
         let style: AnyShapeStyle
         if let currentMs, let palette {
@@ -691,8 +691,11 @@ struct LyricsOverlayView<Chrome: OverlayChromeSource>: View {
 
             style = AnyShapeStyle(Color.black)
         }
+        let glow = currentMs.map { SustainedWordGlow.intensity(for: w, atMs: $0,
+            wordCount: wordCount, isPlaying: playback.isPlayingNow, reduceMotion: reduceMotion) } ?? 0
         return Text(w.text)
             .foregroundStyle(style)
+            .modifier(SustainedWordGlow(color: playback.displayForegroundColor, intensity: glow))
 
     }
 }

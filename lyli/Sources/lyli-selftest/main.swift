@@ -1,6 +1,8 @@
 import LyliCore
 import Foundation
 
+if CommandLine.arguments.contains("--glow-benchmark") { runSustainedWordGlowBenchmark(); exit(0) }
+
 if CommandLine.arguments.contains("--fusion-live") { runLiveFusionProbe() }
 
 if let index = CommandLine.arguments.firstIndex(of: "--fusion-cache"), index + 1 < CommandLine.arguments.count {
@@ -78,6 +80,9 @@ runCacheLookupTests()
 
 print("qq-music-des")
 runQQMusicDESTests()
+
+print("sustained-word-glow")
+runSustainedWordGlowTests()
 
 print("sync-engine")
 runSyncEngineTests()

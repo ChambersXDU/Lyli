@@ -55,3 +55,23 @@ enum WordKaraokeGradient {
         return p
     }
 }
+
+struct SustainedWordGlow: ViewModifier {
+    let color: Color
+    let intensity: Double
+    var radius: CGFloat = 3
+
+    @ViewBuilder func body(content: Content) -> some View {
+        if intensity > 0 {
+            content.shadow(color: color.opacity(intensity), radius: radius, x: 0, y: 0)
+        } else {
+            content
+        }
+    }
+
+    static func intensity(for word: SyncedLyricWord, atMs ms: Int,
+                          wordCount: Int, isPlaying: Bool, reduceMotion: Bool) -> Double {
+        guard wordCount > 0, isPlaying, !reduceMotion else { return 0 }
+        return KaraokeFill.sustainGlowIntensity(for: word, atMs: ms)
+    }
+}

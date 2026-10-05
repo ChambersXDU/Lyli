@@ -14,6 +14,7 @@ Lyli is a native macOS lyrics app for Apple Music. It follows playback with line
 | --- | --- |
 | Menu bar and desktop lyrics | Choose a display surface and customize fonts, colors, width and alignment. |
 | Line and word timing | Supports LRC, YRC and Apple TTML; word highlighting requires valid word or syllable timestamps. |
+| Sustained-note glow | Desktop lyrics and the player popover softly illuminate Chinese characters or English words lasting at least 1.2 seconds, fading at the end. Disabled while paused or with Reduce Motion. |
 | Apple's official lyrics cache | Associates lyrics with cached song metadata by Apple catalog ID, then checks title, artist, album and duration. |
 | Multiple lyric providers | Falls back to LRCLIB, Kuwo, NetEase, Kugou and QQ Music, with source and matching-order settings. |
 | Translations and Chinese variants | Shows available translations and supports Simplified and Traditional Chinese display. |

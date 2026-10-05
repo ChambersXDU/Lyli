@@ -21,6 +21,34 @@ public enum KaraokeFill {
         return out
     }
 
+    public static let sustainedWordThresholdMs = 1_200
+
+    public static func sustainGlowIntensity(for word: SyncedLyricWord, atMs ms: Int) -> Double {
+        guard word.durationMs >= sustainedWordThresholdMs, word.durationMs <= 15_000 else { return 0 }
+        let elapsed = Double(ms) - Double(word.startMs)
+        let duration = Double(word.durationMs)
+        guard elapsed > 0, elapsed < duration else { return 0 }
+        let text = word.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty, !text.contains(where: \.isWhitespace),
+              text.contains(where: { $0.isLetter || $0.isNumber }) else { return 0 }
+        let hasHan = text.unicodeScalars.contains {
+            (0x3400...0x9FFF).contains($0.value) || (0xF900...0xFAFF).contains($0.value)
+                || (0x20000...0x3FFFF).contains($0.value)
+        }
+        if hasHan {
+            guard text.filter({ $0.isLetter || $0.isNumber }).count == 1 else { return 0 }
+        } else {
+            guard text.count <= 24 else { return 0 }
+        }
+        func smooth(_ value: Double) -> Double {
+            let x = min(1, max(0, value))
+            return x * x * (3 - 2 * x)
+        }
+        let attack = smooth(elapsed / min(400, duration * 0.2))
+        let release = smooth((duration - elapsed) / min(350, duration * 0.2))
+        return 0.6 * attack * release * (0.7 + 0.3 * smooth(elapsed / duration))
+    }
+
     public static let wordEdgeSoftenBand = 0.08
 
     public static func fillFraction(for w: SyncedLyricWord, atMs ms: Int) -> Double {

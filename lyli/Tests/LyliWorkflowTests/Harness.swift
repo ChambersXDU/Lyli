@@ -19,11 +19,17 @@ private struct MissingValue: Error { let location: String }
 
 @main struct WorkflowSelftest {
     @MainActor static func main() async {
+        if CommandLine.arguments.contains("--glow-render-probe") {
+            do { try SustainedWordGlowTests().runRenderProbe(); exit(0) }
+            catch { print("GLOW RENDER FAILED: \(error)"); exit(1) }
+        }
         let suite = LyricsWorkflowTests()
         let playback = PlaybackEnergyTests()
         let collectionCache = LyricsCollectionCacheTests()
         let motion = MenuBarMotionTests()
         let tests: [(String, () async throws -> Void)] = [
+            ("glow-stops-for-pause-reduced-motion-and-line-fallback", { SustainedWordGlowTests().testPauseReducedMotionAndLineFallbackSuppressGlow() }),
+            ("glow-render-preserves-layout-and-sharp-glyphs", { try SustainedWordGlowTests().testGlowRendersOutsideGlyphWithoutChangingLayout() }),
             ("fusion-official-displays-before-network-and-keeps-fallback", suite.testFusionDisplaysOfficialBeforeNetworkAndKeepsFallback),
             ("late-fusion-preserves-edits-and-new-track", suite.testLateFusionPreservesEditsAndNewTrack),
             ("fusion-respects-disabled-source", suite.testFusionRespectsSourceDisabledWhileSearching),

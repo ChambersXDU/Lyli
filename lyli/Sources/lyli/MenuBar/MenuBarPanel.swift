@@ -145,6 +145,8 @@ private final class FirstMouseHostingController<Content: View>: NSHostingControl
 }
 
 private struct MenuBarPanelView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
 
     @StateObject private var playback = PanelPlayback()
     let close: () -> Void
@@ -327,6 +329,9 @@ private struct MenuBarPanelView: View {
                         .foregroundStyle(palette.style(
                             left: fraction - WordKaraokeGradient.wordEdgeSoftenBand,
                             right: fraction + WordKaraokeGradient.wordEdgeSoftenBand))
+                        .modifier(SustainedWordGlow(color: .primary,
+                            intensity: SustainedWordGlow.intensity(for: words[i], atMs: ms,
+                                wordCount: words.count, isPlaying: playback.isPlayingNow, reduceMotion: reduceMotion), radius: 1.25))
                 }
             }
             .lineLimit(1)
