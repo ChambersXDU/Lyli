@@ -144,6 +144,28 @@ func runLyricsResolverTests() {
     expectEqual(disabled?.sourcesResponded ?? [], [])
     expectEqual(disabledCalls.current, 0)
 
+    let networkCalls = LockedInt()
+    let localCandidate = candidate(source: "appleMusic", title: "Song", artist: "Artist", album: "Album")
+    let localResolver = LyricsResolver(providers: [
+        StubProvider(id: "appleMusic", candidates: [localCandidate], fails: false, delayNanoseconds: 0, calls: nil),
+        StubProvider(id: "network", candidates: [exact], fails: false, delayNanoseconds: 0, calls: networkCalls)
+    ])
+    let localResult = LockedBox<LyricsResolution>()
+    let localWait = DispatchSemaphore(value: 0)
+    Task.detached {
+        localResult.set(await localResolver.resolve(query, preferLocal: true))
+        localWait.signal()
+    }
+    localWait.wait()
+    expectEqual(localResult.current?.winner?.source, "appleMusic", "官方本地歌词优先")
+    expectEqual(networkCalls.current, 0, "本地命中不发送网络请求")
+    let fallback = resolveSynchronously(LyricsResolver(providers: [
+        StubProvider(id: "appleMusic", candidates: [], fails: true, delayNanoseconds: 0, calls: nil),
+        StubProvider(id: "network", candidates: [exact], fails: false, delayNanoseconds: 0, calls: networkCalls)
+    ]), query: query)
+    expectEqual(fallback?.winner?.source, "exact", "本地缓存不可读不影响其他来源")
+    expectEqual(networkCalls.current, 1)
+
     let concurrent = resolveSynchronously(
         LyricsResolver(providers: [
             StubProvider(

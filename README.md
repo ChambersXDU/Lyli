@@ -2,7 +2,7 @@
 
 Native macOS menu-bar and desktop lyrics for Apple Music. It follows playback with LRC/YRC word timing, translation and duet lines, with a Lyrics Manager for manual search, editing, deleting and re-matching cached songs.
 
-The app queries five lyric providers (LRCLIB, Kuwo, NetEase, Kugou, and QQ Music), scores their candidates, and stores lyrics in `~/.config/lyli/lyli-enrich-cache.json`. Cached lyrics work offline.
+Automatic matching first reads Apple Music’s local official-lyrics cache. It joins lyric requests to cached song metadata by Apple catalog ID and validates title, artist, album and duration. A safe local match avoids network lyric searches; a miss falls back to LRCLIB, Kuwo, NetEase, Kugou and QQ Music. Lyrics are stored in `~/.config/lyli/lyli-enrich-cache.json` and work offline. Manual picks, edits, pinned songs and calibrated lyrics remain protected.
 
 See [lyric matching](lyli/docs/lyric-matching.md) for the ranking signals, recording-version handling and validation limits.
 
@@ -24,6 +24,10 @@ cd lyli
 Use `./build.sh --debug` for local development: it builds, installs and starts the app with Swift's incremental Debug compilation. Add `--no-restart` to install without restarting, or `--dest /tmp/Lyli.app` to assemble a signed app without installing it. Debug and Release keep separate build artifacts, so repeated development builds can reuse their cache.
 
 `./build.sh` still defaults to optimized Release builds. Use that or `./build.sh --configuration release` to verify release behavior. The SwiftPM wrapper uses project-local caches and avoids nested SwiftPM sandbox failures in restricted build environments. `build.sh` builds only the app; the test commands above build their own runners. See [build performance measurements](lyli/docs/build-performance.md) for the measured bottleneck and comparison.
+
+To check the currently playing song against the real Music cache, run `./scripts/swiftpm.sh run lyli-selftest --apple-music-cache` with Music playing or paused and Automation access allowed. It reports track metadata, cache hit/miss and timeline counts without printing lyric text.
+
+Music must have downloaded the lyrics already (opening its lyrics panel can populate the cache). The reader uses `~/Library/Caches/com.apple.Music/Cache.db` and `fsCachedData` in read-only mode, supports `/ttmlLyrics` and embedded `syllable-lyrics` responses, and preserves TTML line/span timing and keyed translations. It never reads authentication headers or replays signed requests. Songs without enough cached identity evidence fall back to the other sources. Cache scans are bounded and retried three times after a track change to allow late cache writes; there is no continuous scan during playback. Apple's private cache layout may change in future macOS versions.
 
 Use `./package.sh` to produce the arm64 release assets.
 

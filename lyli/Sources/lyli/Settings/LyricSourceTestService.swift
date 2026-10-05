@@ -33,20 +33,24 @@ final class LyricSourceTestService {
             source == nil || provider.id == source?.rawValue
         }
         let query = LyricsQuery(title: "Hey Jude", artist: "The Beatles", duration: 431)
+        let playback = LocalPlaybackSource.shared
+        let localQuery = LyricsQuery(title: playback.title, artist: playback.artist, album: playback.album,
+                                     duration: Double(playback.currentDurationMs ?? 0) / 1000)
         let task = Task { () -> [(Result, [LyricsCandidate])] in
             await withTaskGroup(of: (Result, [LyricsCandidate]).self, returning: [(Result, [LyricsCandidate])].self) { group in
                 for provider in providers {
                     group.addTask {
                         do {
-                            let candidates = try await provider.search(query)
+                            let candidates = try await provider.search(provider.id == "appleMusic" ? localQuery : query)
                             let result = Result(source: provider.id,
                                                 status: candidates.isEmpty ? .warn : .ok,
-                                                reasonCode: candidates.isEmpty ? "no_response" : "",
+                                                reasonCode: candidates.isEmpty ? (provider.id == "appleMusic" ? "local_cache_miss" : "no_response") : "",
                                                 networkLooksDown: false)
                             return (result, candidates)
                         } catch {
                             return (Result(source: provider.id, status: .fail,
-                                           reasonCode: Self.failureCode(error.localizedDescription), networkLooksDown: true), [])
+                                           reasonCode: provider.id == "appleMusic" ? "local_cache_unreadable" : Self.failureCode(error.localizedDescription),
+                                           networkLooksDown: provider.id != "appleMusic"), [])
                         }
                     }
                 }

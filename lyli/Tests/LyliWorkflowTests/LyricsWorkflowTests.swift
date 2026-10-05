@@ -95,6 +95,54 @@ final class LyricsWorkflowTests {
         await service.searchAndSave(artist: "Artist", title: "Song", album: "Album", duration: 180)
     }
 
+    func testAppleCacheUpgradesAutomaticLyricsAndPreservesProtectedPicks() async {
+        FeatureSettingsStore.shared.lyricsSources = [.appleMusic]
+        let official = LyricsCandidate(source: "appleMusic", lyrics: editedLyrics, title: "Song", artist: "Artist", album: "Album")
+        let service = service(StubProvider(id: "appleMusic", candidates: [official]))
+        _ = await cache.saveEdit(key: key, lyrics: originalLyrics, tr: "", source: "lrclib", markManual: false)
+        await searchAutomatically(service)
+        expectEqual(cache.detail(for: key).lyrics, editedLyrics)
+        expectEqual(EnrichCacheReader.entries[key]?["lyrics_source"] as? String, "appleMusic")
+        expectEqual(cache.summaries.first(where: { $0.key == key })?.thinEvidence, false)
+        _ = await cache.saveEdit(key: key, lyrics: originalLyrics, tr: "", source: "lrclib", markManual: true)
+        await searchAutomatically(service)
+        expectEqual(cache.detail(for: key).lyrics, originalLyrics)
+        _ = await cache.saveEdit(key: key, lyrics: originalLyrics, tr: "", source: "lrclib", markManual: false,
+                                 sourceChoice: "lrclib", fromManualPick: true)
+        await searchAutomatically(service)
+        expectEqual(cache.detail(for: key).lyrics, originalLyrics)
+    }
+
+    func testAppleCacheMissKeepsExistingLyricsAndNetworkFailureVisible() async {
+        FeatureSettingsStore.shared.lyricsSources = [.appleMusic, .lrclib]
+        let resolver = LyricsResolver(providers: [StubProvider(id: "appleMusic", candidates: []),
+                                                  StubProvider(candidates: [], fails: true)])
+        let service = LyricsSearchService(resolver: resolver, cache: cache)
+        _ = await cache.saveEdit(key: key, lyrics: originalLyrics, tr: "", source: "lrclib", markManual: false)
+        await searchAutomatically(service)
+        expectEqual(cache.detail(for: key).lyrics, originalLyrics)
+        _ = await cache.saveEdit(key: key, lyrics: "", tr: "", source: "", markManual: false)
+        // A local miss is not a successful network response.
+        var update: LyricsSearchService.SearchUpdate?
+        try? await service.search(artist: "Artist", title: "Song", album: "Album") { update = $0 }
+        expectEqual(update?.networkLooksDown, true)
+        expectEqual(update?.pick?.decidable, false)
+    }
+
+    func testLateAppleCacheResultDoesNotOverwriteEditsOrNewTrack() async {
+        FeatureSettingsStore.shared.lyricsSources = [.appleMusic]
+        let gate = SearchGate()
+        let official = LyricsCandidate(source: "appleMusic", lyrics: editedLyrics, title: "Song", artist: "Artist", album: "Album")
+        let service = service(StubProvider(id: "appleMusic", candidates: [official], gate: gate))
+        _ = await cache.saveEdit(key: key, lyrics: originalLyrics, tr: "", source: "lrclib", markManual: false)
+        let task = Task { await searchAutomatically(service) }
+        await gate.waitUntilStarted()
+        _ = await cache.saveEdit(key: key, lyrics: originalLyrics, tr: "", source: "lrclib", markManual: true)
+        await gate.release()
+        await task.value
+        expectEqual(cache.detail(for: key).lyrics, originalLyrics)
+    }
+
     func testInvalidWordTimingFallsBackToLyricsAndRecordsCurrentScoringVersion() async {
         let candidate = LyricsCandidate(source: "lrclib", lyrics: originalLyrics,
                                         wordTiming: "[broken]", duration: 180,

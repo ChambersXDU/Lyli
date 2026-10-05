@@ -12,6 +12,7 @@ final class LyricsSearchService: ObservableObject {
     @Published private(set) var automaticSearchState: AutomaticSearchState = .idle
     private var automaticSearchID: UUID?
     private var automaticCacheRevision = 0
+    private var cacheRetryTask: Task<Void, Never>?
     enum SearchScope: Hashable {
         case manual
         case rematch
@@ -146,21 +147,38 @@ final class LyricsSearchService: ObservableObject {
         let source = LocalPlaybackSource.shared
         source.onTrackChanged = { [weak self] artist, title, album, duration in
             guard let self, !title.isEmpty, !artist.isEmpty else { return }
-            Task { await self.searchAndSave(artist: artist, title: title, album: album, duration: duration) }
+            self.searchCurrentTrack(artist: artist, title: title, album: album, duration: duration)
         }
         if !source.title.isEmpty, !source.artist.isEmpty {
             let artist = source.artist
             let title = source.title
             let album = source.album
             let duration = Double(source.currentDurationMs ?? 0) / 1000
-            Task { await self.searchAndSave(artist: artist, title: title, album: album, duration: duration) }
+            searchCurrentTrack(artist: artist, title: title, album: album, duration: duration)
+        }
+    }
+
+    private func searchCurrentTrack(artist: String, title: String, album: String, duration: Double) {
+        cacheRetryTask?.cancel()
+        cacheRetryTask = Task { [weak self] in
+            guard let self else { return }
+            await self.searchAndSave(artist: artist, title: title, album: album, duration: duration)
+            // Music may write lyrics after the track notification. Retry only three times per change.
+            for delay in [2, 3, 5] {
+                do { try await Task.sleep(nanoseconds: UInt64(delay) * 1_000_000_000) }
+                catch { return }
+                guard !Task.isCancelled, self.automaticSearchState != .cancelled,
+                      FeatureSettingsStore.shared.lyricsSources.contains(.appleMusic),
+                      EnrichCacheReader.sourceInfo(artist: artist, title: title, album: album)?.lyricsSource != "appleMusic" else { return }
+                await self.searchAndSave(artist: artist, title: title, album: album, duration: duration, localOnly: true)
+            }
         }
     }
 
     func search(
         artist: String, title: String, album: String, durationSecs: Double = 0,
         pickWinner: Bool = false, currentSource: String = "",
-        scope: SearchScope = .manual,
+        scope: SearchScope = .manual, localOnly: Bool = false,
         onUpdate: @escaping @MainActor (SearchUpdate) -> Void
     ) async throws {
         cancelRunning(scope)
@@ -171,15 +189,18 @@ final class LyricsSearchService: ObservableObject {
             .map(\.rawValue)
         let prioritizeSources = FeatureSettingsStore.shared.lyricsSourceMode == .priority
         let task = Task { [resolver] in
-            await resolver.resolve(query, enabledIDs: enabledSourceIDs, prioritizeSources: prioritizeSources)
+            await resolver.resolve(query, enabledIDs: enabledSourceIDs, prioritizeSources: prioritizeSources,
+                                   localOnly: localOnly, preferLocal: scope == .automatic)
         }
         let searchID = UUID()
         runningTasks[scope] = RunningSearch(id: searchID, task: task)
         await withTaskCancellationHandler(operation: {
             let resolution = await task.value
             guard !Task.isCancelled, !task.isCancelled else { return }
-            if scope == .automatic {
-                LocalPlaybackSource.shared.setNetworkDown(resolution.sourcesResponded.isEmpty)
+            let hasUsableResponse = resolution.sourcesResponded.contains { $0 != "appleMusic" }
+                || resolution.winner?.source == "appleMusic"
+            if scope == .automatic, !localOnly || resolution.winner?.source == "appleMusic" {
+                LocalPlaybackSource.shared.setNetworkDown(!hasUsableResponse)
             }
             let candidates = resolution.matches.map(Candidate.init)
             let winner = resolution.winner.flatMap { resolution.matches.firstIndex(of: $0) }
@@ -189,7 +210,7 @@ final class LyricsSearchService: ObservableObject {
             let update = SearchUpdate(
                 candidates: candidates,
                 winner: winner,
-                networkLooksDown: resolution.sourcesResponded.isEmpty,
+                networkLooksDown: !hasUsableResponse,
                 sourcesDone: resolution.sourcesSeen.count,
                 sourcesTotal: resolution.sourcesSeen.count,
                 round: 1,
@@ -209,7 +230,7 @@ final class LyricsSearchService: ObservableObject {
         pick.sourcesSeen = resolution.sourcesSeen
         pick.sourcesResponded = resolution.sourcesResponded
         pick.resolvedDurationSecs = duration
-        pick.decidable = !resolution.sourcesResponded.isEmpty
+        pick.decidable = resolution.sourcesResponded.contains { $0 != "appleMusic" } || winner?.source == "appleMusic"
         guard let winner else {
             pick.decisionJSON = decisionJSON(resolution: resolution, candidates: candidates, winner: nil)
             return pick
@@ -255,7 +276,9 @@ final class LyricsSearchService: ObservableObject {
         return object
     }
 
-    func searchAndSave(artist: String, title: String, album: String, duration: Double) async {
+    func searchAndSave(artist: String, title: String, album: String, duration: Double, localOnly: Bool = false) async {
+        guard !Task.isCancelled else { return }
+        let previousState = automaticSearchState
         cancelRunning(.automatic)
         let searchID = UUID()
         automaticSearchID = searchID
@@ -263,9 +286,17 @@ final class LyricsSearchService: ObservableObject {
             ?? EnrichCacheKeys.normalizedKey(artist: artist, title: title, album: album)
         automaticSearchKey = key
         let cached = EnrichCacheReader.lookup(artist: artist, title: title, album: album)
-        if (cached?.resolved == true && cached?.searchIncomplete != true)
+        let entry = EnrichCacheReader.entries[key] ?? [:]
+        let protected = entry["manual_lyrics"] as? Bool == true
+            || !(entry["manual_pick_sha"] as? String ?? "").isEmpty
+            || !(entry["lyrics_source_choice"] as? String ?? "").isEmpty
+            || LyricsPinStore.shared.isPinned(key)
+            || (cache.summaries.first(where: { $0.key == key })?.offsetMs ?? 0) != 0
+        let hasCached = (cached?.resolved == true && cached?.searchIncomplete != true)
             || cached?.instrumental == true || !(cached?.lyrics.isEmpty ?? true)
-            || !(cached?.plainLyrics.isEmpty ?? true) {
+            || !(cached?.plainLyrics.isEmpty ?? true)
+        if protected || (hasCached && (!FeatureSettingsStore.shared.lyricsSources.contains(.appleMusic)
+                                        || entry["lyrics_source"] as? String == "appleMusic")) {
             automaticSearchState = .completed
             return
         }
@@ -275,11 +306,15 @@ final class LyricsSearchService: ObservableObject {
         do {
             var update: SearchUpdate?
             try await search(artist: artist, title: title, album: album, durationSecs: duration,
-                             pickWinner: true, scope: .automatic) { value in update = value }
+                             pickWinner: true, scope: .automatic, localOnly: localOnly || hasCached) { value in update = value }
             guard automaticSearchID == searchID, let update, !Task.isCancelled else { return }
             guard cache.revision(forKey: key) == revision,
                   EnrichCacheReader.lookup(artist: artist, title: title, album: album) == cached else {
                 automaticSearchState = .completed
+                return
+            }
+            if update.winner == nil && (hasCached || localOnly) {
+                automaticSearchState = localOnly ? previousState : .completed
                 return
             }
             let saved: Bool

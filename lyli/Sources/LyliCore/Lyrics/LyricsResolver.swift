@@ -8,20 +8,25 @@ public struct LyricsResolver: Sendable {
     }
 
     public static func defaultProviders() -> [any LyricsProvider] {
-        [LRCLIBProvider(), KuwoProvider(), NeteaseProvider(), KugouProvider(), QQMusicProvider()]
+        [AppleMusicCacheProvider(), LRCLIBProvider(), KuwoProvider(), NeteaseProvider(), KugouProvider(), QQMusicProvider()]
     }
 
     public func resolve(_ query: LyricsQuery, enabledIDs: [String]? = nil,
-                        prioritizeSources: Bool = false) async -> LyricsResolution {
+                        prioritizeSources: Bool = false, localOnly: Bool = false, preferLocal: Bool = false) async -> LyricsResolution {
         struct Result: Sendable {
             let id: String
             let candidates: [LyricsCandidate]
             let error: String?
         }
 
-        let providersToUse = enabledIDs.map { ids in
+        let enabledProviders = enabledIDs.map { ids in
             providers.filter { ids.contains($0.id) }
         } ?? providers
+        let providersToUse = localOnly ? enabledProviders.filter { $0.id == "appleMusic" } : enabledProviders
+        if preferLocal, !localOnly, providersToUse.contains(where: { $0.id == "appleMusic" }) {
+            let local = await resolve(query, enabledIDs: enabledIDs, localOnly: true)
+            if local.winner != nil { return local }
+        }
 
         let results = await withTaskGroup(of: Result.self, returning: [Result].self) { group in
             for provider in providersToUse {

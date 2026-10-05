@@ -20,7 +20,7 @@ runner = bin_path / 'lyli-workflow-selftest'
 command = ['swiftc', '-parse-as-library', '-swift-version', '5',
            '-target', platform.machine() + '-apple-macosx14.0',
            '-module-cache-path', str(bin_path / 'ModuleCache'),
-           '-I', str(bin_path / 'Modules')]
+           '-I', str(bin_path / 'Modules'), '-I', str(root / 'Sources/CSQLite'), '-lsqlite3']
 command += [str(p) for p in sorted((root / 'Tests/LyliWorkflowTests').glob('*.swift'))]
 command += objects + ['-o', str(runner)]
 subprocess.run(command, check=True)

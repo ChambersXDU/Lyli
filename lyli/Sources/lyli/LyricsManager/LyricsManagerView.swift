@@ -20,7 +20,7 @@ private enum SourceFilter: Hashable, Identifiable {
     case named(String)
     case none
 
-    static let all_: [SourceFilter] = [.all, .named("lrclib"), .named("kuwo"), .named("netease"), .named("kugou"), .named("qq"), .none]
+    static let all_: [SourceFilter] = [.all] + LyricsSource.allCases.map { .named($0.rawValue) } + [.none]
 
     var id: String { label }
     var label: String {
@@ -134,6 +134,7 @@ func toSimplified(_ s: String) -> String {
 
 func sourceColor(_ source: String) -> Color {
     switch source {
+    case "appleMusic": return .pink
     case "netease": return .red
     case "qq": return .green
     case "kugou": return .cyan
@@ -145,6 +146,7 @@ func sourceColor(_ source: String) -> Color {
 
 func sourceDisplayName(_ source: String) -> String {
     switch source {
+    case "appleMusic": return "Apple Music 本地"
     case "netease": return "网易云音乐"
     case "qq": return "QQ音乐"
     case "kugou": return "酷狗音乐"

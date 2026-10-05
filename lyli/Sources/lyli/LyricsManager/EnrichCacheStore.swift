@@ -41,7 +41,7 @@ public final class EnrichCacheStore: ObservableObject {
 
         public let sourcesRespondedCount: Int
 
-        public var thinEvidence: Bool { (1...3).contains(sourcesRespondedCount) }
+        public var thinEvidence: Bool { lyricsSource != "appleMusic" && (1...3).contains(sourcesRespondedCount) }
 
         public let isSearching: Bool
 

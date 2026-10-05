@@ -13,6 +13,10 @@ enum LyricSourceFailureReason {
         case "upstream_unreachable":
             return "无法连接歌词源"
 
+        case "local_cache_miss":
+            return "当前歌曲尚无可匹配的 Apple Music 缓存歌词"
+        case "local_cache_unreadable":
+            return "Apple Music 本地缓存暂不可读"
         case "no_response":
             return "未返回歌词候选"
         case "network_down":

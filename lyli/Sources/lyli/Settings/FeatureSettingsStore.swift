@@ -6,7 +6,7 @@ import SwiftUI
 private let logger = Logger(subsystem: "com.chambersxdu.lyli", category: "feature-settings")
 
 public enum LyricsSource: String, CaseIterable, Identifiable, Codable, Hashable {
-    case lrclib, kuwo, netease, kugou, qq
+    case appleMusic, lrclib, kuwo, netease, kugou, qq
     public var id: Self { self }
     public var displayName: String { sourceDisplayName(rawValue) }
     public var color: Color { sourceColor(rawValue) }
@@ -112,13 +112,15 @@ public final class FeatureSettingsStore: ObservableObject {
         }
 
         let decodedSources = (f.lyricsSources ?? []).compactMap(LyricsSource.init(rawValue:))
-        let enabled = decodedSources.isEmpty ? Set(LyricsSource.allCases) : Set(decodedSources)
+        var enabled = decodedSources.isEmpty ? Set(LyricsSource.allCases) : Set(decodedSources)
+        // Older files could not express this source; add it once while preserving network choices.
+        if !(f.lyricsSourceOrder ?? []).contains("appleMusic") { enabled.insert(.appleMusic) }
         lyricsSources = enabled
         lyricsSourceMode = f.lyricsSourceMode.flatMap(LyricsSourceMode.init(rawValue:)) ?? .smart
 
         let decodedOrder = (f.lyricsSourceOrder ?? []).compactMap(LyricsSource.init(rawValue:))
-        lyricsSourceOrder = Set(decodedOrder).count == LyricsSource.allCases.count
-            ? decodedOrder : LyricsSource.allCases
+        lyricsSourceOrder = Array(Set(decodedOrder)).count == decodedOrder.count
+            ? decodedOrder + LyricsSource.allCases.filter { !decodedOrder.contains($0) } : LyricsSource.allCases
         lyricsDir = f.lyricsDir ?? ""
         savedSnapshot = currentSnapshot
     }

@@ -285,6 +285,11 @@ private struct LyricsSettingsTab: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
+            SettingsRawRow(insetToText: true) {
+                Text("自动匹配优先使用 Apple Music 已缓存的官方歌词，未命中时使用其他已启用来源。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 

@@ -24,6 +24,9 @@ private struct MissingValue: Error { let location: String }
         let collectionCache = LyricsCollectionCacheTests()
         let motion = MenuBarMotionTests()
         let tests: [(String, () async throws -> Void)] = [
+            ("apple-cache-upgrades-and-protects-picks", suite.testAppleCacheUpgradesAutomaticLyricsAndPreservesProtectedPicks),
+            ("apple-cache-miss-preserves-lyrics-and-network-status", suite.testAppleCacheMissKeepsExistingLyricsAndNetworkFailureVisible),
+            ("late-apple-cache-result-preserves-edit", suite.testLateAppleCacheResultDoesNotOverwriteEditsOrNewTrack),
             ("reduced-motion-stops-and-restarts-marquee", { try motion.testReducedMotionStopsAndRestartsNativeMarquee() }),
             ("reduced-motion-blocks-follow-scroll", { try motion.testReducedMotionBlocksFollowScrollClockUpdates() }),
             ("list-reuses-sorted-results", { collectionCache.testRepeatedReadsReuseSortedResults() }),

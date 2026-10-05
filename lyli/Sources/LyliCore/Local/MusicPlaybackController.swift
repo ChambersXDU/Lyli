@@ -51,6 +51,11 @@ public enum MusicPlaybackController {
         return try? JSONDecoder().decode(AppleMusicPlaybackSnapshot.self, from: result.stdout)
     }
 
+    public static func currentLyricsQuery() -> LyricsQuery? {
+        guard let snapshot = fetchSnapshot(), let title = snapshot.title, let artist = snapshot.artist else { return nil }
+        return LyricsQuery(title: title, artist: artist, album: snapshot.album, duration: snapshot.duration)
+    }
+
     public static func fetchPlayerPosition() -> Double? {
         AppleMusicPositionQuery.fetch(timeout: appleScriptTimeout)
     }

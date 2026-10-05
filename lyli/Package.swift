@@ -9,8 +9,10 @@ let package = Package(
 
     dependencies: [],
     targets: [
+        .systemLibrary(name: "CSQLite", path: "Sources/CSQLite"),
         .target(
             name: "LyliCore",
+            dependencies: ["CSQLite"],
             path: "Sources/LyliCore"
         ),
         .executableTarget(
