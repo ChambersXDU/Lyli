@@ -1,6 +1,6 @@
 # Lyli package
 
-This directory contains the Swift package for the native Apple Music lyrics app.
+This directory contains the Swift package for the native Apple Music lyrics app. For installation, features and usage, see the repository [README](../README.md) ([English](../README.en.md)).
 
 ```sh
 ./build.sh --debug --no-restart
