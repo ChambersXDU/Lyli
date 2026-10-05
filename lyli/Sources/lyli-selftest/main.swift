@@ -1,9 +1,49 @@
 import LyliCore
 import Foundation
 
+if let index = CommandLine.arguments.firstIndex(of: "--fusion-fixture"), index + 1 < CommandLine.arguments.count {
+    do {
+        let data = try Data(contentsOf: URL(fileURLWithPath: CommandLine.arguments[index + 1]))
+        guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let rawOfficial = object["official"] as? [String: Any],
+              let rawDonors = object["donors"] as? [[String: Any]] else {
+            print("Invalid fusion fixture: official and donors are required"); exit(2)
+        }
+        func candidate(_ value: [String: Any]) -> LyricsCandidate {
+            LyricsCandidate(source: value["source"] as? String ?? "", lyrics: value["lyrics"] as? String ?? "",
+                wordTiming: value["wordTiming"] as? String, duration: value["duration"] as? Double,
+                title: value["title"] as? String ?? "", artist: value["artist"] as? String ?? "", album: value["album"] as? String)
+        }
+        let official = candidate(rawOfficial)
+        let donors = rawDonors.map(candidate)
+        for donor in donors where donor.hasWordTiming {
+            let result = LyricsFusion.fuse(official: official, donor: donor)
+            print("FIXTURE DONOR: \(donor.source) / \(donor.duration ?? 0); matched=\(result?.matchedLines ?? 0)")
+        }
+        let started = Date()
+        let result = LyricsFusion.best(official: official, donors: donors)
+        print("FUSION COMPUTE: \(String(format: "%.1f", Date().timeIntervalSince(started) * 1000)) ms per song, off playback thread")
+        print("FIXTURE FUSION: \(result?.sources.joined(separator: ",") ?? "fallback"), verified=\(result?.verifiedLines ?? 0), rows=\(result?.matchedLines ?? 0)/\(result?.totalLines ?? 0)")
+        if let result {
+            let engine = LyricsSyncEngine()
+            _ = engine.load(lyrics: official.lyrics, lyricsTr: official.translation ?? "", lyricsYRC: result.wordTiming)
+            let lines = LRCParser.parse(official.lyrics).filter { !$0.text.isEmpty }
+            let correct = lines.filter { engine.currentLine(at: $0.timeMs + 1)?.plainText == $0.text }.count
+            let clears = LRCParser.parse(official.lyrics).filter { $0.text.isEmpty }
+            let correctClears = clears.filter { engine.currentLine(at: $0.timeMs + 1) == nil }.count
+            print("FIXTURE SYNC: text=\(correct)/\(lines.count), clears=\(correctClears)/\(clears.count)")
+            guard correct == lines.count && correctClears == clears.count else { exit(4) }
+            if let output = CommandLine.arguments.firstIndex(of: "--fusion-output"), output + 1 < CommandLine.arguments.count {
+                try result.wordTiming.write(toFile: CommandLine.arguments[output + 1], atomically: true, encoding: .utf8)
+            }
+        }
+        exit(0)
+    } catch { print(error); exit(1) }
+}
+
 if CommandLine.arguments.contains("--glow-benchmark") { runSustainedWordGlowBenchmark(); exit(0) }
 
-if CommandLine.arguments.contains("--fusion-live") { runLiveFusionProbe() }
+if CommandLine.arguments.contains("--fusion-live") || CommandLine.arguments.contains("--fusion-query") { runLiveFusionProbe() }
 
 if let index = CommandLine.arguments.firstIndex(of: "--fusion-cache"), index + 1 < CommandLine.arguments.count {
     do {

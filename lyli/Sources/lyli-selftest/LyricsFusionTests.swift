@@ -102,4 +102,76 @@ func runLyricsFusionTests() {
     let existing = LyricsCandidate(source: "appleMusic", lyrics: lrc, wordTiming: full?.wordTiming,
         title: "Song", artist: "Artist")
     expectEqual(LyricsFusion.fuse(official: existing, donor: donor()) == nil, true, "原有官方逐字不被覆盖")
+
+    func variant(_ value: LyricsCandidate, source: String, drift: Int = 0) -> LyricsCandidate {
+        let rows = YRCParser.parse(value.wordTiming ?? "").map { row in
+            LyricLineWords(timeMs: row.timeMs, words: row.words.enumerated().map { index, word in
+                LyricWord(startMs: word.startMs + (index == 0 ? 0 : drift), durationMs: word.durationMs, text: word.text)
+            })
+        }
+        return LyricsCandidate(source: source, lyrics: value.lyrics, wordTiming: encode(rows),
+            duration: value.duration, title: value.title, artist: value.artist)
+    }
+    let kugou = donor()
+    let qq = variant(kugou, source: "qq", drift: 60)
+    let netease = variant(kugou, source: "netease", drift: 700)
+    let voted = LyricsFusion.best(official: official, donors: [kugou, qq, netease])
+    expectEqual(voted?.matchedLines, 8, "一致的两源拒绝逐字轨迹异常的第三源")
+    expectEqual(voted?.verifiedLines, 8)
+    expectEqual(voted?.sources, ["kugou", "qq"])
+    expectEqual(LyricsFusion.donorSources(in: voted?.wordTiming ?? ""), ["kugou", "qq"])
+    expectEqual(LyricsFusion.version(in: voted?.wordTiming ?? ""), LyricsFusion.algorithmVersion)
+    expectEqual(LyricsFusion.donorSource(in: "[lyli-fusion:1]\n[lyli-word-source:qq]"), "qq", "旧缓存仍能识别")
+    let flooded = LyricsFusion.best(official: official, donors: [kugou, qq] + Array(repeating: netease, count: 40))
+    expectEqual(flooded?.wordTiming, voted?.wordTiming, "同源重复候选不能堆票")
+    expectEqual(LyricsFusion.best(official: official, donors: [netease, qq, kugou])?.wordTiming, voted?.wordTiming,
+                "结果不受网络返回顺序影响")
+    expectEqual(LyricsFusion.best(official: official, donors: [kugou, netease]) == nil, true, "两源矛盾回退整行")
+    expectEqual(LyricsFusion.best(official: official, donors: [kugou, qq, netease],
+                                 weights: ["kugou": 1, "qq": 1, "netease": 4]) == nil, true,
+                "孤立高权重来源也不能压过轨迹一致性门槛")
+    let weighted = LyricsFusion.best(official: official, donors: [kugou, qq], weights: ["kugou": 1, "qq": 3])
+    expectEqual(YRCParser.parse(weighted?.wordTiming ?? "").first?.words[1].startMs, time(0) + 410,
+                "一致组内用加权中位数校准，不用平均值拉偏")
+    let complementA = donor(omitting: [1, 2, 5, 6])
+    let complementB = variant(donor(omitting: [0, 3, 4, 7]), source: "qq")
+    expectEqual(LyricsFusion.fuse(official: official, donor: complementA) == nil, true)
+    expectEqual(LyricsFusion.fuse(official: official, donor: complementB) == nil, true)
+    expectEqual(LyricsFusion.best(official: official, donors: [complementA, complementB])?.matchedLines, 8,
+                "已通过全曲版本验证的来源可逐行互补")
+    let chain = [variant(kugou, source: "kugou"), variant(kugou, source: "qq", drift: 200),
+                 variant(kugou, source: "netease", drift: 400)]
+    expectEqual(LyricsFusion.best(official: official, donors: chain) == nil, true,
+                "A近B、B近C不能把相互冲突的A和C串成共识")
+
+    let languageLabel = LyricsCandidate(source: "qq", lyrics: kugou.lyrics, wordTiming: kugou.wordTiming,
+        duration: kugou.duration, title: "Song (粤语)", artist: "Artist")
+    expectEqual(LyricsFusion.fuse(official: official, donor: languageLabel)?.matchedLines, 8,
+                "语言标签可以由完整正文和时间轴校验，现场等版本标签仍严格保护")
+    expectEqual(LyricsFusion.best(official: official, donors: [kugou], weights: ["kugou": .nan]) == nil, true)
+    expectEqual(LyricsFusion.best(official: official, donors: [kugou], weights: ["kugou": 0]) == nil, true)
+    let zeroSpaces = YRCParser.parse(kugou.wordTiming ?? "").map { row in
+        LyricLineWords(timeMs: row.timeMs, words: row.words.flatMap { word in
+            [word, LyricWord(startMs: word.startMs + word.durationMs, durationMs: 0, text: " ")]
+        })
+    }
+    let spacing = LyricsCandidate(source: "qq", lyrics: lrc, wordTiming: encode(zeroSpaces), title: "Song", artist: "Artist")
+    expectEqual(LyricsFusion.fuse(official: official, donor: spacing)?.matchedLines, 8,
+                "零时长空格不应使整行真实字词失效")
+    let pronouns = LyricsCandidate(source: "appleMusic", lyrics: lrc.replacingOccurrences(of: "你", with: "妳"),
+                                  title: "Song", artist: "Artist")
+    let pronounFusion = LyricsFusion.fuse(official: pronouns, donor: kugou)
+    expectEqual(pronounFusion?.matchedLines, 8)
+    _ = engine.load(lyrics: pronouns.lyrics, lyricsTr: "", lyricsYRC: pronounFusion?.wordTiming ?? "")
+    expectEqual(engine.currentLine(at: time(1) + 1)?.plainText, "星光落在妳的肩", "妳/你只用于匹配，不改官方文字")
+
+    // The official line break crosses two donor rows, as in 喜欢妳 / 那双眼动人 笑声更迷人.
+    let cross = normalRows[1].words.count / 2
+    let crossing = [LyricLineWords(timeMs: normalRows[0].timeMs,
+        words: normalRows[0].words + normalRows[1].words.prefix(cross)),
+        LyricLineWords(timeMs: normalRows[1].words[cross].startMs, words: Array(normalRows[1].words.dropFirst(cross)))]
+        + Array(normalRows.dropFirst(2))
+    let crossed = LyricsCandidate(source: "qq", lyrics: lrc, wordTiming: encode(crossing), title: "Song", artist: "Artist")
+    expectEqual(LyricsFusion.fuse(official: official, donor: crossed)?.matchedLines, 8,
+                "交叉分行沿真实词流恢复官方行，不猜插值")
 }

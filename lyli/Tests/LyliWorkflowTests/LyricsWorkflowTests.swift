@@ -35,6 +35,11 @@ private final class CancellationFlag: @unchecked Sendable {
     var value: Bool { lock.lock(); defer { lock.unlock() }; return cancelled }
 }
 
+private actor ProviderCalls {
+    private(set) var count = 0
+    func record() { count += 1 }
+}
+
 private struct StubProvider: LyricsProvider {
     var id = "lrclib"
     let candidates: [LyricsCandidate]
@@ -42,8 +47,10 @@ private struct StubProvider: LyricsProvider {
     var cancellation: CancellationFlag?
     var fails = false
     var gates: [String: SearchGate] = [:]
+    var calls: ProviderCalls?
 
     func search(_ query: LyricsQuery) async throws -> [LyricsCandidate] {
+        await calls?.record()
         if fails { throw URLError(.notConnectedToInternet) }
         await withTaskCancellationHandler {
             await (gates[query.title] ?? gate)?.waitForRelease()
@@ -186,6 +193,65 @@ final class LyricsWorkflowTests {
         expectEqual(cache.detail(for: key).yrc, "")
         expectEqual(service.automaticSearchState == .completed, true)
         expectEqual(LocalPlaybackSource.shared.networkDown, false)
+    }
+
+    func testLegacyFusionUpgradesOnlyAfterSafeResult() async {
+        FeatureSettingsStore.shared.lyricsSources = [.appleMusic, .lrclib]
+        let (official, donor) = fusionCandidates()
+        let current = LyricsFusion.fuse(official: official, donor: donor)!.wordTiming
+        let legacy = current.replacingOccurrences(of: LyricsFusion.marker, with: "[lyli-fusion:1]")
+            .replacingOccurrences(of: "[lyli-word-sources:lrclib]", with: "[lyli-word-source:lrclib]")
+        _ = await cache.saveEdit(key: key, lyrics: official.lyrics, tr: official.translation ?? "",
+                                 yrc: legacy, source: "appleMusic", markManual: false)
+        let gate = SearchGate()
+        let service = service(StubProvider(candidates: [donor], gate: gate))
+        let task = Task { await searchAutomatically(service) }
+        await gate.waitUntilStarted()
+        expectEqual(cache.detail(for: key).yrc, legacy)
+        await gate.release()
+        await task.value
+        expectEqual(LyricsFusion.version(in: cache.detail(for: key).yrc), LyricsFusion.algorithmVersion)
+        expectEqual(cache.detail(for: key).lyrics, official.lyrics)
+        expectEqual(cache.detail(for: key).tr, official.translation)
+    }
+
+    func testFailedFusionCanRetryWithoutRepeatedRequests() async {
+        FeatureSettingsStore.shared.lyricsSources = [.appleMusic, .lrclib]
+        let (official, _) = fusionCandidates()
+        _ = await cache.saveEdit(key: key, lyrics: official.lyrics, tr: "", yrc: "", source: "appleMusic", markManual: false)
+        let calls = ProviderCalls()
+        var clock = Date(timeIntervalSince1970: 1_000)
+        let service = LyricsSearchService(resolver: LyricsResolver(providers: [
+            StubProvider(candidates: [], fails: true, calls: calls)]), cache: cache, now: { clock })
+        await searchAutomatically(service)
+        await searchAutomatically(service)
+        expectEqual(await calls.count, 1)
+        clock = clock.addingTimeInterval(121)
+        await searchAutomatically(service)
+        expectEqual(await calls.count, 2)
+        expectEqual(cache.detail(for: key).lyrics, official.lyrics)
+        expectEqual(cache.detail(for: key).yrc, "")
+    }
+
+    func testMultipleFusionSourcesAreSavedAndDisabledSourcesExcluded() async {
+        let (official, donor) = fusionCandidates()
+        let second = LyricsCandidate(source: "qq", lyrics: donor.lyrics, wordTiming: donor.wordTiming,
+                                     duration: 180, title: "Song", artist: "Artist", album: "Album")
+        for disableSecond in [false, true] {
+            FeatureSettingsStore.shared.lyricsSources = [.appleMusic, .lrclib, .qq]
+            _ = await cache.saveEdit(key: key, lyrics: official.lyrics, tr: "", yrc: "", source: "appleMusic", markManual: false)
+            let gate = SearchGate()
+            let service = LyricsSearchService(resolver: LyricsResolver(providers: [
+                StubProvider(candidates: [donor], gate: gate), StubProvider(id: "qq", candidates: [second])]), cache: cache)
+            let task = Task { await searchAutomatically(service) }
+            await gate.waitUntilStarted()
+            if disableSecond { FeatureSettingsStore.shared.lyricsSources = [.appleMusic, .lrclib] }
+            await gate.release()
+            await task.value
+            let expected = disableSecond ? ["lrclib"] : ["lrclib", "qq"]
+            expectEqual(LyricsFusion.donorSources(in: cache.detail(for: key).yrc), expected)
+            expectEqual(cache.summaries.first?.wordTimingSources, expected)
+        }
     }
 
     func testAppleCacheUpgradesAutomaticLyricsAndPreservesProtectedPicks() async {

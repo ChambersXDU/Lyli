@@ -28,6 +28,9 @@ private struct MissingValue: Error { let location: String }
         let collectionCache = LyricsCollectionCacheTests()
         let motion = MenuBarMotionTests()
         let tests: [(String, () async throws -> Void)] = [
+            ("failed-fusion-retries-after-cooldown-without-request-loop", suite.testFailedFusionCanRetryWithoutRepeatedRequests),
+            ("legacy-fusion-upgrades-without-clearing-lyrics", suite.testLegacyFusionUpgradesOnlyAfterSafeResult),
+            ("multi-source-fusion-records-provenance-and-respects-settings", suite.testMultipleFusionSourcesAreSavedAndDisabledSourcesExcluded),
             ("glow-stops-for-pause-reduced-motion-and-line-fallback", { SustainedWordGlowTests().testPauseReducedMotionAndLineFallbackSuppressGlow() }),
             ("glow-render-preserves-layout-and-sharp-glyphs", { try SustainedWordGlowTests().testGlowRendersOutsideGlyphWithoutChangingLayout() }),
             ("fusion-official-displays-before-network-and-keeps-fallback", suite.testFusionDisplaysOfficialBeforeNetworkAndKeepsFallback),

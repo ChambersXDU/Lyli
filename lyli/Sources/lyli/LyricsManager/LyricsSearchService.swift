@@ -7,13 +7,18 @@ final class LyricsSearchService: ObservableObject {
 
     private let resolver: LyricsResolver
     private let cache: EnrichCacheStore
+    private let now: () -> Date
     enum AutomaticSearchState { case idle, searching, completed, cancelled, failed }
     @Published private(set) var automaticSearchKey: String?
     @Published private(set) var automaticSearchState: AutomaticSearchState = .idle
     private var automaticSearchID: UUID?
     private var automaticCacheRevision = 0
     private var cacheRetryTask: Task<Void, Never>?
-    private var fusionAttempts: [String: String] = [:]
+    private struct FusionAttempt {
+        let signature: String
+        let date: Date
+    }
+    private var fusionAttempts: [String: FusionAttempt] = [:]
     enum SearchScope: Hashable {
         case manual
         case rematch
@@ -124,9 +129,11 @@ final class LyricsSearchService: ObservableObject {
         return .none
     }
 
-    init(resolver: LyricsResolver = LyricsResolver(), cache: EnrichCacheStore? = nil) {
+    init(resolver: LyricsResolver = LyricsResolver(), cache: EnrichCacheStore? = nil,
+         now: @escaping () -> Date = Date.init) {
         self.resolver = resolver
         self.cache = cache ?? .shared
+        self.now = now
     }
 
     func stopAutomaticSearch(forKey key: String) async {
@@ -382,10 +389,13 @@ final class LyricsSearchService: ObservableObject {
         guard !Task.isCancelled, automaticSearchID == searchID,
               FeatureSettingsStore.shared.lyricsSources.contains(.appleMusic), !enabled.isEmpty,
               let entry = EnrichCacheReader.entries[key], entry["lyrics_source"] as? String == "appleMusic",
-              (entry["lyrics_yrc"] as? String ?? "").isEmpty,
+              ((entry["lyrics_yrc"] as? String ?? "").isEmpty
+                || (LyricsFusion.donorSource(in: entry["lyrics_yrc"] as? String ?? "") != nil
+                    && LyricsFusion.version(in: entry["lyrics_yrc"] as? String ?? "") != LyricsFusion.algorithmVersion)),
               let lyrics = entry["lyrics"] as? String, !lyrics.isEmpty else { return }
-        let signature = lyrics + "\n" + enabled.joined(separator: ",")
-        guard fusionAttempts[key] != signature else { return }
+        let signature = "\(LyricsFusion.algorithmVersion):" + lyrics + "\n" + enabled.joined(separator: ",")
+        if let attempt = fusionAttempts[key], attempt.signature == signature,
+           now().timeIntervalSince(attempt.date) < 120 { return }
         let revision = cache.revision(forKey: key)
         let query = LyricsQuery(title: title, artist: artist, album: album.isEmpty ? nil : album,
                                 duration: duration > 0 ? duration : nil)
@@ -399,7 +409,7 @@ final class LyricsSearchService: ObservableObject {
               FeatureSettingsStore.shared.lyricsSources.contains(.appleMusic),
               !LyricsPinStore.shared.isPinned(key),
               (cache.summaries.first { $0.key == key }?.offsetMs ?? 0) == 0 else { return }
-        fusionAttempts[key] = signature
+        fusionAttempts[key] = FusionAttempt(signature: signature, date: now())
         let official = LyricsCandidate(source: "appleMusic", lyrics: lyrics,
             duration: query.duration, title: title, artist: artist, album: album)
         let donors = resolution.matches.filter { !$0.isRejected && enabled.contains($0.source)
@@ -410,7 +420,9 @@ final class LyricsSearchService: ObservableObject {
         guard let result, !Task.isCancelled, !worker.isCancelled, automaticSearchID == searchID,
               cache.revision(forKey: key) == revision,
               FeatureSettingsStore.shared.lyricsSources.contains(.appleMusic),
-              let donorID = LyricsSource(rawValue: result.source), FeatureSettingsStore.shared.lyricsSources.contains(donorID),
+              result.sources.allSatisfy({ id in
+                  LyricsSource(rawValue: id).map { FeatureSettingsStore.shared.lyricsSources.contains($0) } ?? false
+              }),
               !LyricsPinStore.shared.isPinned(key),
               (cache.summaries.first { $0.key == key }?.offsetMs ?? 0) == 0 else { return }
         // Saving only after every guard keeps failed enrichment and late results invisible.

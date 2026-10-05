@@ -1,35 +1,98 @@
 import Foundation
 
-/// Borrows word timings without replacing the official text or line boundaries.
+/// Aligns and cross-checks real word timings while keeping the official text and line boundaries.
 public enum LyricsFusion {
-    public static let marker = "[lyli-fusion:1]"
-    public static let algorithmVersion = 1
+    public static let marker = "[lyli-fusion:2]"
+    public static let algorithmVersion = 2
     private static let supportedSources: Set<String> = ["kugou", "qq", "netease", "kuwo", "lrclib"]
 
     public struct Result: Sendable {
         public let wordTiming: String
         public let source: String
+        public let sources: [String]
+        public let verifiedLines: Int
         public let matchedLines: Int
         public let totalLines: Int
     }
 
-    public static func donorSource(in timing: String) -> String? {
-        guard timing.split(separator: "\n").contains(Substring(marker)) else { return nil }
-        return supportedSources.sorted().first { timing.contains("[lyli-word-source:\($0)]") }
-    }
+    // Apple remains the authoritative text/line clock. Equal external priors avoid claiming
+    // a provider is more accurate without evidence; agreement decides their influence.
+    public static let externalSourceWeights: [String: Double] = [
+        "kugou": 1, "qq": 1, "netease": 1, "kuwo": 1, "lrclib": 1
+    ]
 
-    public static func best(official: LyricsCandidate, donors: [LyricsCandidate]) -> Result? {
-        donors.compactMap { fuse(official: official, donor: $0) }.sorted {
-            if $0.matchedLines != $1.matchedLines { return $0.matchedLines > $1.matchedLines }
-            return $0.source < $1.source
+    public static func version(in timing: String) -> Int? {
+        timing.split(separator: "\n").compactMap { line -> Int? in
+            guard line.hasPrefix("[lyli-fusion:"), line.hasSuffix("]") else { return nil }
+            return Int(line.dropFirst("[lyli-fusion:".count).dropLast())
         }.first
     }
 
+    public static func donorSources(in timing: String) -> [String] {
+        guard version(in: timing) != nil else { return [] }
+        let lines = timing.split(separator: "\n")
+        if let line = lines.first(where: { $0.hasPrefix("[lyli-word-sources:") && $0.hasSuffix("]") }) {
+            let ids = line.dropFirst("[lyli-word-sources:".count).dropLast().split(separator: ",").map(String.init)
+            return Array(Set(ids).intersection(supportedSources)).sorted()
+        }
+        return supportedSources.sorted().filter { lines.contains(Substring("[lyli-word-source:\($0)]")) }
+    }
+
+    public static func donorSource(in timing: String) -> String? { donorSources(in: timing).first }
+
+    private struct AlignedDonor {
+        let source: String
+        let rows: [LyricLineWords]
+    }
+
+    public static func best(official: LyricsCandidate, donors: [LyricsCandidate],
+                            weights: [String: Double] = externalSourceWeights) -> Result? {
+        let aligned = Set(donors).compactMap { align(official: official, donor: $0) }
+        var votes: [Int: [WordTimingConsensus.Vote]] = [:]
+        // Multiple album/search variants from one provider still count as one independent vote.
+        for donor in aligned {
+            let weight = weights[donor.source] ?? 1
+            guard weight.isFinite, weight > 0 else { continue }
+            for row in donor.rows {
+                votes[row.timeMs, default: []].append(.init(source: donor.source, row: row, weight: min(weight, 4)))
+            }
+        }
+        var rows: [LyricLineWords] = []
+        var sources: Set<String> = []
+        var verified = 0
+        for time in votes.keys.sorted() {
+            guard !Task.isCancelled else { return nil }
+            guard let consensus = WordTimingConsensus.resolve(votes[time] ?? []) else { continue }
+            rows.append(consensus.row)
+            sources.formUnion(consensus.sources)
+            if consensus.sources.count > 1 { verified += 1 }
+        }
+        let total = LRCParser.parse(official.lyrics).filter { !normalized($0.text).isEmpty }.count
+        guard rows.count >= 3, rows.count * 100 >= total * 55 else { return nil }
+        let ids = sources.sorted()
+        guard let primary = ids.first else { return nil }
+        let output = ([marker, "[lyli-word-sources:\(ids.joined(separator: ","))]"] + rows.map(encode)).joined(separator: "\n")
+        guard LyricsMatcher.isValidWordTiming(output) else { return nil }
+        return Result(wordTiming: output, source: primary, sources: ids, verifiedLines: verified,
+                      matchedLines: rows.count, totalLines: total)
+    }
+
     public static func fuse(official: LyricsCandidate, donor: LyricsCandidate) -> Result? {
+        best(official: official, donors: [donor])
+    }
+
+    private static func encode(_ row: LyricLineWords) -> String {
+        let end = row.words.last.map { $0.startMs + $0.durationMs } ?? row.timeMs
+        return "[\(row.timeMs),\(end - row.timeMs)]" + row.words.map {
+            "(\($0.startMs),\($0.durationMs),0)\($0.text)"
+        }.joined()
+    }
+
+    private static func align(official: LyricsCandidate, donor: LyricsCandidate) -> AlignedDonor? {
         guard !Task.isCancelled, official.source == "appleMusic", !official.hasWordTiming,
               supportedSources.contains(donor.source), !donor.instrumental,
               let timing = donor.wordTiming, donorSource(in: timing) == nil,
-              normalized(official.title) == normalized(donor.title), !normalized(official.title).isEmpty,
+              titleKey(official.title) == titleKey(donor.title), !titleKey(official.title).isEmpty,
               normalized(official.artist) == normalized(donor.artist), !normalized(official.artist).isEmpty,
               official.lyrics.utf8.count <= 256_000, timing.utf8.count <= 512_000 else { return nil }
         if let a = official.duration, let b = donor.duration {
@@ -39,7 +102,9 @@ public enum LyricsFusion {
         guard LRCParser.parseOffsetMs(official.lyrics) == LRCParser.parseOffsetMs(timing) else { return nil }
         let allBase = LRCParser.parse(official.lyrics)
         let base = allBase.filter { !normalized($0.text).isEmpty }
-        let originalWords = YRCParser.parse(timing).filter { valid($0) }
+        let originalWords = YRCParser.parse(timing).map { row in
+            LyricLineWords(timeMs: row.timeMs, words: row.words.filter { !normalized($0.text).isEmpty })
+        }.filter { valid($0) }
         guard (4...600).contains(base.count), (4...600).contains(originalWords.count),
               Set(base.map(\.timeMs)).count == base.count,
               Set(originalWords.map(\.timeMs)).count == originalWords.count else { return nil }
@@ -85,7 +150,7 @@ public enum LyricsFusion {
             pairs.append((i, j))
             previous = words[j].timeMs
         }
-        var rows: [String] = []
+        var rows: [LyricLineWords] = []
         for (i, j) in pairs {
             guard !Task.isCancelled else { return nil }
             let line = base[i]
@@ -103,57 +168,44 @@ public enum LyricsFusion {
                 guard clampedEnd > clampedStart else { shifted = []; break }
                 shifted.append(LyricWord(startMs: clampedStart, durationMs: clampedEnd - clampedStart, text: word.text))
             }
-            guard shifted.count == mapped.count, let end = shifted.last.map({ $0.startMs + $0.durationMs }) else { continue }
-            rows.append("[\(line.timeMs),\(end - line.timeMs)]" + shifted.map { "(\($0.startMs),\($0.durationMs),0)\($0.text)" }.joined())
+            guard shifted.count == mapped.count else { continue }
+            rows.append(LyricLineWords(timeMs: line.timeMs, words: shifted))
         }
-        guard rows.count >= 3, rows.count * 100 >= base.count * 55 else { return nil }
-        let output = ([marker, "[lyli-word-source:\(donor.source)]"] + rows).joined(separator: "\n")
-        guard LyricsMatcher.isValidWordTiming(output) else { return nil }
-        return Result(wordTiming: output, source: donor.source, matchedLines: rows.count, totalLines: base.count)
+        guard rows.count >= 3 else { return nil }
+        return AlignedDonor(source: donor.source, rows: rows)
     }
 
     private static func expanded(_ originals: [LyricLineWords], base: [LyricLine], keys: [String]) -> [LyricLineWords] {
+        let chunks = originals.map { row in row.words.map { ($0, normalized($0.text)) } }
         var result = originals
-        let originalKeys = originals.map { normalized($0.words.map(\.text).joined()) }
+        var seen = Set(originals.map { "\($0.timeMs):" + normalized($0.words.map(\.text).joined()) })
         for i in base.indices {
             guard !Task.isCancelled else { return [] }
-            let nearby = originals.indices.filter { abs(originals[$0].timeMs - base[i].timeMs) <= 2_000 }
-            for j in nearby {
-                // Split a donor line only at existing word boundaries, never by interpolation.
-                for count in 2...3 where i + count <= base.count {
-                    guard keys[i..<i + count].joined() == originalKeys[j] else { continue }
-                    var cursor = 0
-                    var split: [LyricLineWords] = []
-                    for k in i..<i + count {
-                        var chunks: [LyricWord] = []
-                        var length = 0
-                        while cursor < originals[j].words.count && length < keys[k].count {
-                            let word = originals[j].words[cursor]
-                            chunks.append(word)
-                            length += normalized(word.text).count
-                            cursor += 1
-                        }
-                        guard length == keys[k].count, let first = chunks.first else { split = []; break }
-                        let start = k == i ? originals[j].timeMs : first.startMs
-                        guard abs(start - base[k].timeMs) <= 2_000 else { split = []; break }
-                        split.append(LyricLineWords(timeMs: start, words: chunks))
-                    }
-                    if split.count == count, cursor == originals[j].words.count {
-                        result.append(contentsOf: split.filter { valid($0) })
-                    }
+            // Search the real word stream, allowing crossed line breaks across at most three rows.
+            // Every cut must already exist in the donor; no character timing is interpolated.
+            for j in originals.indices {
+                let starts = chunks[j].indices.filter {
+                    !chunks[j][$0].1.isEmpty && abs(chunks[j][$0].0.startMs - base[i].timeMs) <= 2_000
                 }
-                // Join at most three adjacent donor rows when their complete text agrees.
-                for count in 2...3 where j + count <= originals.count {
-                    guard originalKeys[j..<j + count].joined() == keys[i] else { continue }
-                    let row = LyricLineWords(timeMs: originals[j].timeMs,
-                        words: originals[j..<j + count].flatMap(\.words))
-                    if valid(row) { result.append(row) }
+                guard !starts.isEmpty else { continue }
+                let stream = chunks[j..<min(j + 3, chunks.count)].flatMap { $0 }
+                for start in starts {
+                    var key = ""
+                    var words: [LyricWord] = []
+                    for (word, text) in stream.dropFirst(start).prefix(512) {
+                        key += text
+                        words.append(word)
+                        guard keys[i].hasPrefix(key) else { break }
+                        if key == keys[i], let first = words.first {
+                            let row = LyricLineWords(timeMs: first.startMs, words: words)
+                            if valid(row), seen.insert("\(row.timeMs):" + key).inserted { result.append(row) }
+                            break
+                        }
+                    }
                 }
             }
         }
-        var seen: Set<String> = []
-        return result.filter { seen.insert("\($0.timeMs):" + normalized($0.words.map(\.text).joined())).inserted }
-            .sorted { $0.timeMs < $1.timeMs }
+        return result.sorted { $0.timeMs < $1.timeMs }
     }
 
     private static func valid(_ line: LyricLineWords) -> Bool {
@@ -168,11 +220,18 @@ public enum LyricsFusion {
         return true
     }
 
-    private static func normalized(_ text: String) -> String {
+    private static func titleKey(_ title: String) -> String {
+        // A language label alone is not a recording identity; the full text and clock must still agree.
+        let value = title.replacingOccurrences(of: #"[（(](?:粤语|粵語|国语|國語)(?:版)?[）)]"#,
+                                              with: "", options: .regularExpression)
+        return normalized(value)
+    }
+
+    static func normalized(_ text: String) -> String {
         let mutable = NSMutableString(string: text) as CFMutableString
         CFStringTransform(mutable, nil, "Traditional-Simplified" as CFString, false)
         return (mutable as String).folding(options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive], locale: Locale(identifier: "en_US_POSIX"))
-            .unicodeScalars.filter { CharacterSet.alphanumerics.contains($0) }.map(String.init).joined()
+            .replacingOccurrences(of: "妳", with: "你").unicodeScalars.filter { CharacterSet.alphanumerics.contains($0) }.map(String.init).joined()
     }
 
     private static func retext(_ words: [LyricWord], official: String) -> [LyricWord]? {
