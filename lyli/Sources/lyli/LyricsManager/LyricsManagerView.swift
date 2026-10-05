@@ -1382,7 +1382,8 @@ struct LyricsManagerView: View {
             if summary.hasLyrics {
                 InfoChip(
                     icon: summary.hasWordTiming ? "text.word.spacing" : "text.alignleft",
-                    text: summary.hasWordTiming ? "逐字时间轴" : "整行歌词",
+                    text: !summary.wordTimingSource.isEmpty ? "融合逐字 · \(sourceDisplayName(summary.wordTimingSource))"
+                        : (summary.hasWordTiming ? "逐字时间轴" : "整行歌词"),
                     tint: summary.hasWordTiming ? .blue : .secondary
                 )
             }

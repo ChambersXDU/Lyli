@@ -13,6 +13,7 @@ final class LyricsSearchService: ObservableObject {
     private var automaticSearchID: UUID?
     private var automaticCacheRevision = 0
     private var cacheRetryTask: Task<Void, Never>?
+    private var fusionAttempts: [String: String] = [:]
     enum SearchScope: Hashable {
         case manual
         case rematch
@@ -298,6 +299,10 @@ final class LyricsSearchService: ObservableObject {
         if protected || (hasCached && (!FeatureSettingsStore.shared.lyricsSources.contains(.appleMusic)
                                         || entry["lyrics_source"] as? String == "appleMusic")) {
             automaticSearchState = .completed
+            if !protected, entry["lyrics_source"] as? String == "appleMusic" {
+                await enrichOfficialLyrics(key: key, searchID: searchID, artist: artist, title: title,
+                                           album: album, duration: duration)
+            }
             return
         }
         let revision = cache.revision(forKey: key)
@@ -319,8 +324,31 @@ final class LyricsSearchService: ObservableObject {
             }
             let saved: Bool
             if let winner = update.winner {
+                var timing = winner.lyricsYRC
+                if winner.source == "appleMusic", timing.isEmpty,
+                   let oldTiming = entry["lyrics_yrc"] as? String,
+                   let oldSource = entry["lyrics_source"] as? String,
+                   let oldSourceID = LyricsSource(rawValue: oldSource),
+                   FeatureSettingsStore.shared.lyricsSources.contains(oldSourceID) {
+                    let official = LyricsCandidate(source: "appleMusic", lyrics: winner.lyrics,
+                        duration: duration > 0 ? duration : nil, title: title, artist: artist, album: album)
+                    let donor = LyricsCandidate(source: oldSource, lyrics: cached?.lyrics ?? "",
+                        wordTiming: oldTiming, duration: (entry["resolved_duration_secs"] as? Double).flatMap { $0 > 0 ? $0 : nil },
+                        title: title, artist: artist, album: album)
+                    let worker = Task.detached(priority: .utility) { LyricsFusion.fuse(official: official, donor: donor) }
+                    let result = await withTaskCancellationHandler(operation: { await worker.value }, onCancel: { worker.cancel() })
+                    guard !Task.isCancelled, automaticSearchID == searchID,
+                          cache.revision(forKey: key) == revision,
+                          EnrichCacheReader.lookup(artist: artist, title: title, album: album) == cached,
+                          FeatureSettingsStore.shared.lyricsSources.contains(.appleMusic),
+                          !LyricsPinStore.shared.isPinned(key),
+                          (cache.summaries.first { $0.key == key }?.offsetMs ?? 0) == 0 else { return }
+                    if FeatureSettingsStore.shared.lyricsSources.contains(oldSourceID) {
+                        timing = result?.wordTiming ?? timing
+                    }
+                }
                 saved = await cache.saveEdit(
-                    key: key, lyrics: winner.lyrics, tr: winner.lyricsTr, yrc: winner.lyricsYRC,
+                    key: key, lyrics: winner.lyrics, tr: winner.lyricsTr, yrc: timing,
                     source: winner.source, markManual: false,
                     score: winner.score, scoringVersion: LyricsMatcher.scoringVersion, resolvedDurationSecs: duration,
                     sourcesSeen: update.pick?.sourcesSeen ?? [],
@@ -338,10 +366,58 @@ final class LyricsSearchService: ObservableObject {
             }
             guard automaticSearchID == searchID else { return }
             automaticSearchState = saved && !update.networkLooksDown ? .completed : .failed
+            if saved, update.winner?.source == "appleMusic" {
+                await enrichOfficialLyrics(key: key, searchID: searchID, artist: artist, title: title,
+                                           album: album, duration: duration)
+            }
         } catch {
             if automaticSearchID == searchID { automaticSearchState = .failed }
         }
     }
+
+    private func enrichOfficialLyrics(key: String, searchID: UUID, artist: String, title: String,
+                                      album: String, duration: Double) async {
+        let enabled = FeatureSettingsStore.shared.lyricsSourceOrder
+            .filter { $0 != .appleMusic && FeatureSettingsStore.shared.lyricsSources.contains($0) }.map(\.rawValue)
+        guard !Task.isCancelled, automaticSearchID == searchID,
+              FeatureSettingsStore.shared.lyricsSources.contains(.appleMusic), !enabled.isEmpty,
+              let entry = EnrichCacheReader.entries[key], entry["lyrics_source"] as? String == "appleMusic",
+              (entry["lyrics_yrc"] as? String ?? "").isEmpty,
+              let lyrics = entry["lyrics"] as? String, !lyrics.isEmpty else { return }
+        let signature = lyrics + "\n" + enabled.joined(separator: ",")
+        guard fusionAttempts[key] != signature else { return }
+        let revision = cache.revision(forKey: key)
+        let query = LyricsQuery(title: title, artist: artist, album: album.isEmpty ? nil : album,
+                                duration: duration > 0 ? duration : nil)
+        let task = Task { [resolver] in await resolver.resolve(query, enabledIDs: enabled) }
+        let id = UUID()
+        runningTasks[.automatic] = RunningSearch(id: id, task: task)
+        let resolution = await withTaskCancellationHandler(operation: { await task.value }, onCancel: { task.cancel() })
+        if runningTasks[.automatic]?.id == id { runningTasks[.automatic] = nil }
+        guard !Task.isCancelled, !task.isCancelled, automaticSearchID == searchID,
+              cache.revision(forKey: key) == revision,
+              FeatureSettingsStore.shared.lyricsSources.contains(.appleMusic),
+              !LyricsPinStore.shared.isPinned(key),
+              (cache.summaries.first { $0.key == key }?.offsetMs ?? 0) == 0 else { return }
+        fusionAttempts[key] = signature
+        let official = LyricsCandidate(source: "appleMusic", lyrics: lyrics,
+            duration: query.duration, title: title, artist: artist, album: album)
+        let donors = resolution.matches.filter { !$0.isRejected && enabled.contains($0.source)
+            && FeatureSettingsStore.shared.lyricsSources.contains(LyricsSource(rawValue: $0.source) ?? .appleMusic) }
+            .map(\.candidate)
+        let worker = Task.detached(priority: .utility) { LyricsFusion.best(official: official, donors: donors) }
+        let result = await withTaskCancellationHandler(operation: { await worker.value }, onCancel: { worker.cancel() })
+        guard let result, !Task.isCancelled, !worker.isCancelled, automaticSearchID == searchID,
+              cache.revision(forKey: key) == revision,
+              FeatureSettingsStore.shared.lyricsSources.contains(.appleMusic),
+              let donorID = LyricsSource(rawValue: result.source), FeatureSettingsStore.shared.lyricsSources.contains(donorID),
+              !LyricsPinStore.shared.isPinned(key),
+              (cache.summaries.first { $0.key == key }?.offsetMs ?? 0) == 0 else { return }
+        // Saving only after every guard keeps failed enrichment and late results invisible.
+        _ = await cache.saveEdit(key: key, lyrics: lyrics, tr: entry["lyrics_tr"] as? String ?? "",
+                                 yrc: result.wordTiming, source: "appleMusic", markManual: false)
+    }
+
 }
 
 private extension LyricsSearchService.Candidate {

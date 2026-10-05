@@ -24,6 +24,10 @@ private struct MissingValue: Error { let location: String }
         let collectionCache = LyricsCollectionCacheTests()
         let motion = MenuBarMotionTests()
         let tests: [(String, () async throws -> Void)] = [
+            ("fusion-official-displays-before-network-and-keeps-fallback", suite.testFusionDisplaysOfficialBeforeNetworkAndKeepsFallback),
+            ("late-fusion-preserves-edits-and-new-track", suite.testLateFusionPreservesEditsAndNewTrack),
+            ("fusion-respects-disabled-source", suite.testFusionRespectsSourceDisabledWhileSearching),
+            ("fusion-reuses-cache-and-failure-keeps-official", suite.testFusionReusesCacheAndFailureDoesNotReplaceOfficial),
             ("apple-cache-upgrades-and-protects-picks", suite.testAppleCacheUpgradesAutomaticLyricsAndPreservesProtectedPicks),
             ("apple-cache-miss-preserves-lyrics-and-network-status", suite.testAppleCacheMissKeepsExistingLyricsAndNetworkFailureVisible),
             ("late-apple-cache-result-preserves-edit", suite.testLateAppleCacheResultDoesNotOverwriteEditsOrNewTrack),

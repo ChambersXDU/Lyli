@@ -82,6 +82,7 @@ public final class LyricsSyncEngine {
     private var wordSides: [LyricDuet.Side?] = []
     private var trLines: [LyricLine] = []
     private var usingWords = false
+    private var hybridFallback: [Int: String] = [:]
 
     private var trTextByPlainText: [String: String] = [:]
 
@@ -626,10 +627,33 @@ public final class LyricsSyncEngine {
             candidateWords = zip(yrc, drop).compactMap { $0.1 ? nil : $0.0 }
         }
 
+        hybridFallback = [:]
+        let isFusion = LyricsFusion.donorSource(in: lyricsYRC) != nil
         usingWords = !candidateWords.isEmpty
             && (filteredBase.isEmpty || candidateWords.count * 2 >= filteredBase.filter { !$0.text.isEmpty }.count)
 
-        if usingWords {
+        if isFusion {
+            // The official LRC owns every row, including clears and unmatched lines.
+            let plan = LyricDuet.plan(lineTexts: filteredBase.map(\.text))
+            let wordByTime = Dictionary(candidateWords.map { ($0.timeMs, $0) }, uniquingKeysWith: { a, _ in a })
+            wordLines = []
+            wordSides = []
+            for i in filteredBase.indices where !plan.dropped[i] {
+                let base = filteredBase[i]
+                let text = plan.texts[i]
+                let index = wordLines.count
+                if let row = wordByTime[base.timeMs], row.words.map(\.text).joined() == text {
+                    wordLines.append(row)
+                } else {
+                    wordLines.append(LyricLineWords(timeMs: base.timeMs, words: []))
+                    if !text.isEmpty { hybridFallback[index] = text }
+                }
+                wordSides.append(plan.sides[i])
+            }
+            usingWords = true
+            baseLines = []
+            baseSides = []
+        } else if usingWords {
             let plan = LyricDuet.planWords(candidateWords)
             let kept = zip(zip(plan.lines, plan.sides), plan.dropped).filter { !$0.1 }
             wordLines = kept.map { $0.0.0 }
@@ -816,6 +840,13 @@ public final class LyricsSyncEngine {
         if usingWords {
             guard idx < wordLines.count else { return nil }
             let ln = wordLines[idx]
+            if let text = hybridFallback[idx] {
+                let fallback = SyncedLyricLine(
+                    translation: translationText(timeMs: ln.timeMs, plainText: text),
+                    mainText: text, words: nil, side: wordSides[idx], plainText: text)
+                builtLinesCache[idx] = fallback
+                return fallback
+            }
             guard !ln.words.isEmpty else { return nil }
             let words = KaraokeFill.tailClamped(
                 ln.words.map { w in

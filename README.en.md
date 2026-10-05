@@ -34,7 +34,9 @@ If macOS blocks opening the app with a verification notice, check its opening op
 
 ## How lyrics are obtained
 
-Automatic matching first reads Apple Music's local cache. A reliable match is saved and displayed without searching the network lyric providers. Missing cache data or insufficient song-identity evidence falls back to the other enabled sources.
+Automatic matching first reads Apple Music's local cache. A reliable match is saved and displayed immediately. Missing cache data or insufficient song-identity evidence falls back to the other enabled sources. When official lyrics only have line timings, Lyli first tries saved word timings from another enabled provider, then searches enabled providers in the background without delaying the official lyrics.
+
+Fusion preserves the official text, translations and line boundaries, borrowing only reliable word timings. Script, punctuation and spacing differences are normalized; line splits and joins use existing word boundaries without character interpolation. Missing lines, changed words and timings crossing official boundaries fall back to line display. Inconsistent recordings or insufficient alignment are rejected. Lyrics Manager labels the word-timing provider. Unsuccessful enrichment is not repeatedly requested for the same official lyrics and source configuration within an app session.
 
 Music must have fetched the lyrics already; **opening its lyrics panel can populate the cache**. A line-timed response stays line-timed. Lyli enables word highlighting only when the cached response supplies valid word or syllable timestamps.
 

@@ -95,6 +95,99 @@ final class LyricsWorkflowTests {
         await service.searchAndSave(artist: "Artist", title: "Song", album: "Album", duration: 180)
     }
 
+    private func fusionCandidates() -> (LyricsCandidate, LyricsCandidate) {
+        let texts = ["first verse", "second verse", "third verse", "fourth verse", "fifth verse", "sixth verse"]
+        let lyrics = texts.enumerated().map { "[00:\(10 + $0.offset * 5).000]\($0.element)" }.joined(separator: "\n")
+        let timing = texts.enumerated().filter { $0.offset != 2 }.map { i, text in
+            let start = (10 + i * 5) * 1_000 + 200
+            let parts = text.split(separator: " ")
+            return "[\(start),2000](\(start),1000,0)\(parts[0]) (\(start + 1000),1000,0)\(parts[1])"
+        }.joined(separator: "\n")
+        return (LyricsCandidate(source: "appleMusic", lyrics: lyrics, translation: "[00:20.000]official translation",
+                                duration: 180, title: "Song", artist: "Artist", album: "Album"),
+                LyricsCandidate(source: "lrclib", lyrics: lyrics, wordTiming: timing,
+                                duration: 180, title: "Song", artist: "Artist", album: "Album"))
+    }
+
+    func testFusionDisplaysOfficialBeforeNetworkAndKeepsFallback() async {
+        FeatureSettingsStore.shared.lyricsSources = [.appleMusic, .lrclib]
+        let (official, donor) = fusionCandidates()
+        let gate = SearchGate()
+        let service = LyricsSearchService(resolver: LyricsResolver(providers: [
+            StubProvider(id: "appleMusic", candidates: [official]), StubProvider(candidates: [donor], gate: gate)]), cache: cache)
+        let task = Task { await searchAutomatically(service) }
+        await gate.waitUntilStarted()
+        expectEqual(cache.detail(for: key).lyrics, official.lyrics)
+        expectEqual(cache.detail(for: key).yrc, "")
+        expectEqual(service.automaticSearchState == .completed, true)
+        await gate.release()
+        await task.value
+        let detail = cache.detail(for: key)
+        expectEqual(LyricsFusion.donorSource(in: detail.yrc), "lrclib")
+        expectEqual(detail.lyrics, official.lyrics)
+        expectEqual(detail.tr, official.translation)
+        let engine = LyricsSyncEngine()
+        _ = engine.load(lyrics: detail.lyrics, lyricsTr: detail.tr, lyricsYRC: detail.yrc)
+        expectEqual(engine.currentLine(at: 20_001)?.plainText, "third verse")
+        expectEqual(engine.currentLine(at: 20_001)?.words, nil)
+        expectEqual(engine.currentLine(at: 20_001)?.translation, "official translation")
+        expectEqual(cache.summaries.first?.wordTimingSource, "lrclib")
+    }
+
+    func testLateFusionPreservesEditsAndNewTrack() async {
+        FeatureSettingsStore.shared.lyricsSources = [.appleMusic, .lrclib]
+        let (official, donor) = fusionCandidates()
+        for switchTrack in [false, true] {
+            _ = await cache.saveEdit(key: key, lyrics: official.lyrics, tr: "", yrc: "", source: "appleMusic", markManual: false)
+            let gate = SearchGate()
+            let service = service(StubProvider(candidates: [donor], gate: gate))
+            let task = Task { await searchAutomatically(service) }
+            await gate.waitUntilStarted()
+            if switchTrack {
+                await service.searchAndSave(artist: "Other", title: "Other Song", album: "", duration: 120, localOnly: true)
+            } else {
+                _ = await cache.saveEdit(key: key, lyrics: editedLyrics, tr: "edited translation", markManual: true)
+            }
+            await gate.release()
+            await task.value
+            expectEqual(cache.detail(for: key).yrc, "")
+            expectEqual(cache.detail(for: key).lyrics, switchTrack ? official.lyrics : editedLyrics)
+        }
+    }
+
+    func testFusionRespectsSourceDisabledWhileSearching() async {
+        FeatureSettingsStore.shared.lyricsSources = [.appleMusic, .lrclib]
+        let (official, donor) = fusionCandidates()
+        _ = await cache.saveEdit(key: key, lyrics: official.lyrics, tr: "", yrc: "", source: "appleMusic", markManual: false)
+        let gate = SearchGate()
+        let service = service(StubProvider(candidates: [donor], gate: gate))
+        let task = Task { await searchAutomatically(service) }
+        await gate.waitUntilStarted()
+        FeatureSettingsStore.shared.lyricsSources = [.appleMusic]
+        await gate.release()
+        await task.value
+        expectEqual(cache.detail(for: key).yrc, "")
+        expectEqual(cache.detail(for: key).lyrics, official.lyrics)
+    }
+
+    func testFusionReusesCacheAndFailureDoesNotReplaceOfficial() async {
+        FeatureSettingsStore.shared.lyricsSources = [.appleMusic, .lrclib]
+        let (official, donor) = fusionCandidates()
+        _ = await cache.saveEdit(key: key, lyrics: donor.lyrics, tr: "", yrc: donor.wordTiming, source: "lrclib", markManual: false,
+                                 resolvedDurationSecs: 180)
+        let service = LyricsSearchService(resolver: LyricsResolver(providers: [
+            StubProvider(id: "appleMusic", candidates: [official]), StubProvider(candidates: [], fails: true)]), cache: cache)
+        await searchAutomatically(service)
+        expectEqual(LyricsFusion.donorSource(in: cache.detail(for: key).yrc), "lrclib")
+        _ = await cache.saveEdit(key: key, lyrics: official.lyrics, tr: official.translation ?? "", yrc: "", source: "appleMusic", markManual: false)
+        LocalPlaybackSource.shared.setNetworkDown(false)
+        await searchAutomatically(service)
+        expectEqual(cache.detail(for: key).lyrics, official.lyrics)
+        expectEqual(cache.detail(for: key).yrc, "")
+        expectEqual(service.automaticSearchState == .completed, true)
+        expectEqual(LocalPlaybackSource.shared.networkDown, false)
+    }
+
     func testAppleCacheUpgradesAutomaticLyricsAndPreservesProtectedPicks() async {
         FeatureSettingsStore.shared.lyricsSources = [.appleMusic]
         let official = LyricsCandidate(source: "appleMusic", lyrics: editedLyrics, title: "Song", artist: "Artist", album: "Album")
