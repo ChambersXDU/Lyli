@@ -202,7 +202,7 @@ final class LyricsWorkflowTests {
         FeatureSettingsStore.shared.lyricsSources = [.appleMusic, .lrclib]
         let (official, donor) = fusionCandidates()
         let current = LyricsFusion.fuse(official: official, donor: donor)!.wordTiming
-        for oldVersion in [1, 2] {
+        for oldVersion in [1, 2, 3] {
             let legacy = current.split(separator: "\n").filter { !$0.hasPrefix("[lyli-word-coverage:") }.joined(separator: "\n")
                 .replacingOccurrences(of: LyricsFusion.marker, with: "[lyli-fusion:\(oldVersion)]")
                 .replacingOccurrences(of: "[lyli-word-sources:lrclib]", with: "[lyli-word-source:lrclib]")
@@ -239,10 +239,10 @@ final class LyricsWorkflowTests {
             StubProvider(candidates: [], fails: true, calls: calls)]), cache: cache, now: { clock })
         await searchAutomatically(service)
         await searchAutomatically(service)
-        expectEqual(await calls.count, 1)
+        expectEqual(await calls.count, 2)
         clock = clock.addingTimeInterval(121)
         await searchAutomatically(service)
-        expectEqual(await calls.count, 2)
+        expectEqual(await calls.count, 4)
         expectEqual(cache.detail(for: key).lyrics, official.lyrics)
         expectEqual(cache.detail(for: key).yrc, "")
     }

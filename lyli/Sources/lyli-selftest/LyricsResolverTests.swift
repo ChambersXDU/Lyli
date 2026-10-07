@@ -56,17 +56,16 @@ private struct StubProvider: LyricsProvider {
     }
 }
 
-private struct AliasProbeProvider: LyricsProvider {
+private struct CatalogProbeProvider: LyricsProvider {
     let id: String
     let calls: LockedBox<[LyricsQuery]>
-    let resultTitle: String
     let result: LyricsCandidate
     var firstFails = false
 
     func search(_ query: LyricsQuery) async throws -> [LyricsCandidate] {
         calls.set((calls.current ?? []) + [query])
         if firstFails && calls.current?.count == 1 { throw StubProviderError.unavailable }
-        return query.title == resultTitle ? [result] : []
+        return query.catalogFallback ? [result] : []
     }
 }
 
@@ -108,38 +107,50 @@ private func resolveSynchronously(
 }
 
 func runLyricsResolverTests() {
-    let flyQuery = LyricsQuery(title: "Fly", artist: "吕彦良", album: "Fresh Soul", duration: 180)
-    let flyResult = candidate(source: "qq", title: "飞", artist: "Matt吕彦良", album: "Fresh Soul")
-    let aliasCalls = LockedBox<[LyricsQuery]>()
-    let aliasResult = resolveSynchronously(LyricsResolver(providers: [AliasProbeProvider(
-        id: "qq", calls: aliasCalls, resultTitle: "飞", result: flyResult)]), query: flyQuery)
-    expectEqual(aliasResult?.winner?.candidate, flyResult)
-    expectEqual(aliasCalls.current?.map(\.title), ["飞"], "外部来源先搜已知本地歌名，命中不重复请求")
-    expectEqual(aliasCalls.current?.first?.artist, "Matt吕彦良")
-    expectEqual(aliasCalls.current?.first?.duration, flyQuery.duration)
-    expectEqual(aliasCalls.current?.first?.album, flyQuery.album)
-    let fallbackCalls = LockedBox<[LyricsQuery]>()
-    let aliasFallback = resolveSynchronously(LyricsResolver(providers: [AliasProbeProvider(
-        id: "qq", calls: fallbackCalls, resultTitle: "Fly", result: flyResult, firstFails: true)]), query: flyQuery)
-    expectEqual(fallbackCalls.current?.map(\.title), ["飞", "Fly"], "别名请求失败时继续原查询")
-    expectEqual(aliasFallback?.winner?.candidate, flyResult)
-    expectEqual(aliasFallback?.failures.isEmpty, true, "另一名称搜索成功时不误报来源离线")
-    let appleCalls = LockedBox<[LyricsQuery]>()
-    _ = resolveSynchronously(LyricsResolver(providers: [AliasProbeProvider(
-        id: "appleMusic", calls: appleCalls, resultTitle: "Fly", result: flyResult)]), query: flyQuery)
-    expectEqual(appleCalls.current, [flyQuery], "本地官方缓存保留原始曲目信息")
-    let liveCalls = LockedBox<[LyricsQuery]>()
-    let liveAliasQuery = LyricsQuery(title: "Fly (Live)", artist: "Matt Lv", duration: 180)
-    _ = resolveSynchronously(LyricsResolver(providers: [AliasProbeProvider(
-        id: "qq", calls: liveCalls, resultTitle: "missing", result: flyResult)]), query: liveAliasQuery)
-    expectEqual(liveCalls.current?.map(\.title), ["飞 (Live)", "Fly (Live)"], "查询变体保留现场版限定")
-    let chineseCalls = LockedBox<[LyricsQuery]>()
-    let chineseQuery = LyricsQuery(title: "飞", artist: "Matt吕彦良", duration: 180)
-    let reverseAlias = resolveSynchronously(LyricsResolver(providers: [AliasProbeProvider(
-        id: "lrclib", calls: chineseCalls, resultTitle: "Fly", result: flyResult)]), query: chineseQuery)
-    expectEqual(chineseCalls.current?.map(\.title), ["飞", "Fly"], "中文查询也能尝试国际发行名称")
-    expectEqual(chineseCalls.current?.last?.artist, "Matt Lv")
-    expectEqual(reverseAlias?.winner?.candidate, flyResult)
+    let translatedQuery = LyricsQuery(title: "Clouds", artist: "林小雨", album: "First Light", duration: 180)
+    let body = ["天空的云慢慢走过山丘我们抬起头", "风吹过河流带来很久以前的问候", "你的笑容留在每个清晨温暖心中", "把故事写进月光带着梦一起远行"]
+    let translated = candidate(source: "qq", title: "云朵", artist: "Lynn林小雨", album: "First Light", lyrics: body)
+    let peer = candidate(source: "netease", title: "云朵", artist: "林小雨", album: "First Light", lyrics: body)
+    let calls = LockedBox<[LyricsQuery]>()
+    let peerCalls = LockedBox<[LyricsQuery]>()
+    let result = resolveSynchronously(LyricsResolver(providers: [
+        CatalogProbeProvider(id: "qq", calls: calls, result: translated),
+        CatalogProbeProvider(id: "netease", calls: peerCalls, result: peer)
+    ]), query: translatedQuery)
+    expectEqual(result?.winner?.isRejected, false, "无歌曲字典也能验证翻译歌名")
+    expectEqual(calls.current?.map(\.catalogFallback), [false, true], "正常检索失败后仅一次受约束的专辑检索")
+    expectEqual(calls.current?.last?.title, "Clouds", "扩大检索不伪造翻译歌名")
+    expectEqual(calls.current?.last?.artist, "林小雨")
+    expectEqual(calls.current?.last?.album, "First Light")
+    let failedCalls = LockedBox<[LyricsQuery]>()
+    let recovered = resolveSynchronously(LyricsResolver(providers: [
+        CatalogProbeProvider(id: "qq", calls: failedCalls, result: translated, firstFails: true),
+        CatalogProbeProvider(id: "netease", calls: LockedBox(), result: peer)
+    ]), query: translatedQuery)
+    expectEqual(recovered?.failures.isEmpty, true, "原查询失败后目录检索成功不误报来源离线")
+    let noEvidence = resolveSynchronously(LyricsResolver(providers: [
+        CatalogProbeProvider(id: "qq", calls: LockedBox(), result: translated)
+    ]), query: translatedQuery)
+    expectEqual(noEvidence?.winner == nil, true, "孤立翻译歌名不能仅靠专辑曲长自动采用")
+    let reference = candidate(source: "appleMusic", title: "Clouds", artist: "林小雨", album: "First Light", lyrics: body)
+    let anchored = LockedBox<LyricsResolution>()
+    let anchorWait = DispatchSemaphore(value: 0)
+    Task.detached {
+        anchored.set(await LyricsResolver(providers: [CatalogProbeProvider(id: "qq", calls: LockedBox(), result: translated)])
+            .resolve(translatedQuery, reference: reference))
+        anchorWait.signal()
+    }
+    anchorWait.wait()
+    expectEqual(anchored.current?.winner?.candidate, translated, "已识别官方正文可验证单个外部译名")
+    expectEqual(anchored.current?.matches.count, 1, "官方参考不伪装成本轮检索结果")
+    let incompleteCalls = LockedBox<[LyricsQuery]>()
+    _ = resolveSynchronously(LyricsResolver(providers: [CatalogProbeProvider(id: "qq", calls: incompleteCalls, result: translated)]),
+        query: LyricsQuery(title: "Clouds", artist: "林小雨", duration: 180))
+    expectEqual(incompleteCalls.current?.count, 1, "资料不足不扩大检索")
+    let localCalls = LockedBox<[LyricsQuery]>()
+    _ = resolveSynchronously(LyricsResolver(providers: [CatalogProbeProvider(id: "appleMusic", calls: localCalls, result: translated)]),
+        query: translatedQuery)
+    expectEqual(localCalls.current, [translatedQuery], "本地官方缓存不扩大检索")
 
     let query = LyricsQuery(title: "Song", artist: "Artist", album: "Album", duration: 180)
     let exact = candidate(source: "exact", title: "Song", artist: "Artist", album: "Album")
@@ -261,7 +272,7 @@ func runLyricsResolverTests() {
     )
     expectEqual(filtered?.sourcesSeen ?? [], ["first"])
     expectEqual(filtered?.sourcesResponded ?? [], ["first"])
-    expectEqual(firstCalls.current, 1)
+    expectEqual(firstCalls.current, 2, "只有版本冲突候选时尝试一次目录回退")
     expectEqual(secondCalls.current, 0)
 
     let earlyQuery = LyricsQuery(title: "Song", artist: "Artist", album: "Album", duration: 180)

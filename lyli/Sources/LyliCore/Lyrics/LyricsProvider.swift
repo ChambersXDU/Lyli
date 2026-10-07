@@ -5,12 +5,14 @@ public struct LyricsQuery: Sendable, Equatable {
     public let artist: String
     public let album: String?
     public let duration: TimeInterval?
+    public let catalogFallback: Bool
 
-    public init(title: String, artist: String, album: String? = nil, duration: TimeInterval? = nil) {
+    public init(title: String, artist: String, album: String? = nil, duration: TimeInterval? = nil, catalogFallback: Bool = false) {
         self.title = title
         self.artist = artist
         self.album = album
         self.duration = duration
+        self.catalogFallback = catalogFallback
     }
 }
 

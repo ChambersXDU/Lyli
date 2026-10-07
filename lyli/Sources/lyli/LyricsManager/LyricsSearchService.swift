@@ -60,6 +60,7 @@ final class LyricsSearchService: ObservableObject {
         var rejectionReason: String? {
             switch scoreTerms.first?.kind {
             case "rejectWrongTitle": return "歌名不匹配"
+            case "rejectUnconfirmedIdentity": return "歌名不同且缺少交叉验证"
             case "rejectWrongArtist": return "歌手不匹配"
             case "rejectPlainTextOnly": return "仅有纯文本歌词"
             case "rejectNotTimed": return "缺少有效时间轴"
@@ -409,7 +410,9 @@ final class LyricsSearchService: ObservableObject {
         let revision = cache.revision(forKey: key)
         let query = LyricsQuery(title: title, artist: artist, album: album.isEmpty ? nil : album,
                                 duration: duration > 0 ? duration : nil)
-        let task = Task { [resolver] in await resolver.resolve(query, enabledIDs: enabled) }
+        let official = LyricsCandidate(source: "appleMusic", lyrics: lyrics,
+            duration: query.duration, title: title, artist: artist, album: album)
+        let task = Task { [resolver] in await resolver.resolve(query, enabledIDs: enabled, reference: official) }
         let id = UUID()
         runningTasks[.automatic] = RunningSearch(id: id, task: task)
         let resolution = await withTaskCancellationHandler(operation: { await task.value }, onCancel: { task.cancel() })
@@ -420,8 +423,6 @@ final class LyricsSearchService: ObservableObject {
               !LyricsPinStore.shared.isPinned(key),
               (cache.summaries.first { $0.key == key }?.offsetMs ?? 0) == 0 else { return }
         fusionAttempts[key] = FusionAttempt(signature: signature, date: now())
-        let official = LyricsCandidate(source: "appleMusic", lyrics: lyrics,
-            duration: query.duration, title: title, artist: artist, album: album)
         let donors = resolution.matches.filter { !$0.isRejected && enabled.contains($0.source)
             && FeatureSettingsStore.shared.lyricsSources.contains(LyricsSource(rawValue: $0.source) ?? .appleMusic) }
             .map(\.candidate)

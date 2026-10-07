@@ -2,8 +2,8 @@ import Foundation
 
 /// Aligns and cross-checks real word timings while keeping the official text and line boundaries.
 public enum LyricsFusion {
-    public static let marker = "[lyli-fusion:3]"
-    public static let algorithmVersion = 3
+    public static let marker = "[lyli-fusion:4]"
+    public static let algorithmVersion = 4
     private static let supportedSources: Set<String> = ["kugou", "qq", "netease", "kuwo", "lrclib"]
 
     public struct Result: Sendable {
@@ -117,9 +117,11 @@ public enum LyricsFusion {
         guard !Task.isCancelled, official.source == "appleMusic", !official.hasWordTiming,
               supportedSources.contains(donor.source), !donor.instrumental,
               let timing = donor.wordTiming, donorSource(in: timing) == nil,
-              titleKey(LyricsIdentityAliases.title(official.title, artist: official.artist))
-                == titleKey(LyricsIdentityAliases.title(donor.title, artist: donor.artist)), !titleKey(official.title).isEmpty,
-              normalized(LyricsIdentityAliases.artist(official.artist)) == normalized(LyricsIdentityAliases.artist(donor.artist)),
+              (LyricsMatcher.hasSameTitleIdentity(official.title, donor.title)
+                || LyricsCatalogIdentity.matches(title: donor.title, artist: donor.artist, album: donor.album,
+                    duration: donor.duration, query: LyricsQuery(title: official.title, artist: official.artist,
+                                                               album: official.album, duration: official.duration))),
+              normalized(LyricsMatcher.normalizedArtist(official.artist)) == normalized(LyricsMatcher.normalizedArtist(donor.artist)),
               !normalized(official.artist).isEmpty,
               LyricsMatcher.hasSameRecordingVersion(official, donor),
               official.lyrics.utf8.count <= 256_000, timing.utf8.count <= 512_000 else { return nil }
@@ -250,13 +252,6 @@ public enum LyricsFusion {
             previousEnd = word.startMs + word.durationMs
         }
         return true
-    }
-
-    private static func titleKey(_ title: String) -> String {
-        // A language label alone is not a recording identity; the full text and clock must still agree.
-        let value = title.replacingOccurrences(of: #"[（(](?:粤语|粵語|国语|國語)(?:版)?[）)]"#,
-                                              with: "", options: .regularExpression)
-        return normalized(value)
     }
 
     static func normalized(_ text: String) -> String {

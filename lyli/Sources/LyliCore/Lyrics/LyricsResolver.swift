@@ -12,7 +12,7 @@ public struct LyricsResolver: Sendable {
     }
 
     public func resolve(_ query: LyricsQuery, enabledIDs: [String]? = nil,
-                        prioritizeSources: Bool = false, localOnly: Bool = false, preferLocal: Bool = false) async -> LyricsResolution {
+                        prioritizeSources: Bool = false, localOnly: Bool = false, preferLocal: Bool = false, reference: LyricsCandidate? = nil) async -> LyricsResolution {
         struct Result: Sendable {
             let id: String
             let candidates: [LyricsCandidate]
@@ -31,7 +31,7 @@ public struct LyricsResolver: Sendable {
         let results = await withTaskGroup(of: Result.self, returning: [Result].self) { group in
             for provider in providersToUse {
                 group.addTask {
-                    let queries = provider.id == "appleMusic" ? [query] : LyricsIdentityAliases.externalQueries(query)
+                    let queries = provider.id == "appleMusic" ? [query] : [query] + [LyricsCatalogIdentity.fallbackQuery(query)].compactMap { $0 }
                     var candidates: [LyricsCandidate] = []
                     var responded = false
                     var lastError: String?
@@ -44,6 +44,9 @@ public struct LyricsResolver: Sendable {
                                 !$0.isRejected && !$0.candidate.instrumental
                                     && $0.terms.contains { $0.kind == "titleMatch" && $0.points > 0 }
                                     && !$0.terms.contains { $0.kind == "versionTags" && $0.points < 0 }
+                                    && (LyricsCatalogIdentity.fallbackQuery(query) == nil
+                                        || LyricsCatalogIdentity.matches(title: $0.candidate.title, artist: $0.candidate.artist,
+                                            album: $0.candidate.album, duration: $0.candidate.duration, query: query))
                             }) { break }
                         } catch { lastError = error.localizedDescription }
                     }
@@ -63,8 +66,14 @@ public struct LyricsResolver: Sendable {
             result.error.map { (result.id, $0) }
         })
         let candidates = results.flatMap(\.candidates)
-        let matches = LyricsMatcher.rank(candidates, for: query,
+        let references = [reference].compactMap { $0 }.filter {
+            $0.source == "appleMusic" && LyricsMatcher.isValidTimedLyrics($0.lyrics)
+                && LyricsMatcher.normalizedTitle($0.title) == LyricsMatcher.normalizedTitle(query.title)
+                && LyricsMatcher.normalizedArtist($0.artist) == LyricsMatcher.normalizedArtist(query.artist)
+        }
+        let matches = LyricsMatcher.rank(candidates + references, for: query,
                                          sourceOrder: enabledIDs ?? [], prioritizeSources: prioritizeSources)
+            .filter { candidates.contains($0.candidate) }
         let instrumental = candidates.contains { $0.instrumental }
         return LyricsResolution(matches: matches, sourcesSeen: sourcesSeen,
                                 sourcesResponded: sourcesResponded, failures: failures,

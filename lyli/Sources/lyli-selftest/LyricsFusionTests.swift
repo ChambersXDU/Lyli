@@ -28,17 +28,20 @@ func runLyricsFusionTests() {
             duration: duration, title: title, artist: "Artist")
     }
     let full = LyricsFusion.fuse(official: official, donor: donor())
-    let flyOfficial = LyricsCandidate(source: "appleMusic", lyrics: lrc,
-        duration: 80, title: "Fly", artist: "吕彦良")
-    func flyDonor(title: String = "飞", artist: String = "Matt吕彦良") -> LyricsCandidate {
+    let alternateOfficial = LyricsCandidate(source: "appleMusic", lyrics: lrc,
+        duration: 80, title: "Clouds", artist: "林小雨", album: "Shared Album")
+    func alternateDonor(title: String = "云朵", artist: String = "Lynn林小雨", album: String? = "Shared Album") -> LyricsCandidate {
         LyricsCandidate(source: "kugou", lyrics: lrc, wordTiming: donor().wordTiming,
-            duration: 80, title: title, artist: artist)
+            duration: 80, title: title, artist: artist, album: album)
     }
-    expectEqual(LyricsFusion.fuse(official: flyOfficial, donor: flyDonor())?.matchedLines, 8,
-                "Fly / 飞与歌手别名通过融合身份门槛，仍验证全文和时钟")
-    expectEqual(LyricsFusion.fuse(official: flyOfficial, donor: flyDonor(title: "飛 (FLY)", artist: "Matt Lv"))?.matchedLines, 8)
-    expectEqual(LyricsFusion.fuse(official: flyOfficial, donor: flyDonor(title: "飞 (Live)")) == nil, true)
-    expectEqual(LyricsFusion.fuse(official: flyOfficial, donor: flyDonor(artist: "Other Artist")) == nil, true)
+    expectEqual(LyricsFusion.fuse(official: alternateOfficial, donor: alternateDonor())?.matchedLines, 8,
+                "译名目录证据仍必须通过官方正文和时间轴验证")
+    expectEqual(LyricsFusion.fuse(official: alternateOfficial, donor: alternateDonor(title: "云朵 (Live)")) == nil, true)
+    expectEqual(LyricsFusion.fuse(official: alternateOfficial, donor: alternateDonor(artist: "Other Artist")) == nil, true)
+    expectEqual(LyricsFusion.fuse(official: alternateOfficial, donor: alternateDonor(album: nil)) == nil, true)
+    let partialTitle = LyricsCandidate(source: "kugou", lyrics: lrc, wordTiming: donor().wordTiming,
+        duration: 80, title: "Other Song", artist: "Artist")
+    expectEqual(LyricsFusion.fuse(official: official, donor: partialTitle) == nil, true, "部分标题重合不能通过融合身份门槛")
     expectEqual(full?.matchedLines, 8, "繁简标点与恒定小偏移允许融合")
     expectEqual(full?.source, "kugou")
     expectEqual(LyricsFusion.donorSource(in: full?.wordTiming ?? ""), "kugou")

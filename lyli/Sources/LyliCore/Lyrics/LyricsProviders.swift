@@ -60,11 +60,14 @@ private func normalizeTitleVariants(_ title: String) -> [String] {
 }
 
 private func roughTitleMatch(_ candidate: String, _ query: LyricsQuery) -> Bool {
-    let a = LyricsMatcher.normalizedTitle(LyricsIdentityAliases.title(candidate, artist: query.artist))
-        .replacingOccurrences(of: " ", with: "")
-    let b = LyricsMatcher.normalizedTitle(LyricsIdentityAliases.title(query.title, artist: query.artist))
-        .replacingOccurrences(of: " ", with: "")
-    return !a.isEmpty && !b.isEmpty && (a == b || a.contains(b) || b.contains(a))
+    LyricsMatcher.titlesMatch(candidate, query.title)
+}
+
+private func retrievalMatch(title: String, artist: String, album: String?, duration: Double?, query: LyricsQuery) -> Bool {
+    if query.catalogFallback {
+        return LyricsCatalogIdentity.matches(title: title, artist: artist, album: album, duration: duration, query: query)
+    }
+    return roughTitleMatch(title, query) && roughArtistMatch(artist, query.artist)
 }
 
 private func roughArtistMatch(_ candidate: String, _ query: String) -> Bool {
@@ -116,7 +119,7 @@ public struct LRCLIBProvider: LyricsProvider {
 
     public func search(_ query: LyricsQuery) async throws -> [LyricsCandidate] {
         var lastError: Error?
-        for title in normalizeTitleVariants(query.title) {
+        for title in (query.catalogFallback ? [] : normalizeTitleVariants(query.title)) {
             do {
                 let url = try makeURL("https://lrclib.net/api/get", [
                     ("artist_name", query.artist), ("track_name", title),
@@ -128,11 +131,11 @@ public struct LRCLIBProvider: LyricsProvider {
         }
 
         var all: [LRCLIBItem] = []
-        for title in normalizeTitleVariants(query.title) {
+        for title in (query.catalogFallback ? [""] : normalizeTitleVariants(query.title)) {
             do {
                 let url = try makeURL("https://lrclib.net/api/search", [
-                    ("artist_name", query.artist), ("track_name", title),
-                ])
+                    ("artist_name", query.artist),
+                ] + (query.catalogFallback ? [("album_name", query.album ?? "")] : [("track_name", title)]))
                 let items: [LRCLIBItem] = try await requestJSON([LRCLIBItem].self, url,
                                                                   headers: ["User-Agent": "Lyli/1.0"], timeout: 8)
                 all.append(contentsOf: items)
@@ -145,8 +148,7 @@ public struct LRCLIBProvider: LyricsProvider {
     }
 
     private func makeCandidate(_ item: LRCLIBItem, query: LyricsQuery) -> LyricsCandidate? {
-        guard roughTitleMatch(item.trackName, query),
-              roughArtistMatch(item.artistName, query.artist) else { return nil }
+        guard retrievalMatch(title: item.trackName, artist: item.artistName, album: item.albumName, duration: item.duration, query: query) else { return nil }
         if let duration = query.duration, duration > 0, item.duration > 0,
            abs(item.duration - duration) / duration > 0.25 { return nil }
         if item.instrumental {
@@ -197,15 +199,14 @@ public struct KuwoProvider: LyricsProvider {
 
     public func search(_ query: LyricsQuery) async throws -> [LyricsCandidate] {
         let url = try makeURL("https://search.kuwo.cn/r.s", [
-            ("all", "\(query.title) \(query.artist)"), ("ft", "music"),
-            ("itemset", "web_2013"), ("client", "kt"), ("pn", "0"), ("rn", "10"),
+            ("all", LyricsCatalogIdentity.searchText(query)), ("ft", "music"),
+            ("itemset", "web_2013"), ("client", "kt"), ("pn", "0"), ("rn", query.catalogFallback ? "30" : "10"),
             ("rformat", "json"), ("encoding", "utf8"), ("pcjson", "1"),
         ])
         let result: SearchResult = try await requestJSON(SearchResult.self, url,
                                                           headers: ["Referer": "https://www.kuwo.cn/", "User-Agent": "Mozilla/5.0"], timeout: 8)
         var output: [LyricsCandidate] = []
-        for item in result.items where !item.musicRID.isEmpty && roughTitleMatch(item.songName, query)
-            && roughArtistMatch(item.artist, query.artist) {
+        for item in result.items where !item.musicRID.isEmpty && retrievalMatch(title: item.songName, artist: item.artist, album: item.album, duration: parseDuration(item.duration), query: query) {
             guard let musicID = item.musicRID.split(separator: "_").last, !musicID.isEmpty else { continue }
             let lyricURL = try makeURL("https://kuwo.cn/openapi/v1/www/lyric/getlyric", [("musicId", String(musicID))])
             guard let lyric: LyricResult = try? await requestJSON(LyricResult.self, lyricURL,
@@ -262,7 +263,7 @@ public struct NeteaseProvider: LyricsProvider {
     public func search(_ query: LyricsQuery) async throws -> [LyricsCandidate] {
         var songs: [Song] = []
         var lastError: Error?
-        let queries = [
+        let queries = query.catalogFallback ? [LyricsCatalogIdentity.searchText(query)] : [
             "\(query.artist) \(query.title)",
             "\(query.artist) \(LyricsMatcher.normalizedTitle(query.title))",
         ]
@@ -276,8 +277,7 @@ public struct NeteaseProvider: LyricsProvider {
         var output: [LyricsCandidate] = []
         var seen = Set<Int64>()
         for song in songs where seen.insert(song.id).inserted
-            && roughTitleMatch(song.name, query)
-            && song.artists.contains(where: { roughArtistMatch($0.name, query.artist) }) {
+            && retrievalMatch(title: song.name, artist: song.artists.map(\.name).joined(separator: "/"), album: song.album, duration: song.duration, query: query) {
             if let candidate = try? await fetchCandidate(song, query: query) {
                 output.append(candidate)
             }
@@ -406,7 +406,7 @@ public struct KugouProvider: LyricsProvider {
         var parameters = [
             "srcappid": "2919", "clientver": "1000", "clienttime": timestamp,
             "mid": mid, "uuid": mid, "dfid": "-",
-            "keyword": "\(query.artist) \(query.title)", "page": "1", "pagesize": "10",
+            "keyword": LyricsCatalogIdentity.searchText(query), "page": "1", "pagesize": query.catalogFallback ? "30" : "10",
             "bitrate": "0", "isfuzzy": "0", "inputtype": "0", "platform": "WebFilter",
             "userid": "0", "iscorrection": "1", "privilege_filter": "0",
             "callback": "callback123", "filter": "10", "token": "", "appid": "1014",
@@ -433,12 +433,11 @@ public struct KugouProvider: LyricsProvider {
         }
         var output: [LyricsCandidate] = []
         for song in response.data.lists where !song.hash.isEmpty
-            && roughTitleMatch(song.songName, query)
-            && roughArtistMatch(song.singerName, query.artist) {
+            && retrievalMatch(title: song.songName, artist: song.singerName, album: song.albumName, duration: song.duration, query: query) {
             let durationMs = Int((song.duration * 1000).rounded())
             guard let lyricURL = try? makeURL("https://krcs.kugou.com/search", [
                 ("ver", "1"), ("man", "yes"), ("client", "mobi"),
-                ("keyword", "\(query.artist) - \(query.title)"), ("duration", String(durationMs)), ("hash", song.hash),
+                ("keyword", "\(song.singerName) - \(song.songName)"), ("duration", String(durationMs)), ("hash", song.hash),
             ]), let search: LyricSearchResponse = try? await requestJSON(LyricSearchResponse.self, lyricURL,
                                                                            headers: ["User-Agent": "Mozilla/5.0"], timeout: 8),
                 let lyric = search.candidates.first, !lyric.id.isEmpty, !lyric.accessKey.isEmpty else { continue }
@@ -571,7 +570,7 @@ public struct QQMusicProvider: LyricsProvider {
     public func search(_ query: LyricsQuery) async throws -> [LyricsCandidate] {
         var items: [SearchItem] = []
         var lastError: Error?
-        for title in normalizeTitleVariants(query.title) {
+        for title in (query.catalogFallback ? [""] : normalizeTitleVariants(query.title)) {
             do {
                 let body: [String: Any] = [
                     "music.search.SearchCgiService": [
@@ -579,9 +578,9 @@ public struct QQMusicProvider: LyricsProvider {
                         "method": "DoSearchForQQMusicDesktop",
                         "param": [
                             "search_type": 0,
-                            "query": "\(query.artist) \(title)",
+                            "query": query.catalogFallback ? LyricsCatalogIdentity.searchText(query) : "\(query.artist) \(title)",
                             "page_num": 1,
-                            "num_per_page": 10,
+                            "num_per_page": query.catalogFallback ? 30 : 10,
                         ],
                     ],
                 ]
@@ -610,12 +609,12 @@ public struct QQMusicProvider: LyricsProvider {
                                       album: item.album?.name ?? "", duration: item.interval ?? 0)
                 })
             } catch { lastError = error }
-            if items.contains(where: { roughTitleMatch($0.title, query) }) { break }
+            if items.contains(where: { retrievalMatch(title: $0.title, artist: $0.artist, album: $0.album, duration: $0.duration, query: query) }) { break }
         }
         var seen = Set<String>()
         var output: [LyricsCandidate] = []
         for item in items where seen.insert(item.mid).inserted
-            && roughTitleMatch(item.title, query) && roughArtistMatch(item.artist, query.artist) {
+            && retrievalMatch(title: item.title, artist: item.artist, album: item.album, duration: item.duration, query: query) {
             if let candidate = try? await fetchCandidate(item, query: query) { output.append(candidate) }
             if output.count == 3 { break }
         }

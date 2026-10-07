@@ -26,7 +26,7 @@ func runLiveFusionProbe() -> Never {
         let result = FusionResolutionBox()
         let semaphore = DispatchSemaphore(value: 0)
         Task.detached {
-            result.set(await LyricsResolver().resolve(query, enabledIDs: ["lrclib", "kuwo", "netease", "kugou", "qq"]))
+            result.set(await LyricsResolver().resolve(query, enabledIDs: ["lrclib", "kuwo", "netease", "kugou", "qq"], reference: official))
             semaphore.signal()
         }
         semaphore.wait()

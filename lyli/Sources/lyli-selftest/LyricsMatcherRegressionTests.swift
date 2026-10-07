@@ -23,36 +23,51 @@ func runLyricsMatcherRegressionTests() {
     let hinsMatch = LyricsMatcher.rank([hins], for: hinsQuery).first
     expectEqual(hinsMatch?.isRejected, false, "繁简歌手名不再被拒绝")
     expectEqual(points(hinsMatch, "titleMatch"), 120, "标题兼容繁简与妳/你")
-    let flyQuery = LyricsQuery(title: "Fly", artist: "吕彦良", album: "Fresh Soul", duration: 180)
-    let fly = LyricsCandidate(source: "qq", lyrics: lyrics, wordTiming: wordTiming,
-        duration: 180, title: "飞", artist: "Matt吕彦良", album: "Fresh Soul")
-    let international = LyricsCandidate(source: "netease", lyrics: lyrics,
-        duration: 180, title: "Fly", artist: "Matt Lv", album: "Fresh Soul")
-    let aliases = LyricsMatcher.rank([fly, international], for: flyQuery)
-    expectEqual(aliases.first?.isRejected, false, "跨平台歌手别名不再被拒绝")
-    expectEqual(points(aliases.first, "titleMatch"), 120, "Fly / 飞只在对应歌手下视为同名")
-    expectEqual(points(aliases.first, "wordTimingOverride"), 0)
-    expectEqual(aliases.first?.consensusPeers, ["netease"], "歌名别名也可提供内容印证")
-    expectEqual(LyricsMatcher.normalizedArtist("Matt 呂彥良"), LyricsMatcher.normalizedArtist("吕彦良"))
-    let foreignQuery = LyricsQuery(title: "Fly", artist: "Other Artist", duration: 180)
-    let foreign = LyricsCandidate(source: "qq", lyrics: lyrics, title: "飞", artist: "Other Artist")
-    expectEqual(points(LyricsMatcher.rank([foreign], for: foreignQuery).first, "titleMatch"), 0,
-                "不会把所有歌手的 Fly 都翻译成飞")
-    let liveFly = LyricsCandidate(source: "kugou", lyrics: lyrics, wordTiming: wordTiming,
-        duration: 180, title: "飞 (Live)", artist: "Matt吕彦良", album: "Fresh Soul")
-    let flyVersions = LyricsMatcher.rank([liveFly, fly], for: flyQuery)
-    expectEqual(flyVersions.first?.candidate, fly, "别名不消除现场录音冲突")
-    expectEqual(points(flyVersions.last, "versionTags"), -300)
-    expectEqual(points(flyVersions.last, "consensus"), 0, "现场录音不能借录音室版本的正文一致性加分")
-    let badArtist = LyricsCandidate(source: "qq", lyrics: lyrics, title: "飞", artist: "Someone Else")
-    expectEqual(LyricsMatcher.rank([badArtist], for: flyQuery).first?.terms.first?.kind, "rejectWrongArtist")
-    let untimed = LyricsCandidate(source: "qq", lyrics: "飞过所有云朵", title: "飞", artist: "Matt吕彦良")
-    expectEqual(LyricsMatcher.rank([untimed], for: flyQuery).first?.terms.first?.kind, "rejectNotTimed")
-    let flying = LyricsCandidate(source: "qq", lyrics: lyrics, wordTiming: wordTiming,
-        duration: 180, title: "Flying (Live)", artist: "袁娅维TIA RAY/Matt吕彦良")
-    expectEqual(LyricsMatcher.rank([flying], for: flyQuery).first?.terms.first?.kind, "rejectWrongTitle",
-                "真实缓存里的 Flying (Live) 不会因歌手别名被误选成飞")
+    let longLyrics = "[00:10.00]天空的云慢慢走过山丘我们抬起头\n[00:20.00]风吹过河流带来很久以前的问候\n[02:50.00]你的笑容留在每个清晨温暖心中"
+    for (original, translated, artist, decorated) in [
+        ("Clouds", "云朵", "林小雨", "Lynn林小雨"),
+        ("River", "河流", "陈小舟", "Boat陈小舟"),
+        ("星光", "Starlight", "Lunar Echo", "Lunar Echo"),
+        ("Fly", "飞", "吕彦良", "Matt吕彦良")
+    ] {
+        let request = LyricsQuery(title: original, artist: artist, album: "Shared Album", duration: 180)
+        let a = LyricsCandidate(source: "qq", lyrics: longLyrics, duration: 180, title: translated, artist: decorated, album: "Shared Album")
+        let b = LyricsCandidate(source: "netease", lyrics: longLyrics, duration: 181, title: translated, artist: artist, album: "Shared Album")
+        let matching = LyricsMatcher.rank([a, b], for: request)
+        expectEqual(matching.first?.isRejected, false, "通用目录证据支持任意翻译歌名")
+        expectEqual(points(matching.first, "titleMatch"), 80)
+        expectEqual(matching.first?.consensusPeers.count, 1)
+        expectEqual(LyricsMatcher.rank([a], for: request).first?.terms.first?.kind, "rejectUnconfirmedIdentity")
+        let duplicate = LyricsCandidate(source: "qq", lyrics: longLyrics, translation: "text", duration: 180, title: translated, artist: decorated, album: "Shared Album")
+        expectEqual(LyricsMatcher.rank([a, duplicate], for: request).allSatisfy(\.isRejected), true, "同来源重复不能证明别名")
+        for conflict in [
+            LyricsCandidate(source: "third", lyrics: longLyrics, duration: 180, title: translated, artist: "Other Artist", album: "Shared Album"),
+            LyricsCandidate(source: "third", lyrics: longLyrics, duration: 180, title: translated, artist: artist, album: "Other Album"),
+            LyricsCandidate(source: "third", lyrics: longLyrics, duration: 190, title: translated, artist: artist, album: "Shared Album"),
+            LyricsCandidate(source: "third", lyrics: longLyrics, duration: 180, title: translated + " (Live)", artist: artist, album: "Shared Album")
+        ] {
+            expectEqual(LyricsMatcher.rank([a, conflict], for: request).allSatisfy(\.isRejected), true, "身份冲突不能参与译名验证")
+        }
+        let ambiguous = LyricsCandidate(source: "third", lyrics: lyrics, duration: 180, title: "Another Track", artist: artist, album: "Shared Album")
+        expectEqual(LyricsMatcher.rank([a, b, ambiguous], for: request).allSatisfy(\.isRejected), true, "同专辑同曲长存在冲突正文时不猜测")
+    }
+    expectEqual(LyricsMatcher.titlesMatch("Haruka", "ハルカ (Haruka)"), true, "日文假名双语标题也提供名称证据")
+    expectEqual(LyricsMatcher.titlesMatch("Clouds", "云朵 (Clouds)"), true, "双语标题自身提供名称证据")
+    expectEqual(LyricsMatcher.titlesMatch("Clouds", "云朵 (Live)"), false)
+    expectEqual(LyricsMatcher.titlesMatch("Fly", "Flying (Live)"), false, "英文词缀不视为同名")
+    expectEqual(LyricsMatcher.normalizedArtist("Hebe田馥甄"), "田馥甄")
+    expectEqual(LyricsMatcher.normalizedArtist("John / 王宇") == "王宇", false, "英文与中文合作歌手分隔符不被归一化吞掉")
+    expectEqual(LyricsMatcher.normalizedArtist("王宇 / Alex王宇") == "王宇", false, "合作歌手不合并成单人")
 
+    let translatedRequest = LyricsQuery(title: "Original Name", artist: "Artist", album: "Album", duration: 180)
+    let translatedA = candidate("a", title: "Translated Name", body: longLyrics)
+    let translatedB = candidate("b", title: "Translated Name", body: longLyrics)
+    let conflictingReference = candidate("appleMusic", title: "Original Name", body: "[00:10.00]这一段是另外一种录音完全不同的歌词内容\n[00:20.00]第二段继续说明这是不同语言录音的歌词内容\n[02:50.00]最后一段同样包含足够长的文字用来检测歌词差异")
+    expectEqual(LyricsMatcher.rank([translatedA, translatedB, conflictingReference], for: translatedRequest)
+        .filter { $0.source != "appleMusic" }.allSatisfy(\.isRejected), true, "官方正文冲突不能被外部译名多数覆盖")
+    let albumVariant = LyricsMatcher.rank([candidate("original"), candidate("different", album: "Other Album", body: "[00:10.00]unrelated track first line\n[00:20.00]unrelated track second line\n[02:50.00]unrelated track last line", words: wordTiming)], for: query)
+    expectEqual(albumVariant.first?.source, "original", "明确专辑版本正文冲突时逐字奖励不能抢占")
+    expectEqual(points(albumVariant.last, "wordTimingOverride"), -400)
     let duplicatedSource = LyricsMatcher.rank([
         candidate("a"), candidate("b"), candidate("b", album: "Compilation"),
         candidate("b", translation: "[00:10.00]译文"),
@@ -63,7 +78,7 @@ func runLyricsMatcherRegressionTests() {
     expectEqual(independentSources.first?.consensusPeers.count, 2)
     expectEqual(points(independentSources.first, "consensus"), 250)
 
-    let unrelatedPeer = LyricsMatcher.rank([candidate("a"), candidate("b", title: "Unrelated")], for: query)
+    let unrelatedPeer = LyricsMatcher.rank([candidate("a"), candidate("b", title: "Unrelated", album: "Other Album")], for: query)
         .first { $0.source == "a" }
     expectEqual(unrelatedPeer?.consensusPeers, [], "不同歌曲不能给当前歌词提供印证")
     let scrambled = "[00:10.00]six five\n[00:20.00]four three\n[02:50.00]two one"

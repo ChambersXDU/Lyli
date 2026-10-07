@@ -28,7 +28,7 @@ public struct LyricsMatch: Sendable, Equatable {
 }
 
 public enum LyricsMatcher {
-    public static let scoringVersion = 22
+    public static let scoringVersion = 23
 
     private static let featWords = ["feat", "ft", "featuring", "with"]
     private static let versionWords = [
@@ -47,14 +47,19 @@ public enum LyricsMatcher {
         let bestTitle = usable.map { titleScore($0.candidate, query) }.max() ?? 0
         let bestVersion = usable.filter { titleScore($0.candidate, query) + 30 >= bestTitle }
             .map { versionMismatch($0.candidate, query) }.max() ?? 0
+        let catalogAnchors = usable.filter { catalogMatch($0.candidate, query) }.map(\.candidate)
         let adjusted = firstPass.map { match -> LyricsMatch in
-            guard !match.isRejected, match.candidate.hasWordTiming,
-                  titleScore(match.candidate, query) + 30 < bestTitle
-                    || versionMismatch(match.candidate, query) < bestVersion
-            else { return match }
+            guard !match.isRejected else { return match }
+            let identityConflict = !catalogMatch(match.candidate, query) && catalogAnchors.contains {
+                lyricsSimilarity(match.candidate.lyrics, $0.lyrics) < 0.85
+            }
+            let wordOverride = match.candidate.hasWordTiming && (
+                titleScore(match.candidate, query) + 30 < bestTitle
+                    || versionMismatch(match.candidate, query) < bestVersion || identityConflict)
             var terms = match.terms
-            terms.append(.init(kind: "wordTimingOverride", points: -400))
-            return LyricsMatch(candidate: match.candidate, score: match.score - 400,
+            if wordOverride { terms.append(.init(kind: "wordTimingOverride", points: -400)) }
+            if identityConflict { terms.append(.init(kind: "recordingIdentityConflict", points: -600)) }
+            return LyricsMatch(candidate: match.candidate, score: match.score - (wordOverride ? 400 : 0) - (identityConflict ? 600 : 0),
                                terms: terms, consensusPeers: match.consensusPeers)
         }
         var sourceRanks: [String: Int] = [:]
@@ -117,7 +122,12 @@ public enum LyricsMatcher {
                 break
             }
         }
-        return normalizeText(LyricsIdentityAliases.artist(value)).replacingOccurrences(of: " & ", with: " ")
+        // A mixed display name retains its complete Han name; separated collaborations remain distinct.
+        if !artist.contains(where: { "/&、,，".contains($0) }),
+           value.range(of: #"^[\p{Latin}\s]*([\p{Han}]{2,})[\p{Latin}\s]*$"#, options: .regularExpression) != nil {
+            value = value.replacingOccurrences(of: #"[\p{Latin}\s]"#, with: "", options: .regularExpression)
+        }
+        return value.replacingOccurrences(of: " & ", with: " ")
     }
 
     private static func score(_ candidate: LyricsCandidate, for query: LyricsQuery,
@@ -135,9 +145,16 @@ public enum LyricsMatcher {
         }
 
         let title = titleScore(candidate, query)
-        if title == 0, LyricsIdentityAliases.hasTitleAlias(query.title, artist: query.artist) {
+        if title == 0 {
             return LyricsMatch(candidate: candidate, score: -10_000,
                                terms: [.init(kind: "rejectWrongTitle", points: -10_000)])
+        }
+        if titleScore(candidate.title, query.title) == 0 {
+            guard hasCrossTitleSupport(candidate, query: query, peers: peers) else {
+                return LyricsMatch(candidate: candidate, score: -10_000,
+                                   terms: [.init(kind: "rejectUnconfirmedIdentity", points: -10_000)])
+            }
+            terms.append(.init(kind: "catalogIdentity", points: 0))
         }
         terms.append(.init(kind: "titleMatch", points: title))
 
@@ -179,7 +196,8 @@ public enum LyricsMatcher {
         let versionPenalty = versionMismatch(candidate, query)
         let peers = Set(peers.filter { other in
             versionPenalty >= 0 && other.source != candidate.source && !other.instrumental
-                && titleScore(other, query) > 0
+                && (titleScore(other.title, query.title) > 0
+                    || (catalogMatch(other, query) && hasCrossTitleSupport(other, query: query, peers: peers)))
                 && artistScore(other.artist, query.artist) > 0
                 && versionMismatch(other, query) >= 0
                 && lyricsSimilarity(candidate.lyrics, other.lyrics) >= 0.72
@@ -206,14 +224,16 @@ public enum LyricsMatcher {
     }
 
     private static func titleScore(_ candidate: LyricsCandidate, _ query: LyricsQuery) -> Int {
-        titleScore(LyricsIdentityAliases.title(candidate.title, artist: candidate.artist),
-                   LyricsIdentityAliases.title(query.title, artist: query.artist))
+        let direct = titleScore(candidate.title, query.title)
+        if direct > 0 { return direct }
+        return catalogMatch(candidate, query) ? 80 : 0
     }
 
     private static func titleScore(_ candidate: String, _ query: String) -> Int {
         let a = normalizedTitle(candidate), b = normalizedTitle(query)
         guard !a.isEmpty, !b.isEmpty else { return 0 }
         if a == b { return 120 }
+        if !Set(titleAlternatives(candidate)).intersection(titleAlternatives(query)).isEmpty { return 110 }
         if normalizeText(candidate) == normalizeText(query) { return 100 }
         let core = titleCore(a)
         if !core.isEmpty && core == titleCore(b) {
@@ -221,8 +241,73 @@ public enum LyricsMatcher {
                 ? 110 : 70
         }
         if a.replacingOccurrences(of: " ", with: "") == b.replacingOccurrences(of: " ", with: "") { return 80 }
-        if a.contains(b) || b.contains(a) { return 40 }
+        if (" " + a + " ").contains(" " + b + " ") || (" " + b + " ").contains(" " + a + " ") { return 40 }
+        if a.unicodeScalars.contains(where: { $0.value > 127 }), b.unicodeScalars.contains(where: { $0.value > 127 }),
+           a.contains(b) || b.contains(a) { return 40 }
         return 0
+    }
+
+    public static func titlesMatch(_ lhs: String, _ rhs: String) -> Bool {
+        titleScore(lhs, rhs) > 0
+    }
+
+    public static func hasSameTitleIdentity(_ lhs: String, _ rhs: String) -> Bool {
+        func withoutLanguageLabel(_ text: String) -> String {
+            text.replacingOccurrences(of: #"[（(](?:粤语|粵語|国语|國語)(?:版)?[）)]"#,
+                                      with: "", options: .regularExpression)
+        }
+        return titleScore(withoutLanguageLabel(lhs), withoutLanguageLabel(rhs)) >= 80
+    }
+
+    private static func titleAlternatives(_ title: String) -> [String] {
+        var names = [normalizedTitle(title)]
+        guard let opening = title.firstIndex(where: { "(（[【".contains($0) }),
+              let closing = title.lastIndex(where: { ")）]】".contains($0) }), opening < closing else { return names }
+        let base = String(title[..<opening]).trimmingCharacters(in: .whitespaces)
+        let inner = String(title[title.index(after: opening)..<closing])
+        let hasHan: (String) -> Bool = { $0.range(of: #"[\p{Han}\p{Hiragana}\p{Katakana}]"#, options: .regularExpression) != nil }
+        let hasLatin: (String) -> Bool = { $0.range(of: "[A-Za-z]", options: .regularExpression) != nil }
+        guard !base.isEmpty, !inner.isEmpty,
+              (hasHan(base) && hasLatin(inner)) || (hasLatin(base) && hasHan(inner)),
+              recordingVersions(title: title, album: nil).isEmpty,
+              !normalizedTitle(inner).split(separator: " ").contains(where: { isVersionToken(String($0)) }) else { return names }
+        names += [normalizedTitle(base), normalizedTitle(inner)]
+        return names
+    }
+
+    private static func catalogMatch(_ candidate: LyricsCandidate, _ query: LyricsQuery) -> Bool {
+        LyricsCatalogIdentity.matches(title: candidate.title, artist: candidate.artist, album: candidate.album,
+                                      duration: candidate.duration, query: query)
+    }
+
+    private static func hasCrossTitleSupport(_ candidate: LyricsCandidate, query: LyricsQuery,
+                                            peers: [LyricsCandidate]) -> Bool {
+        let eligible = peers.filter { other in
+            !other.instrumental && !other.plainTextOnly && isValidTimedLyrics(other.lyrics)
+                && artistScore(other.artist, query.artist) > 0 && versionMismatch(other, query) >= 0
+                && (titleScore(other.title, query.title) > 0 || catalogMatch(other, query))
+        }
+        let body = ManualPickLock.canonicalLyrics(candidate.lyrics).filter { !$0.isWhitespace }
+        guard body.count >= 40 else { return false }
+        let supporting = eligible.filter { other in
+            other.source != candidate.source
+                && ManualPickLock.canonicalLyrics(other.lyrics).filter { !$0.isWhitespace }.count >= 40
+                && lyricsSimilarity(candidate.lyrics, other.lyrics) >= 0.85
+        }
+        // A catalog-constrained original title can distinguish nearby album tracks.
+        if supporting.contains(where: { titleScore($0.title, query.title) >= 80 && catalogMatch($0, query) }) { return true }
+        let directConflicts = eligible.filter {
+            catalogMatch($0, query) && titleScore($0.title, query.title) >= 80
+                && lyricsSimilarity(candidate.lyrics, $0.lyrics) < 0.85
+        }
+        guard !directConflicts.contains(where: { $0.source == "appleMusic" }),
+              Set(directConflicts.map(\.source)).count < 2 else { return false }
+        guard !eligible.contains(where: { other in
+            catalogMatch(other, query) && titleScore(other.title, query.title) == 0
+                && normalizedTitle(other.title) != normalizedTitle(candidate.title)
+                && lyricsSimilarity(candidate.lyrics, other.lyrics) < 0.85
+        }) else { return false }
+        return !supporting.isEmpty
     }
 
     private static func artistScore(_ candidate: String, _ query: String) -> Int {
