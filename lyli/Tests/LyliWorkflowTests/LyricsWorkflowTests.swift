@@ -139,6 +139,9 @@ final class LyricsWorkflowTests {
         expectEqual(engine.currentLine(at: 20_001)?.words, nil)
         expectEqual(engine.currentLine(at: 20_001)?.translation, "official translation")
         expectEqual(cache.summaries.first?.wordTimingSource, "lrclib")
+        expectEqual(cache.summaries.first?.wordTimingCoverage?.verifiedLines, 0)
+        expectEqual(cache.summaries.first?.wordTimingCoverage?.singleSourceLines, 5)
+        expectEqual(cache.summaries.first?.wordTimingCoverage?.totalLines, 6)
     }
 
     func testLateFusionPreservesEditsAndNewTrack() async {
@@ -199,18 +202,29 @@ final class LyricsWorkflowTests {
         FeatureSettingsStore.shared.lyricsSources = [.appleMusic, .lrclib]
         let (official, donor) = fusionCandidates()
         let current = LyricsFusion.fuse(official: official, donor: donor)!.wordTiming
-        let legacy = current.replacingOccurrences(of: LyricsFusion.marker, with: "[lyli-fusion:1]")
-            .replacingOccurrences(of: "[lyli-word-sources:lrclib]", with: "[lyli-word-source:lrclib]")
+        for oldVersion in [1, 2] {
+            let legacy = current.split(separator: "\n").filter { !$0.hasPrefix("[lyli-word-coverage:") }.joined(separator: "\n")
+                .replacingOccurrences(of: LyricsFusion.marker, with: "[lyli-fusion:\(oldVersion)]")
+                .replacingOccurrences(of: "[lyli-word-sources:lrclib]", with: "[lyli-word-source:lrclib]")
+            _ = await cache.saveEdit(key: key, lyrics: official.lyrics, tr: official.translation ?? "",
+                                     yrc: legacy, source: "appleMusic", markManual: false)
+            let gate = SearchGate()
+            let service = service(StubProvider(candidates: [donor], gate: gate))
+            let task = Task { await searchAutomatically(service) }
+            await gate.waitUntilStarted()
+            expectEqual(cache.detail(for: key).yrc, legacy)
+            await gate.release()
+            await task.value
+            expectEqual(LyricsFusion.version(in: cache.detail(for: key).yrc), LyricsFusion.algorithmVersion)
+            expectEqual(cache.detail(for: key).lyrics, official.lyrics)
+            expectEqual(cache.detail(for: key).tr, official.translation)
+        }
+        let old = current.replacingOccurrences(of: LyricsFusion.marker, with: "[lyli-fusion:2]")
         _ = await cache.saveEdit(key: key, lyrics: official.lyrics, tr: official.translation ?? "",
-                                 yrc: legacy, source: "appleMusic", markManual: false)
-        let gate = SearchGate()
-        let service = service(StubProvider(candidates: [donor], gate: gate))
-        let task = Task { await searchAutomatically(service) }
-        await gate.waitUntilStarted()
-        expectEqual(cache.detail(for: key).yrc, legacy)
-        await gate.release()
-        await task.value
-        expectEqual(LyricsFusion.version(in: cache.detail(for: key).yrc), LyricsFusion.algorithmVersion)
+                                 yrc: old, source: "appleMusic", markManual: false)
+        let failedUpgrade = service(StubProvider(candidates: [], fails: true))
+        await searchAutomatically(failedUpgrade)
+        expectEqual(cache.detail(for: key).yrc, "")
         expectEqual(cache.detail(for: key).lyrics, official.lyrics)
         expectEqual(cache.detail(for: key).tr, official.translation)
     }
@@ -251,6 +265,8 @@ final class LyricsWorkflowTests {
             let expected = disableSecond ? ["lrclib"] : ["lrclib", "qq"]
             expectEqual(LyricsFusion.donorSources(in: cache.detail(for: key).yrc), expected)
             expectEqual(cache.summaries.first?.wordTimingSources, expected)
+            expectEqual(cache.summaries.first?.wordTimingCoverage?.verifiedLines, disableSecond ? 0 : 5)
+            expectEqual(cache.summaries.first?.wordTimingCoverage?.singleSourceLines, disableSecond ? 5 : 0)
         }
     }
 

@@ -1387,6 +1387,11 @@ struct LyricsManagerView: View {
                     tint: summary.hasWordTiming ? .blue : .secondary
                 )
             }
+            if let coverage = summary.wordTimingCoverage {
+                InfoChip(icon: "checkmark.circle", text: "多源支持 \(coverage.verifiedLines) 行 · 单源补充 \(coverage.singleSourceLines) 行",
+                         tint: coverage.verifiedLines > 0 ? .blue : .secondary)
+                    .help("共 \(coverage.totalLines) 行；未匹配的行使用整行歌词。多源支持表示来源时间相近，仍需试听确认同步效果。")
+            }
             if summary.isManual {
                 InfoChip(icon: "pencil.circle.fill", text: "人工修正", tint: .orange)
             }

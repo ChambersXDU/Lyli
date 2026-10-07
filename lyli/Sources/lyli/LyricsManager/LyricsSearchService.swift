@@ -57,6 +57,16 @@ final class LyricsSearchService: ObservableObject {
 
         var hasTranslation: Bool { !lyricsTr.isEmpty }
 
+        var rejectionReason: String? {
+            switch scoreTerms.first?.kind {
+            case "rejectWrongTitle": return "歌名不匹配"
+            case "rejectWrongArtist": return "歌手不匹配"
+            case "rejectPlainTextOnly": return "仅有纯文本歌词"
+            case "rejectNotTimed": return "缺少有效时间轴"
+            default: return nil
+            }
+        }
+
         static func countLines(of lyrics: String) -> Int {
             lyrics.replacingOccurrences(of: "\r\n", with: "\n").replacingOccurrences(of: "\r", with: "\n")
                 .split(separator: "\n", omittingEmptySubsequences: false).count
@@ -417,14 +427,25 @@ final class LyricsSearchService: ObservableObject {
             .map(\.candidate)
         let worker = Task.detached(priority: .utility) { LyricsFusion.best(official: official, donors: donors) }
         let result = await withTaskCancellationHandler(operation: { await worker.value }, onCancel: { worker.cancel() })
-        guard let result, !Task.isCancelled, !worker.isCancelled, automaticSearchID == searchID,
+        guard !Task.isCancelled, !worker.isCancelled, automaticSearchID == searchID,
               cache.revision(forKey: key) == revision,
               FeatureSettingsStore.shared.lyricsSources.contains(.appleMusic),
-              result.sources.allSatisfy({ id in
-                  LyricsSource(rawValue: id).map { FeatureSettingsStore.shared.lyricsSources.contains($0) } ?? false
-              }),
               !LyricsPinStore.shared.isPinned(key),
               (cache.summaries.first { $0.key == key }?.offsetMs ?? 0) == 0 else { return }
+        guard let result else {
+            let oldTiming = entry["lyrics_yrc"] as? String ?? ""
+            if LyricsFusion.version(in: oldTiming) != nil,
+               LyricsFusion.version(in: oldTiming) != LyricsFusion.algorithmVersion {
+                // Retire an obsolete automatic fusion after an unsuccessful upgrade;
+                // the official text and line clock remain available for safe playback.
+                _ = await cache.saveEdit(key: key, lyrics: lyrics, tr: entry["lyrics_tr"] as? String ?? "",
+                                         yrc: "", source: "appleMusic", markManual: false)
+            }
+            return
+        }
+        guard result.sources.allSatisfy({ id in
+            LyricsSource(rawValue: id).map { FeatureSettingsStore.shared.lyricsSources.contains($0) } ?? false
+        }) else { return }
         // Saving only after every guard keeps failed enrichment and late results invisible.
         _ = await cache.saveEdit(key: key, lyrics: lyrics, tr: entry["lyrics_tr"] as? String ?? "",
                                  yrc: result.wordTiming, source: "appleMusic", markManual: false)

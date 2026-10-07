@@ -31,11 +31,23 @@ public struct LyricsResolver: Sendable {
         let results = await withTaskGroup(of: Result.self, returning: [Result].self) { group in
             for provider in providersToUse {
                 group.addTask {
-                    do {
-                        return Result(id: provider.id, candidates: try await provider.search(query), error: nil)
-                    } catch {
-                        return Result(id: provider.id, candidates: [], error: error.localizedDescription)
+                    let queries = provider.id == "appleMusic" ? [query] : LyricsIdentityAliases.externalQueries(query)
+                    var candidates: [LyricsCandidate] = []
+                    var responded = false
+                    var lastError: String?
+                    for variant in queries {
+                        guard !Task.isCancelled else { break }
+                        do {
+                            candidates.append(contentsOf: try await provider.search(variant))
+                            responded = true
+                            if LyricsMatcher.rank(candidates, for: query).contains(where: {
+                                !$0.isRejected && !$0.candidate.instrumental
+                                    && $0.terms.contains { $0.kind == "titleMatch" && $0.points > 0 }
+                                    && !$0.terms.contains { $0.kind == "versionTags" && $0.points < 0 }
+                            }) { break }
+                        } catch { lastError = error.localizedDescription }
                     }
+                    return Result(id: provider.id, candidates: candidates, error: responded ? nil : lastError)
                 }
             }
             var values: [Result] = []

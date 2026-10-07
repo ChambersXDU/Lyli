@@ -2,8 +2,8 @@ import Foundation
 
 /// Aligns and cross-checks real word timings while keeping the official text and line boundaries.
 public enum LyricsFusion {
-    public static let marker = "[lyli-fusion:2]"
-    public static let algorithmVersion = 2
+    public static let marker = "[lyli-fusion:3]"
+    public static let algorithmVersion = 3
     private static let supportedSources: Set<String> = ["kugou", "qq", "netease", "kuwo", "lrclib"]
 
     public struct Result: Sendable {
@@ -13,6 +13,24 @@ public enum LyricsFusion {
         public let verifiedLines: Int
         public let matchedLines: Int
         public let totalLines: Int
+    }
+
+    public struct Coverage: Sendable, Equatable {
+        public let verifiedLines: Int
+        public let matchedLines: Int
+        public let totalLines: Int
+        public var singleSourceLines: Int { matchedLines - verifiedLines }
+    }
+
+    public static func coverage(in timing: String) -> Coverage? {
+        guard version(in: timing) != nil,
+              let line = timing.split(separator: "\n").first(where: {
+                  $0.hasPrefix("[lyli-word-coverage:") && $0.hasSuffix("]")
+              }) else { return nil }
+        let values = line.dropFirst("[lyli-word-coverage:".count).dropLast().split(separator: ",", omittingEmptySubsequences: false)
+        guard values.count == 3, let verified = Int(values[0]), let matched = Int(values[1]), let total = Int(values[2]),
+              (0...600).contains(total), (0...total).contains(matched), (0...matched).contains(verified) else { return nil }
+        return Coverage(verifiedLines: verified, matchedLines: matched, totalLines: total)
     }
 
     // Apple remains the authoritative text/line clock. Equal external priors avoid claiming
@@ -43,6 +61,7 @@ public enum LyricsFusion {
     private struct AlignedDonor {
         let source: String
         let rows: [LyricLineWords]
+        let clockOffsetMs: Int
     }
 
     public static func best(official: LyricsCandidate, donors: [LyricsCandidate],
@@ -54,7 +73,8 @@ public enum LyricsFusion {
             let weight = weights[donor.source] ?? 1
             guard weight.isFinite, weight > 0 else { continue }
             for row in donor.rows {
-                votes[row.timeMs, default: []].append(.init(source: donor.source, row: row, weight: min(weight, 4)))
+                votes[row.timeMs, default: []].append(.init(source: donor.source, row: row, weight: min(weight, 4),
+                                                          clockOffsetMs: donor.clockOffsetMs))
             }
         }
         var rows: [LyricLineWords] = []
@@ -67,11 +87,16 @@ public enum LyricsFusion {
             sources.formUnion(consensus.sources)
             if consensus.sources.count > 1 { verified += 1 }
         }
-        let total = LRCParser.parse(official.lyrics).filter { !normalized($0.text).isEmpty }.count
-        guard rows.count >= 3, rows.count * 100 >= total * 55 else { return nil }
+        let useful = LRCParser.parse(official.lyrics).filter { LyricsMatcher.isUsefulText($0.text) && !normalized($0.text).isEmpty }
+        let total = useful.count
+        let totalCharacters = useful.reduce(0) { $0 + normalized($1.text).count }
+        let matchedCharacters = rows.reduce(0) { $0 + normalized($1.words.map(\.text).joined()).count }
+        guard rows.count >= 3, rows.count * 100 >= total * 55,
+              matchedCharacters * 100 >= totalCharacters * 55 else { return nil }
         let ids = sources.sorted()
         guard let primary = ids.first else { return nil }
-        let output = ([marker, "[lyli-word-sources:\(ids.joined(separator: ","))]"] + rows.map(encode)).joined(separator: "\n")
+        let output = ([marker, "[lyli-word-sources:\(ids.joined(separator: ","))]",
+                       "[lyli-word-coverage:\(verified),\(rows.count),\(total)]"] + rows.map(encode)).joined(separator: "\n")
         guard LyricsMatcher.isValidWordTiming(output) else { return nil }
         return Result(wordTiming: output, source: primary, sources: ids, verifiedLines: verified,
                       matchedLines: rows.count, totalLines: total)
@@ -92,19 +117,24 @@ public enum LyricsFusion {
         guard !Task.isCancelled, official.source == "appleMusic", !official.hasWordTiming,
               supportedSources.contains(donor.source), !donor.instrumental,
               let timing = donor.wordTiming, donorSource(in: timing) == nil,
-              titleKey(official.title) == titleKey(donor.title), !titleKey(official.title).isEmpty,
-              normalized(official.artist) == normalized(donor.artist), !normalized(official.artist).isEmpty,
+              titleKey(LyricsIdentityAliases.title(official.title, artist: official.artist))
+                == titleKey(LyricsIdentityAliases.title(donor.title, artist: donor.artist)), !titleKey(official.title).isEmpty,
+              normalized(LyricsIdentityAliases.artist(official.artist)) == normalized(LyricsIdentityAliases.artist(donor.artist)),
+              !normalized(official.artist).isEmpty,
+              LyricsMatcher.hasSameRecordingVersion(official, donor),
               official.lyrics.utf8.count <= 256_000, timing.utf8.count <= 512_000 else { return nil }
         if let a = official.duration, let b = donor.duration {
             guard a.isFinite, b.isFinite, a > 0, b > 0, abs(a - b) <= 3 else { return nil }
         }
         // Different embedded offsets cannot safely share a clock.
         guard LRCParser.parseOffsetMs(official.lyrics) == LRCParser.parseOffsetMs(timing) else { return nil }
-        let allBase = LRCParser.parse(official.lyrics)
+        let allBase = LRCParser.parse(official.lyrics).filter {
+            normalized($0.text).isEmpty || LyricsMatcher.isUsefulText($0.text)
+        }
         let base = allBase.filter { !normalized($0.text).isEmpty }
         let originalWords = YRCParser.parse(timing).map { row in
             LyricLineWords(timeMs: row.timeMs, words: row.words.filter { !normalized($0.text).isEmpty })
-        }.filter { valid($0) }
+        }.filter { valid($0) && LyricsMatcher.isUsefulText($0.words.map(\.text).joined()) }
         guard (4...600).contains(base.count), (4...600).contains(originalWords.count),
               Set(base.map(\.timeMs)).count == base.count,
               Set(originalWords.map(\.timeMs)).count == originalWords.count else { return nil }
@@ -159,7 +189,9 @@ public enum LyricsFusion {
             guard let mapped = retext(words[j].words, official: line.text), mapped.count >= 2 else { continue }
             var shifted: [LyricWord] = []
             for word in mapped {
-                let start = line.timeMs + word.startMs - words[j].timeMs
+                // Correct one whole-song clock offset; preserve local timing instead of
+                // silently snapping every source row onto the official line start.
+                let start = word.startMs - offset
                 let end = start + word.durationMs
                 guard start >= line.timeMs - 250,
                       boundary.map({ start < $0 && end <= $0 + 250 }) ?? true else { shifted = []; break }
@@ -172,7 +204,7 @@ public enum LyricsFusion {
             rows.append(LyricLineWords(timeMs: line.timeMs, words: shifted))
         }
         guard rows.count >= 3 else { return nil }
-        return AlignedDonor(source: donor.source, rows: rows)
+        return AlignedDonor(source: donor.source, rows: rows, clockOffsetMs: offset)
     }
 
     private static func expanded(_ originals: [LyricLineWords], base: [LyricLine], keys: [String]) -> [LyricLineWords] {

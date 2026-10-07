@@ -22,6 +22,7 @@ public final class EnrichCacheStore: ObservableObject {
         public let hasWordTiming: Bool
         public var wordTimingSource: String = ""
         public var wordTimingSources: [String] = []
+        public var wordTimingCoverage: LyricsFusion.Coverage? = nil
         public let isManual: Bool
 
         public let sourceChoice: String
@@ -239,6 +240,7 @@ public final class EnrichCacheStore: ObservableObject {
                 hasWordTiming: !lyricsYRC.isEmpty,
                 wordTimingSource: LyricsFusion.donorSource(in: lyricsYRC) ?? "",
                 wordTimingSources: LyricsFusion.donorSources(in: lyricsYRC),
+                wordTimingCoverage: LyricsFusion.coverage(in: lyricsYRC),
                 isManual: entry["manual_lyrics"] as? Bool ?? false,
                 sourceChoice: entry["lyrics_source_choice"] as? String ?? "",
                 offsetMs: offsetMs,

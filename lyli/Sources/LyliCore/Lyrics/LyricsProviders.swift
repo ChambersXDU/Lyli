@@ -59,9 +59,11 @@ private func normalizeTitleVariants(_ title: String) -> [String] {
     return values.filter { seen.insert($0).inserted }
 }
 
-private func roughTitleMatch(_ candidate: String, _ query: String) -> Bool {
-    let a = LyricsMatcher.normalizedTitle(candidate).replacingOccurrences(of: " ", with: "")
-    let b = LyricsMatcher.normalizedTitle(query).replacingOccurrences(of: " ", with: "")
+private func roughTitleMatch(_ candidate: String, _ query: LyricsQuery) -> Bool {
+    let a = LyricsMatcher.normalizedTitle(LyricsIdentityAliases.title(candidate, artist: query.artist))
+        .replacingOccurrences(of: " ", with: "")
+    let b = LyricsMatcher.normalizedTitle(LyricsIdentityAliases.title(query.title, artist: query.artist))
+        .replacingOccurrences(of: " ", with: "")
     return !a.isEmpty && !b.isEmpty && (a == b || a.contains(b) || b.contains(a))
 }
 
@@ -143,7 +145,7 @@ public struct LRCLIBProvider: LyricsProvider {
     }
 
     private func makeCandidate(_ item: LRCLIBItem, query: LyricsQuery) -> LyricsCandidate? {
-        guard roughTitleMatch(item.trackName, query.title),
+        guard roughTitleMatch(item.trackName, query),
               roughArtistMatch(item.artistName, query.artist) else { return nil }
         if let duration = query.duration, duration > 0, item.duration > 0,
            abs(item.duration - duration) / duration > 0.25 { return nil }
@@ -202,7 +204,7 @@ public struct KuwoProvider: LyricsProvider {
         let result: SearchResult = try await requestJSON(SearchResult.self, url,
                                                           headers: ["Referer": "https://www.kuwo.cn/", "User-Agent": "Mozilla/5.0"], timeout: 8)
         var output: [LyricsCandidate] = []
-        for item in result.items where !item.musicRID.isEmpty && roughTitleMatch(item.songName, query.title)
+        for item in result.items where !item.musicRID.isEmpty && roughTitleMatch(item.songName, query)
             && roughArtistMatch(item.artist, query.artist) {
             guard let musicID = item.musicRID.split(separator: "_").last, !musicID.isEmpty else { continue }
             let lyricURL = try makeURL("https://kuwo.cn/openapi/v1/www/lyric/getlyric", [("musicId", String(musicID))])
@@ -274,7 +276,7 @@ public struct NeteaseProvider: LyricsProvider {
         var output: [LyricsCandidate] = []
         var seen = Set<Int64>()
         for song in songs where seen.insert(song.id).inserted
-            && roughTitleMatch(song.name, query.title)
+            && roughTitleMatch(song.name, query)
             && song.artists.contains(where: { roughArtistMatch($0.name, query.artist) }) {
             if let candidate = try? await fetchCandidate(song, query: query) {
                 output.append(candidate)
@@ -431,7 +433,7 @@ public struct KugouProvider: LyricsProvider {
         }
         var output: [LyricsCandidate] = []
         for song in response.data.lists where !song.hash.isEmpty
-            && roughTitleMatch(song.songName, query.title)
+            && roughTitleMatch(song.songName, query)
             && roughArtistMatch(song.singerName, query.artist) {
             let durationMs = Int((song.duration * 1000).rounded())
             guard let lyricURL = try? makeURL("https://krcs.kugou.com/search", [
@@ -608,12 +610,12 @@ public struct QQMusicProvider: LyricsProvider {
                                       album: item.album?.name ?? "", duration: item.interval ?? 0)
                 })
             } catch { lastError = error }
-            if items.contains(where: { roughTitleMatch($0.title, query.title) }) { break }
+            if items.contains(where: { roughTitleMatch($0.title, query) }) { break }
         }
         var seen = Set<String>()
         var output: [LyricsCandidate] = []
         for item in items where seen.insert(item.mid).inserted
-            && roughTitleMatch(item.title, query.title) && roughArtistMatch(item.artist, query.artist) {
+            && roughTitleMatch(item.title, query) && roughArtistMatch(item.artist, query.artist) {
             if let candidate = try? await fetchCandidate(item, query: query) { output.append(candidate) }
             if output.count == 3 { break }
         }

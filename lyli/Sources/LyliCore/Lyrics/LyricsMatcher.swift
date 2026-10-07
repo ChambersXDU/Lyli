@@ -28,7 +28,7 @@ public struct LyricsMatch: Sendable, Equatable {
 }
 
 public enum LyricsMatcher {
-    public static let scoringVersion = 19
+    public static let scoringVersion = 22
 
     private static let featWords = ["feat", "ft", "featuring", "with"]
     private static let versionWords = [
@@ -44,12 +44,12 @@ public enum LyricsMatcher {
 
         let firstPass = unique.map { score($0, for: query, peers: unique) }
         let usable = firstPass.filter { !$0.isRejected && !$0.candidate.instrumental }
-        let bestTitle = usable.map { titleScore($0.candidate.title, query.title) }.max() ?? 0
-        let bestVersion = usable.filter { titleScore($0.candidate.title, query.title) + 30 >= bestTitle }
+        let bestTitle = usable.map { titleScore($0.candidate, query) }.max() ?? 0
+        let bestVersion = usable.filter { titleScore($0.candidate, query) + 30 >= bestTitle }
             .map { versionMismatch($0.candidate, query) }.max() ?? 0
         let adjusted = firstPass.map { match -> LyricsMatch in
             guard !match.isRejected, match.candidate.hasWordTiming,
-                  titleScore(match.candidate.title, query.title) + 30 < bestTitle
+                  titleScore(match.candidate, query) + 30 < bestTitle
                     || versionMismatch(match.candidate, query) < bestVersion
             else { return match }
             var terms = match.terms
@@ -106,7 +106,7 @@ public enum LyricsMatcher {
     }
 
     public static func normalizedTitle(_ title: String) -> String {
-        normalizeText(title)
+        normalizeText(title).replacingOccurrences(of: "妳", with: "你")
     }
 
     public static func normalizedArtist(_ artist: String) -> String {
@@ -117,7 +117,7 @@ public enum LyricsMatcher {
                 break
             }
         }
-        return value.replacingOccurrences(of: " & ", with: " ")
+        return normalizeText(LyricsIdentityAliases.artist(value)).replacingOccurrences(of: " & ", with: " ")
     }
 
     private static func score(_ candidate: LyricsCandidate, for query: LyricsQuery,
@@ -134,7 +134,11 @@ public enum LyricsMatcher {
                                terms: [.init(kind: "instrumental", points: -100)])
         }
 
-        let title = titleScore(candidate.title, query.title)
+        let title = titleScore(candidate, query)
+        if title == 0, LyricsIdentityAliases.hasTitleAlias(query.title, artist: query.artist) {
+            return LyricsMatch(candidate: candidate, score: -10_000,
+                               terms: [.init(kind: "rejectWrongTitle", points: -10_000)])
+        }
         terms.append(.init(kind: "titleMatch", points: title))
 
         let artist = artistScore(candidate.artist, query.artist)
@@ -172,9 +176,10 @@ public enum LyricsMatcher {
         if candidate.hasWordTiming { terms.append(.init(kind: "wordTiming", points: 400)) }
         if candidate.hasTranslation { terms.append(.init(kind: "translation", points: 35)) }
 
+        let versionPenalty = versionMismatch(candidate, query)
         let peers = Set(peers.filter { other in
-            other.source != candidate.source && !other.instrumental
-                && titleScore(other.title, query.title) > 0
+            versionPenalty >= 0 && other.source != candidate.source && !other.instrumental
+                && titleScore(other, query) > 0
                 && artistScore(other.artist, query.artist) > 0
                 && versionMismatch(other, query) >= 0
                 && lyricsSimilarity(candidate.lyrics, other.lyrics) >= 0.72
@@ -183,7 +188,6 @@ public enum LyricsMatcher {
             terms.append(.init(kind: "consensus", points: peers.count > 1 ? 250 : 150))
         }
 
-        let versionPenalty = versionMismatch(candidate, query)
         if versionPenalty < 0 { terms.append(.init(kind: "versionTags", points: versionPenalty)) }
         let score = terms.reduce(0) { $0 + $1.points }
         return LyricsMatch(candidate: candidate, score: score, terms: terms, consensusPeers: peers)
@@ -199,6 +203,11 @@ public enum LyricsMatcher {
     private static func stableFields(_ candidate: LyricsCandidate) -> [String] {
         [candidate.title, candidate.artist, candidate.album ?? "", candidate.lyrics,
          candidate.wordTiming ?? "", candidate.translation ?? "", candidate.duration.map { String($0) } ?? ""]
+    }
+
+    private static func titleScore(_ candidate: LyricsCandidate, _ query: LyricsQuery) -> Int {
+        titleScore(LyricsIdentityAliases.title(candidate.title, artist: candidate.artist),
+                   LyricsIdentityAliases.title(query.title, artist: query.artist))
     }
 
     private static func titleScore(_ candidate: String, _ query: String) -> Int {
@@ -237,6 +246,11 @@ public enum LyricsMatcher {
         if c == q { return 0 }
         if c.isEmpty { return -120 }
         return -300
+    }
+
+    public static func hasSameRecordingVersion(_ lhs: LyricsCandidate, _ rhs: LyricsCandidate) -> Bool {
+        recordingVersions(title: lhs.title, album: lhs.album)
+            == recordingVersions(title: rhs.title, album: rhs.album)
     }
 
     private static func recordingVersions(title: String, album: String?) -> Set<String> {
@@ -331,18 +345,19 @@ public enum LyricsMatcher {
             value = String(value[..<range.lowerBound])
         }
         return value.split { "/&、,，".contains($0) }
-            .map { normalizeText(String($0)) }
+            .map { normalizedArtist(String($0)) }
             .filter { !$0.isEmpty }
     }
 
     private static func normalizeText(_ value: String) -> String {
-        value.folding(options: [.diacriticInsensitive, .widthInsensitive, .caseInsensitive], locale: .current)
+        (value.applyingTransform(.init("Traditional-Simplified"), reverse: false) ?? value)
+            .folding(options: [.diacriticInsensitive, .widthInsensitive, .caseInsensitive], locale: .current)
             .replacingOccurrences(of: "[’'`\"“”]", with: "", options: .regularExpression)
             .replacingOccurrences(of: "[^\\p{L}\\p{N}]+", with: " ", options: .regularExpression)
             .split(separator: " ").joined(separator: " ")
     }
 
-    private static func isUsefulText(_ text: String) -> Bool {
+    static func isUsefulText(_ text: String) -> Bool {
         !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isCreditLine(text)
     }
 

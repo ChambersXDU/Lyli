@@ -6,13 +6,17 @@ public struct AppleMusicCacheProvider: LyricsProvider {
     public let id = "appleMusic"
     public let cacheDirectory: URL
     private let preferredLanguages: [String]
+    public typealias MetadataLookup = @Sendable ([String]) async throws -> [AppleMusicCatalogSong]
+    private let metadataLookup: MetadataLookup
     private static let maximumBodyBytes = 8_000_000
 
     public init(cacheDirectory: URL = FileManager.default.homeDirectoryForCurrentUser
                     .appendingPathComponent("Library/Caches/com.apple.Music"),
-                preferredLanguages: [String] = Locale.preferredLanguages) {
+                preferredLanguages: [String] = Locale.preferredLanguages,
+                metadataLookup: MetadataLookup? = nil) {
         self.cacheDirectory = cacheDirectory
         self.preferredLanguages = preferredLanguages
+        self.metadataLookup = metadataLookup ?? { await AppleMusicCatalogLookup.shared.lookup($0) }
     }
 
     public enum CacheError: LocalizedError {
@@ -21,17 +25,35 @@ public struct AppleMusicCacheProvider: LyricsProvider {
     }
 
     public func search(_ query: LyricsQuery) async throws -> [LyricsCandidate] {
+        guard !query.title.isEmpty, !query.artist.isEmpty else { return [] }
         try Task.checkCancellation()
-        let worker = Task.detached(priority: .utility) { try read(query) }
-        return try await withTaskCancellationHandler(operation: {
+        let worker = Task.detached(priority: .utility) { try self.snapshot() }
+        let cached = try await withTaskCancellationHandler(operation: {
             try await worker.value
         }, onCancel: { worker.cancel() })
+        let local = candidates(cached, query: query)
+        guard local.isEmpty else { return local }
+        var seen = Set<String>()
+        let ids = cached.lyrics.map(\.id).filter { seen.insert($0).inserted }
+        guard !ids.isEmpty else { return [] }
+        let metadata = (try? await metadataLookup(ids)) ?? []
+        try Task.checkCancellation()
+        return candidates(cached, query: query, supplemental: metadata)
     }
 
     public func read(_ query: LyricsQuery) throws -> [LyricsCandidate] {
         guard !query.title.isEmpty, !query.artist.isEmpty else { return [] }
+        return candidates(try snapshot(), query: query)
+    }
+
+    private struct Snapshot: Sendable {
+        var songs: [String: Song] = [:]
+        var lyrics: [(id: String, xml: String)] = []
+    }
+
+    private func snapshot() throws -> Snapshot {
         let database = cacheDirectory.appendingPathComponent("Cache.db")
-        guard FileManager.default.fileExists(atPath: database.path) else { return [] }
+        guard FileManager.default.fileExists(atPath: database.path) else { return Snapshot() }
         var connection: OpaquePointer?
         guard sqlite3_open_v2(database.path, &connection, SQLITE_OPEN_READONLY | SQLITE_OPEN_NOMUTEX, nil) == SQLITE_OK else {
             if let connection { sqlite3_close(connection) }
@@ -43,7 +65,7 @@ public struct AppleMusicCacheProvider: LyricsProvider {
         guard sqlite3_exec(connection, "BEGIN", nil, nil, nil) == SQLITE_OK else { throw CacheError.unavailable }
         defer { sqlite3_exec(connection, "ROLLBACK", nil, nil, nil) }
         let lyricRows = try rows(connection, filter: "r.request_key LIKE '%ttmlLyrics%' OR r.request_key LIKE '%syllable-lyrics%'", limit: 160)
-        guard !lyricRows.isEmpty else { return [] }
+        guard !lyricRows.isEmpty else { return Snapshot() }
         let catalogRows = try rows(connection, filter: "r.request_key LIKE 'https://amp-api%.music.apple.com/%' OR r.request_key LIKE 'https://client-api.itunes.apple.com/%/lookup%'", limit: 512)
         var songs: [String: Song] = [:]
         var embedded: [(Song, String)] = []
@@ -51,25 +73,33 @@ public struct AppleMusicCacheProvider: LyricsProvider {
             guard let data = body(row), let object = try? JSONSerialization.jsonObject(with: data) else { continue }
             collectSongs(object, into: &songs, embedded: &embedded)
         }
-        var matches: [(Song, String)] = embedded
+        var snapshot = Snapshot(songs: songs, lyrics: embedded.map { ($0.0.id, $0.1) })
         for row in lyricRows {
             guard let url = URLComponents(string: row.key),
                   url.path.hasSuffix("/ttmlLyrics"),
                   let songID = url.queryItems?.first(where: { $0.name == "id" })?.value,
-                  let song = songs[songID], matchesQuery(song, query),
                   let data = body(row),
                   let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                   object["status"] as? String == "success", let ttml = object["ttml"] as? String else { continue }
-            matches.append((song, ttml))
+            snapshot.lyrics.append((songID, ttml))
         }
+        return snapshot
+    }
+
+    private func candidates(_ snapshot: Snapshot, query: LyricsQuery,
+                            supplemental: [Song] = []) -> [LyricsCandidate] {
+        let extra = Dictionary(grouping: supplemental, by: \.id)
         var seen = Set<String>()
-        return matches.compactMap { song, xml in
-            guard matchesQuery(song, query), seen.insert(song.id).inserted,
+        return snapshot.lyrics.compactMap { songID, xml in
+            let options = snapshot.songs[songID].map { [$0] } ?? []
+            guard let song = (options + (extra[songID] ?? [])).first(where: { matchesQuery($0, query) }),
+                  !seen.contains(song.id),
                   let parsed = AppleMusicTTMLParser.parse(xml, preferredLanguages: preferredLanguages),
                   LyricsMatcher.isValidTimedLyrics(parsed.lyrics) else { return nil }
             // Album identity or a close catalog duration is required; title alone is insufficient.
             let duration = song.duration ?? query.duration
             if let duration, Double(parsed.endMs) / 1000 > duration + 5 { return nil }
+            seen.insert(song.id)
             return LyricsCandidate(source: id, lyrics: parsed.lyrics, translation: parsed.translation,
                                    wordTiming: parsed.wordTiming, duration: duration,
                                    title: song.title, artist: query.artist, album: song.album)
@@ -77,13 +107,7 @@ public struct AppleMusicCacheProvider: LyricsProvider {
     }
 
     private struct Row { let key: String; let onDisk: Bool; let data: Data }
-    private struct Song {
-        let id: String
-        let title: String
-        let artist: String
-        let album: String?
-        let duration: Double?
-    }
+    private typealias Song = AppleMusicCatalogSong
 
     private func rows(_ db: OpaquePointer?, filter: String, limit: Int) throws -> [Row] {
         let sql = """
@@ -136,7 +160,7 @@ public struct AppleMusicCacheProvider: LyricsProvider {
     }
 
     private func comparable(_ text: String) -> String {
-        LyricsMatcher.normalizedTitle(text.applyingTransform(.init("Traditional-Simplified"), reverse: false) ?? text)
+        LyricsMatcher.normalizedTitle(text)
     }
 
     private func collectSongs(_ object: Any, into songs: inout [String: Song], embedded: inout [(Song, String)], depth: Int = 0) {

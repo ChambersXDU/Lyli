@@ -6,6 +6,14 @@ enum WordTimingConsensus {
         let source: String
         let row: LyricLineWords
         let weight: Double
+        let clockOffsetMs: Int
+
+        init(source: String, row: LyricLineWords, weight: Double, clockOffsetMs: Int = 0) {
+            self.source = source
+            self.row = row
+            self.weight = weight
+            self.clockOffsetMs = clockOffsetMs
+        }
     }
 
     struct Result {
@@ -35,7 +43,8 @@ enum WordTimingConsensus {
         let a = boundaries(lhs.row), b = boundaries(rhs.row)
         let shared = a.keys.filter { b[$0] != nil }
         // A whole-line chunk cannot validate an otherwise detailed word trajectory.
-        guard shared.count >= 2, let lastA = lhs.row.words.last, let lastB = rhs.row.words.last,
+        guard abs(lhs.clockOffsetMs - rhs.clockOffsetMs) <= 250,
+              shared.count >= 2, let lastA = lhs.row.words.last, let lastB = rhs.row.words.last,
               abs(lastA.startMs + lastA.durationMs - lastB.startMs - lastB.durationMs) <= 250 else { return false }
         let errors = shared.map { abs(a[$0]!.start - b[$0]!.start) }
         return errors.allSatisfy { $0 <= 250 } && errors.reduce(0, +) <= shared.count * 150
@@ -47,6 +56,7 @@ enum WordTimingConsensus {
         let sorted = input.sorted {
             if $0.source != $1.source { return $0.source < $1.source }
             if $0.row.words.count != $1.row.words.count { return $0.row.words.count > $1.row.words.count }
+            if $0.clockOffsetMs != $1.clockOffsetMs { return $0.clockOffsetMs < $1.clockOffsetMs }
             return signature($0.row) < signature($1.row)
         }
         var unique: [Vote] = []
@@ -60,6 +70,8 @@ enum WordTimingConsensus {
                 let aSupport = support(a), bSupport = support(b)
                 if aSupport != bSupport { return aSupport < bSupport }
                 if a.row.words.count != b.row.words.count { return a.row.words.count < b.row.words.count }
+                if abs(a.clockOffsetMs) != abs(b.clockOffsetMs) { return abs(a.clockOffsetMs) > abs(b.clockOffsetMs) }
+                if a.clockOffsetMs != b.clockOffsetMs { return a.clockOffsetMs > b.clockOffsetMs }
                 return signature(a.row) > signature(b.row)
             }
             if let winner { unique.append(winner) }
@@ -83,20 +95,36 @@ enum WordTimingConsensus {
             else if abs(weight - bestWeight) <= 1e-9 { tied = true }
         }
         // An even split, or an isolated high-weight outlier, is a reason to keep line-level lyrics.
-        guard !tied, bestWeight > totalWeight / 2, let reference = best.max(by: {
-            if $0.row.words.count != $1.row.words.count { return $0.row.words.count < $1.row.words.count }
-            return $0.source > $1.source
+        guard !tied, bestWeight > totalWeight / 2 else { return nil }
+        let allMaps = best.map { ($0, boundaries($0.row)) }
+        // A finer trajectory needs its own majority of providers supporting every
+        // boundary; coarse sources cannot validate its unobserved internal timings.
+        let supported = best.compactMap { candidate -> (Vote, [Vote])? in
+            let starts = boundaries(candidate.row).keys
+            let peers = allMaps.filter { _, map in starts.allSatisfy { map[$0] != nil } }.map { $0.0 }
+            guard peers.count >= 2, peers.reduce(0, { $0 + $1.weight }) > totalWeight / 2 else { return nil }
+            return (candidate, peers)
+        }
+        guard let selection = supported.max(by: {
+            if $0.0.row.words.count != $1.0.row.words.count { return $0.0.row.words.count < $1.0.row.words.count }
+            let aWeight = $0.1.reduce(0) { $0 + $1.weight }, bWeight = $1.1.reduce(0) { $0 + $1.weight }
+            if aWeight != bWeight { return aWeight < bWeight }
+            return $0.0.source > $1.0.source
         }) else { return nil }
-        let maps = best.map { ($0, boundaries($0.row)) }
+        let reference = selection.0
+        let maps = selection.1.map { ($0, boundaries($0.row)) }
         var position = 0
         var words: [LyricWord] = []
         for word in reference.row.words {
             let count = LyricsFusion.normalized(word.text).count
             let samples = maps.compactMap { vote, map -> (Boundary, Double)? in
-                guard let boundary = map[position],
-                      boundary.length == count else { return nil }
-                return (boundary, vote.weight)
+                guard let first = map[position],
+                      let last = map.first(where: { $0.key + $0.value.length == position + count })?.value else { return nil }
+                return (Boundary(start: first.start, end: last.end, length: count), vote.weight)
             }
+            guard samples.count == selection.1.count else { return nil }
+            let ends = samples.map { $0.0.end }
+            guard ends.max()! - ends.min()! <= 250 else { return nil }
             // Only observed matching chunks contribute: never divide a long chunk by interpolation.
             let start = median(samples.map { ($0.0.start, $0.1) }) ?? word.startMs
             let end = median(samples.map { ($0.0.end, $0.1) }) ?? (word.startMs + word.durationMs)
@@ -104,7 +132,7 @@ enum WordTimingConsensus {
             words.append(LyricWord(startMs: start, durationMs: end - start, text: word.text))
             position += count
         }
-        return Result(row: LyricLineWords(timeMs: reference.row.timeMs, words: words), sources: best.map(\.source))
+        return Result(row: LyricLineWords(timeMs: reference.row.timeMs, words: words), sources: selection.1.map(\.source))
     }
 
     private static func median(_ samples: [(Int, Double)]) -> Int? {

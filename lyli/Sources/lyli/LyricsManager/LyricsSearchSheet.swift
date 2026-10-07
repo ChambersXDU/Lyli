@@ -591,7 +591,8 @@ struct LyricsSearchSheet: View {
 
     @ViewBuilder
     private func scoreLine(_ c: LyricsSearchService.Candidate, font: Font) -> some View {
-        let label = Text(String(format: "分数 %@ · %@ 行", "\(c.score)", "\(c.lineCount)"))
+        let label = Text(c.rejectionReason.map { "未自动采用：\($0) · \(c.lineCount) 行" }
+            ?? String(format: "分数 %@ · %@ 行", "\(c.score)", "\(c.lineCount)"))
         label
         .font(font)
         .foregroundStyle(.secondary)

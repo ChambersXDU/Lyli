@@ -28,6 +28,17 @@ func runLyricsFusionTests() {
             duration: duration, title: title, artist: "Artist")
     }
     let full = LyricsFusion.fuse(official: official, donor: donor())
+    let flyOfficial = LyricsCandidate(source: "appleMusic", lyrics: lrc,
+        duration: 80, title: "Fly", artist: "吕彦良")
+    func flyDonor(title: String = "飞", artist: String = "Matt吕彦良") -> LyricsCandidate {
+        LyricsCandidate(source: "kugou", lyrics: lrc, wordTiming: donor().wordTiming,
+            duration: 80, title: title, artist: artist)
+    }
+    expectEqual(LyricsFusion.fuse(official: flyOfficial, donor: flyDonor())?.matchedLines, 8,
+                "Fly / 飞与歌手别名通过融合身份门槛，仍验证全文和时钟")
+    expectEqual(LyricsFusion.fuse(official: flyOfficial, donor: flyDonor(title: "飛 (FLY)", artist: "Matt Lv"))?.matchedLines, 8)
+    expectEqual(LyricsFusion.fuse(official: flyOfficial, donor: flyDonor(title: "飞 (Live)")) == nil, true)
+    expectEqual(LyricsFusion.fuse(official: flyOfficial, donor: flyDonor(artist: "Other Artist")) == nil, true)
     expectEqual(full?.matchedLines, 8, "繁简标点与恒定小偏移允许融合")
     expectEqual(full?.source, "kugou")
     expectEqual(LyricsFusion.donorSource(in: full?.wordTiming ?? ""), "kugou")
@@ -39,6 +50,19 @@ func runLyricsFusionTests() {
         expectEqual(engine.currentLine(at: time(i) + 6_001), nil, "官方清屏不被逐字覆盖")
     }
     expectEqual(engine.currentLine(at: time(0) + 1)?.translation, "translation one")
+    let locallyLate = LyricsFusion.fuse(official: official, donor: donor(shifts: [3: 700]))
+    expectEqual(YRCParser.parse(locallyLate?.wordTiming ?? "").first { $0.timeMs == time(3) }?.words.first?.startMs,
+                time(3) + 400, "全曲校正后保留单行晚唱，不再逐行吸附到官方行首")
+    let locallyEarly = LyricsFusion.fuse(official: official, donor: donor(shifts: [3: -100]))
+    expectEqual(locallyEarly?.matchedLines, 7, "词首比官方行首早超过安全边界时回退该行")
+    _ = engine.load(lyrics: lrc, lyricsTr: tr, lyricsYRC: locallyLate?.wordTiming ?? "")
+    expectEqual(engine.currentLine(at: time(3) + 1)?.plainText, texts[3], "延后的词首不改变官方行显示时间")
+    expectEqual(engine.currentLine(at: time(3) + 6_001), nil, "延后的词首仍保留官方清屏")
+    let singleCoverage = LyricsFusion.coverage(in: full?.wordTiming ?? "")
+    expectEqual(singleCoverage?.verifiedLines, 0)
+    expectEqual(singleCoverage?.singleSourceLines, 8)
+    expectEqual(singleCoverage?.totalLines, 8)
+    expectEqual(LyricsFusion.coverage(in: "[lyli-fusion:3]\n[lyli-word-coverage:9,8,8]"), nil)
 
     let partial = LyricsFusion.fuse(official: official, donor: donor(omitting: [2], replacing: [3: "等到后天再相见"]))
     expectEqual(partial?.matchedLines, 6, "缺行与文字差异仅回退相应行")
@@ -71,6 +95,19 @@ func runLyricsFusionTests() {
             "[\(row.timeMs),2000]" + row.words.map { "(\($0.startMs),\($0.durationMs),0)\($0.text)" }.joined()
         }.joined(separator: "\n")
     }
+    let albumLive = LyricsCandidate(source: "qq", lyrics: lrc, wordTiming: donor().wordTiming,
+        duration: 80, title: "Song", artist: "Artist", album: "Live at Venue")
+    expectEqual(LyricsFusion.fuse(official: official, donor: albumLive) == nil, true,
+                "只标在专辑中的现场录音也不能混入录音室歌曲")
+    let liveOfficial = LyricsCandidate(source: "appleMusic", lyrics: lrc,
+        duration: 80, title: "Song", artist: "Artist", album: "Live at Venue")
+    expectEqual(LyricsFusion.fuse(official: liveOfficial, donor: albumLive)?.matchedLines, 8)
+    expectEqual(LyricsFusion.fuse(official: liveOfficial, donor: donor()) == nil, true,
+                "官方明确现场、来源版本缺失时不猜测融合")
+    let studioAlbum = LyricsCandidate(source: "qq", lyrics: lrc, wordTiming: donor().wordTiming,
+        duration: 80, title: "Song", artist: "Artist", album: "Live Through This")
+    expectEqual(LyricsFusion.fuse(official: official, donor: studioAlbum)?.matchedLines, 8,
+                "普通专辑词语不误判成现场版本")
     let joined = LyricLineWords(timeMs: normalRows[0].timeMs, words: normalRows[0].words + normalRows[1].words)
     let mergedDonor = LyricsCandidate(source: "kugou", lyrics: lrc,
         wordTiming: encode([joined] + Array(normalRows.dropFirst(2))), title: "Song", artist: "Artist")
@@ -118,6 +155,7 @@ func runLyricsFusionTests() {
     let voted = LyricsFusion.best(official: official, donors: [kugou, qq, netease])
     expectEqual(voted?.matchedLines, 8, "一致的两源拒绝逐字轨迹异常的第三源")
     expectEqual(voted?.verifiedLines, 8)
+    expectEqual(LyricsFusion.coverage(in: voted?.wordTiming ?? "")?.singleSourceLines, 0)
     expectEqual(voted?.sources, ["kugou", "qq"])
     expectEqual(LyricsFusion.donorSources(in: voted?.wordTiming ?? ""), ["kugou", "qq"])
     expectEqual(LyricsFusion.version(in: voted?.wordTiming ?? ""), LyricsFusion.algorithmVersion)
@@ -143,6 +181,52 @@ func runLyricsFusionTests() {
                  variant(kugou, source: "netease", drift: 400)]
     expectEqual(LyricsFusion.best(official: official, donors: chain) == nil, true,
                 "A近B、B近C不能把相互冲突的A和C串成共识")
+
+    let clockShifted = LyricsCandidate(source: "netease", lyrics: lrc,
+        wordTiming: donor(shifts: Dictionary(uniqueKeysWithValues: texts.indices.map { ($0, 1_300) })).wordTiming,
+        duration: 80, title: "Song", artist: "Artist")
+    expectEqual(LyricsFusion.fuse(official: official, donor: clockShifted)?.matchedLines, 8,
+                "单源恒定时差仍可做全曲校正")
+    expectEqual(LyricsFusion.best(official: official, donors: [kugou, clockShifted]) == nil, true,
+                "相差一秒的原始来源时钟不能校正后伪装成多源一致")
+    expectEqual(LyricsFusion.best(official: official, donors: [kugou, qq, clockShifted])?.sources, ["kugou", "qq"],
+                "原始时钟一致的多数保留，异常时钟来源退出")
+    let coarseRows = normalRows.map { row -> LyricLineWords in
+        let half = row.words.count / 2
+        let groups = [Array(row.words[..<half]), Array(row.words[half...])]
+        return LyricLineWords(timeMs: row.timeMs, words: groups.map { words in
+            LyricWord(startMs: words.first!.startMs,
+                      durationMs: words.last!.startMs + words.last!.durationMs - words.first!.startMs,
+                      text: words.map(\.text).joined())
+        })
+    }
+    let coarseDonor = LyricsCandidate(source: "qq", lyrics: lrc, wordTiming: encode(coarseRows),
+        duration: 80, title: "Song", artist: "Artist")
+    let coarseConsensus = LyricsFusion.best(official: official, donors: [kugou, coarseDonor])
+    expectEqual(coarseConsensus?.verifiedLines, 8)
+    expectEqual(YRCParser.parse(coarseConsensus?.wordTiming ?? "").map { $0.words.count }, Array(repeating: 2, count: 8),
+                "粗分词只支持两个真实边界，不能替细分来源独有的字时点背书")
+    let fineMajority = LyricsFusion.best(official: official, donors: [kugou, variant(kugou, source: "netease"), coarseDonor])
+    expectEqual(fineMajority?.sources, ["kugou", "netease"], "两份细分词构成多数时无需粗分词来源背书")
+    expectEqual(YRCParser.parse(fineMajority?.wordTiming ?? "").map { $0.words.count }, normalRows.map { $0.words.count })
+
+    let paddedOfficial = LyricsCandidate(source: "appleMusic", lyrics: lrc + "\n[01:15.000]作词：测试作者",
+        duration: 80, title: "Song", artist: "Artist")
+    expectEqual(LyricsFusion.fuse(official: paddedOfficial, donor: kugou)?.totalLines, 8,
+                "歌词署名不影响融合覆盖率")
+    let longTexts = ["长句" + String(repeating: "甲", count: 30), "长句" + String(repeating: "乙", count: 30),
+                     "长句" + String(repeating: "丙", count: 30), "春风山海", "星光远方", "晴空归路", "明天相见", "此刻放心"]
+    let longLyrics = longTexts.enumerated().map { i, text in
+        String(format: "[00:%02d.000]%@", 10 + i * 5, text)
+    }.joined(separator: "\n")
+    let shortOnly = longTexts.enumerated().filter { $0.offset >= 3 }.map { i, text in
+        let start = 10_000 + i * 5_000 + 300
+        return "[\(start),800]" + text.enumerated().map { j, char in "(\(start + j * 200),200,0)\(char)" }.joined()
+    }.joined(separator: "\n")
+    let longOfficial = LyricsCandidate(source: "appleMusic", lyrics: longLyrics, duration: 80, title: "Song", artist: "Artist")
+    let shortDonor = LyricsCandidate(source: "qq", lyrics: longLyrics, wordTiming: shortOnly, duration: 80, title: "Song", artist: "Artist")
+    expectEqual(LyricsFusion.fuse(official: longOfficial, donor: shortDonor) == nil, true,
+                "只匹配五个短句虽超过行数门槛，仍不满足有效正文覆盖率")
 
     let languageLabel = LyricsCandidate(source: "qq", lyrics: kugou.lyrics, wordTiming: kugou.wordTiming,
         duration: kugou.duration, title: "Song (粤语)", artist: "Artist")
